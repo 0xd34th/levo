@@ -1,0 +1,32 @@
+# Worktrees
+.worktrees/
+
+# Dependencies
+node_modules/
+
+review/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+.next/
+out/
+dist/
+build/
+
+# Move build artifacts
+packages/contracts/build/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker volumes
+infra/data/
