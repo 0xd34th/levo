@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
-  txDigest: z.string().min(1),
+  txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid transaction digest format'),
   quoteToken: z.string().min(1),
 });
 
@@ -180,24 +180,31 @@ export async function POST(req: NextRequest) {
   }
 
   // 11. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
-  await prisma.$transaction([
-    prisma.paymentLedger.create({
-      data: {
-        ledgerSource: 'SEND_CONFIRM',
-        txDigest,
-        sourceIndex: 0,
-        senderAddress: quote.senderAddress,
-        xUserId: quote.xUserId,
-        vaultAddress: quote.vaultAddress,
-        coinType: quote.coinType,
-        amount: onChainAmount,
-      },
-    }),
-    prisma.paymentQuote.update({
-      where: { id: quote.id },
-      data: { status: 'CONFIRMED' },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.paymentLedger.create({
+        data: {
+          ledgerSource: 'SEND_CONFIRM',
+          txDigest,
+          sourceIndex: 0,
+          senderAddress: quote.senderAddress,
+          xUserId: quote.xUserId,
+          vaultAddress: quote.vaultAddress,
+          coinType: quote.coinType,
+          amount: onChainAmount,
+        },
+      }),
+      prisma.paymentQuote.update({
+        where: { id: quote.id },
+        data: { status: 'CONFIRMED' },
+      }),
+    ]);
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      return NextResponse.json({ error: 'Transaction already confirmed' }, { status: 409 });
+    }
+    throw err;
+  }
 
   // 12. Return confirmed result
   return NextResponse.json({

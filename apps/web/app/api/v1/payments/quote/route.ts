@@ -10,7 +10,7 @@ import { rateLimit } from '@/lib/rate-limit';
 const SUI_ADDRESS_RE = /^0x[a-fA-F0-9]{64}$/;
 
 const RequestSchema = z.object({
-  username: z.string().min(1).max(16),
+  username: z.string().min(1).max(15),
   coinType: z.string().min(1),
   amount: z.string().regex(/^\d+$/, 'amount must be a numeric string'),
   senderAddress: z.string().regex(SUI_ADDRESS_RE, 'Invalid Sui address'),
@@ -32,6 +32,22 @@ export async function POST(req: NextRequest) {
 
   const { username, coinType, amount, senderAddress } = parsed.data;
 
+  // Validate amount bounds (must fit in u64)
+  const amountBigInt = BigInt(amount);
+  if (amountBigInt < 1n || amountBigInt > 18446744073709551615n) {
+    return NextResponse.json({ error: 'Amount out of valid range' }, { status: 400 });
+  }
+
+  // Validate coinType against allowlist
+  const ALLOWED_COIN_TYPES = new Set([
+    `${process.env.NEXT_PUBLIC_PACKAGE_ID}::test_usdc::TEST_USDC`,
+    '0x2::sui::SUI',
+  ]);
+
+  if (!ALLOWED_COIN_TYPES.has(coinType)) {
+    return NextResponse.json({ error: 'Unsupported coin type' }, { status: 400 });
+  }
+
   // Rate limit by IP + senderAddress (10 req/min)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
   const rl = await rateLimit(`quote:${ip}:${senderAddress}`, 60, 10);
@@ -44,6 +60,7 @@ export async function POST(req: NextRequest) {
     where: {
       senderAddress,
       status: 'PENDING',
+      expiresAt: { gt: new Date() },
     },
   });
   if (pendingCount >= MAX_PENDING_QUOTES) {

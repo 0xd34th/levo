@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
-  username: z.string().min(1).max(16),
+  username: z.string().min(1).max(15),
 });
 
 export async function POST(req: NextRequest) {
