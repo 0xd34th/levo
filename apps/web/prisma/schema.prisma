@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model XUser {
+  xUserId           String        @id @map("x_user_id")
+  username          String
+  profilePicture    String?       @map("profile_picture")
+  isBlueVerified    Boolean       @default(false) @map("is_blue_verified")
+  accountStatus     AccountStatus @default(ACTIVE) @map("account_status")
+  derivationVersion Int           @default(1) @map("derivation_version")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  quotes PaymentQuote[]
+  ledger PaymentLedger[]
+
+  @@map("x_user")
+}
+
+enum AccountStatus {
+  ACTIVE
+  RENAMED
+  SUSPENDED
+  DELETED
+}
+
+model PaymentQuote {
+  id                String      @id @default(cuid())
+  senderAddress     String      @map("sender_address")
+  xUserId           String      @map("x_user_id")
+  usernameAtQuote   String      @map("username_at_quote")
+  derivationVersion Int         @map("derivation_version")
+  vaultAddress      String      @map("vault_address")
+  coinType          String      @map("coin_type")
+  amount            BigInt
+  expiresAt         DateTime    @map("expires_at")
+  status            QuoteStatus @default(PENDING)
+  hmacToken         String      @map("hmac_token")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+
+  @@index([senderAddress, status])
+  @@index([xUserId])
+  @@index([expiresAt])
+  @@map("payment_quote")
+}
+
+enum QuoteStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+  FAILED
+}
+
+model PaymentLedger {
+  id            String       @id @default(cuid())
+  ledgerSource  LedgerSource @map("ledger_source")
+  txDigest      String       @map("tx_digest")
+  sourceIndex   Int          @map("source_index")
+  senderAddress String       @map("sender_address")
+  xUserId       String       @map("x_user_id")
+  vaultAddress  String       @map("vault_address")
+  coinType      String       @map("coin_type")
+  amount        BigInt
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+
+  @@unique([ledgerSource, txDigest, sourceIndex])
+  @@index([senderAddress])
+  @@index([xUserId])
+  @@map("payment_ledger")
+}
+
+enum LedgerSource {
+  SEND_CONFIRM
+  CONTRACT_EVENT
+}
