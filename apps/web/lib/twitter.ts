@@ -35,7 +35,8 @@ export async function resolveXUser(
 
   if (!res.ok) return null;
 
-  const data = await res.json();
+  const json = await res.json();
+  const data = json.data ?? json;
 
   if (data.unavailable) return null;
   if (!data.id) return null;
