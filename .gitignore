@@ -31,3 +31,8 @@ packages/contracts/build/
 
 # Docker volumes
 infra/data/
+
+# Next.js
+apps/web/.next/
+apps/web/node_modules/
+apps/web/out/
