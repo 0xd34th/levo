@@ -19,6 +19,7 @@ build/
 
 # Move build artifacts
 packages/contracts/build/
+.move-home/
 
 # OS
 .DS_Store

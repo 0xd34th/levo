@@ -1,0 +1,13 @@
+{
+  "name": "levo",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "scripts": {
+    "generate:test-vectors": "tsx packages/contracts/scripts/generate-test-vectors.ts"
+  },
+  "devDependencies": {
+    "@noble/curves": "^2.0.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

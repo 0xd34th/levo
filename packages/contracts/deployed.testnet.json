@@ -1,0 +1,13 @@
+{
+  "network": "testnet",
+  "packageId": "0x319aae1ca6c9b3f618403ee073be01c411791871bc392b80930dc14e9be6fcfe",
+  "xVaultRegistryId": "0xc256e6c7972fe17b1ec41152b4a4b9eec52b796ff5aeca221da15f74be0402cb",
+  "enclaveRegistryId": "0x11cddaae036a2faabc315226ae031d10cd1c488f91dd436fd0aac2157b25715a",
+  "enclavePubkeyNote": "TEST ONLY — the registered enclave public key is deterministically derived from packages/contracts/scripts/generate-test-vectors.ts and is publicly known. Rotate and revoke it before any production deployment.",
+  "testUsdcTreasuryCapId": "0x0eaef593797422aec7327a24a874261121cefa88f2612798ae97342659a8a67d",
+  "testUsdcCoinMetadataId": "0x844d219bfdb9d9ea95b5fa1f14e968e5dbb3cfe7ff176483b64486c6ceef344a",
+  "testUsdcType": "0x319aae1ca6c9b3f618403ee073be01c411791871bc392b80930dc14e9be6fcfe::test_usdc::TEST_USDC",
+  "upgradeCapId": "0xdd93a6658eac583eaf3f91d7ad4ab90a0ab0a4b49b16d572d3659d6751105a80",
+  "deployedAt": "2026-03-12",
+  "deployTxDigest": "Bfj1jqjxbDoSXhMtUzRo71C5nWRVEFcDCdkBtuGCteqf"
+}
