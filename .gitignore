@@ -36,3 +36,6 @@ infra/data/
 apps/web/.next/
 apps/web/node_modules/
 apps/web/out/
+
+# Prisma generated client
+apps/web/lib/generated/
