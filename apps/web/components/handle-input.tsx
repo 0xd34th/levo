@@ -77,7 +77,7 @@ export function HandleInput({ onResolved, onLoading, onError }: HandleInputProps
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/^@/, '');
+    const raw = e.target.value.replace(/^@/, '').slice(0, 15);
     setValue(raw);
 
     if (debounceRef.current) {
@@ -110,6 +110,7 @@ export function HandleInput({ onResolved, onLoading, onError }: HandleInputProps
           placeholder="username"
           value={value}
           onChange={handleChange}
+          maxLength={15}
           className="pl-7"
           autoComplete="off"
           spellCheck={false}

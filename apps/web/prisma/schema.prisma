@@ -46,6 +46,7 @@ model PaymentQuote {
 
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
 
+  @@unique([hmacToken])
   @@index([senderAddress, status])
   @@index([xUserId])
   @@index([expiresAt])

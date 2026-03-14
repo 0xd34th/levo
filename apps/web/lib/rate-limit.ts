@@ -1,10 +1,39 @@
+import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 
 let _redis: Redis | null = null;
 
+const SLIDING_WINDOW_SCRIPT = `
+  local key = KEYS[1]
+  local window_start = tonumber(ARGV[1])
+  local now = tonumber(ARGV[2])
+  local member = ARGV[3]
+  local max_requests = tonumber(ARGV[4])
+  local ttl = tonumber(ARGV[5])
+
+  redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+
+  local count = redis.call('ZCARD', key)
+  if count >= max_requests then
+    redis.call('EXPIRE', key, ttl)
+    return {0, count}
+  end
+
+  redis.call('ZADD', key, now, member)
+  redis.call('EXPIRE', key, ttl)
+
+  return {1, count + 1}
+`;
+
 export function getRedis(): Redis {
   if (!_redis) {
-    _redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+    _redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+    });
+    _redis.on('error', (error) => {
+      console.error('Redis connection error', error);
+    });
   }
   return _redis;
 }
@@ -30,22 +59,35 @@ export async function rateLimit(
   const now = Date.now();
   const windowMs = windowSec * 1000;
   const windowStart = now - windowMs;
-
   const fullKey = `rl:${key}`;
+  const resetAt = Math.floor((now + windowMs) / 1000);
 
-  // Use a sorted set: score = timestamp, member = unique request id
-  const pipeline = redis.pipeline();
-  pipeline.zremrangebyscore(fullKey, 0, windowStart);
-  pipeline.zadd(fullKey, now, `${now}:${Math.random()}`);
-  pipeline.zcard(fullKey);
-  pipeline.expire(fullKey, windowSec + 1);
+  try {
+    const result = await redis.eval(
+      SLIDING_WINDOW_SCRIPT,
+      1,
+      fullKey,
+      windowStart,
+      now,
+      `${now}:${randomUUID()}`,
+      max,
+      windowSec + 1,
+    );
+    const [allowedValue, countValue] = result as [number, number];
+    const allowed = Number(allowedValue) === 1;
+    const count = Number(countValue);
 
-  const results = await pipeline.exec();
-  const count = (results?.[2]?.[1] as number) ?? 0;
-
-  return {
-    allowed: count <= max,
-    remaining: Math.max(0, max - count),
-    resetAt: Math.floor((now + windowMs) / 1000),
-  };
+    return {
+      allowed,
+      remaining: allowed ? Math.max(0, max - count) : 0,
+      resetAt,
+    };
+  } catch (error) {
+    console.error('Rate limiter unavailable, allowing request', error);
+    return {
+      allowed: true,
+      remaining: max,
+      resetAt,
+    };
+  }
 }

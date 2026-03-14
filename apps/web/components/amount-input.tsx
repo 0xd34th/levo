@@ -2,6 +2,7 @@
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getCoinLabel, isValidAmountInput } from '@/lib/coins';
 
 interface AmountInputProps {
   amount: string;
@@ -9,18 +10,10 @@ interface AmountInputProps {
   coinType: string;
 }
 
-/** Extract the human-readable coin name from a fully-qualified coin type. */
-function coinLabel(coinType: string): string {
-  // e.g. "0x123::test_usdc::TEST_USDC" -> "TEST_USDC"
-  const parts = coinType.split('::');
-  return parts.length >= 3 ? parts[parts.length - 1]! : 'TUSDC';
-}
-
 export function AmountInput({ amount, onAmountChange, coinType }: AmountInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // Allow empty, digits, and a single decimal point
-    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+    if (val === '' || isValidAmountInput(val, coinType)) {
       onAmountChange(val);
     }
   };
@@ -40,7 +33,7 @@ export function AmountInput({ amount, onAmountChange, coinType }: AmountInputPro
           autoComplete="off"
         />
         <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-          {coinLabel(coinType)}
+          {getCoinLabel(coinType)}
         </span>
       </div>
     </div>

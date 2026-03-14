@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Transaction, coinWithBalance } from '@mysten/sui/transactions';
 import { useDAppKit, useCurrentAccount } from '@mysten/dapp-kit-react';
 import { Button } from '@/components/ui/button';
 import type { ResolvedUser } from '@/components/handle-input';
 import type { ConfirmationData } from '@/components/confirmation-modal';
+import { getCoinDecimals } from '@/lib/coins';
 
 interface SendButtonProps {
   user: ResolvedUser | null;
@@ -17,9 +18,14 @@ interface SendButtonProps {
 
 /** Convert a human-readable amount (e.g. "1.5") to base units (bigint) for a given decimal count. */
 function toBaseUnits(amount: string, decimals = 6): bigint {
-  const [whole = '0', frac = ''] = amount.split('.');
-  const paddedFrac = frac.padEnd(decimals, '0').slice(0, decimals);
-  return BigInt(whole + paddedFrac);
+  const [wholeRaw = '0', frac = ''] = amount.split('.');
+  if (frac.length > decimals) {
+    throw new Error(`Amount supports at most ${decimals} decimal places`);
+  }
+
+  const whole = wholeRaw === '' ? '0' : wholeRaw;
+  const paddedFrac = frac.padEnd(decimals, '0');
+  return BigInt(`${whole}${paddedFrac}`);
 }
 
 /** Retry confirm up to maxRetries times with a delay when server returns 202. */
@@ -55,15 +61,30 @@ async function confirmWithRetry(
 
 export function SendButton({ user, amount, coinType, onError, onConfirm }: SendButtonProps) {
   const [sending, setSending] = useState(false);
+  const inFlightRef = useRef(false);
   const dAppKit = useDAppKit();
   const account = useCurrentAccount();
-
-  const amountNum = parseFloat(amount || '0');
-  const disabled = !account || !user || amountNum <= 0 || sending;
+  const amountNum = amount === '' ? Number.NaN : Number(amount);
+  const disabled =
+    !account ||
+    !user ||
+    amount === '' ||
+    Number.isNaN(amountNum) ||
+    amountNum <= 0 ||
+    sending;
 
   const handleSend = async () => {
-    if (!account || !user) return;
+    if (!account || !user || inFlightRef.current) return;
 
+    const amountNum = amount === '' ? Number.NaN : Number(amount);
+    if (amount === '' || Number.isNaN(amountNum) || amountNum <= 0) {
+      onError('Enter a valid amount');
+      return;
+    }
+
+    const baseAmount = toBaseUnits(amount, getCoinDecimals(coinType));
+
+    inFlightRef.current = true;
     setSending(true);
     onError(null);
 
@@ -75,7 +96,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
         body: JSON.stringify({
           username: user.username,
           coinType,
-          amount: toBaseUnits(amount).toString(),
+          amount: baseAmount.toString(),
           senderAddress: account.address,
         }),
       });
@@ -97,7 +118,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       const coin = tx.add(
         coinWithBalance({
           type: coinType,
-          balance: toBaseUnits(amount),
+          balance: baseAmount,
         }),
       );
       tx.transferObjects([coin], vaultAddress);
@@ -126,6 +147,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       // 5. Success
       onConfirm({
         amount,
+        coinType,
         username: user.username,
         txDigest,
       });
@@ -133,6 +155,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       const message = err instanceof Error ? err.message : 'Transaction failed';
       onError(message);
     } finally {
+      inFlightRef.current = false;
       setSending(false);
     }
   };

@@ -9,9 +9,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { getCoinLabel, getExplorerTransactionUrl } from '@/lib/coins';
 
 export interface ConfirmationData {
   amount: string;
+  coinType: string;
   username: string;
   txDigest: string;
 }
@@ -25,7 +27,8 @@ interface ConfirmationModalProps {
 export function ConfirmationModal({ data, network, onClose }: ConfirmationModalProps) {
   if (!data) return null;
 
-  const explorerUrl = `https://suiscan.xyz/${network}/tx/${data.txDigest}`;
+  const explorerUrl = getExplorerTransactionUrl(network, data.txDigest);
+  const coinLabel = getCoinLabel(data.coinType);
 
   return (
     <Dialog open={!!data} onOpenChange={(open) => !open && onClose()}>
@@ -40,7 +43,7 @@ export function ConfirmationModal({ data, network, onClose }: ConfirmationModalP
         <div className="space-y-3 py-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Amount</span>
-            <span className="font-medium">{data.amount} TUSDC</span>
+            <span className="font-medium">{data.amount} {coinLabel}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Recipient</span>
@@ -55,14 +58,16 @@ export function ConfirmationModal({ data, network, onClose }: ConfirmationModalP
         </div>
 
         <DialogFooter>
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            View on Explorer
-          </a>
+          {explorerUrl ? (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              View on Explorer
+            </a>
+          ) : null}
           <Button onClick={onClose}>Done</Button>
         </DialogFooter>
       </DialogContent>

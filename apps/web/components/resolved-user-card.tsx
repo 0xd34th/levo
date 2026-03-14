@@ -11,6 +11,15 @@ interface ResolvedUserCardProps {
   error: string | null;
 }
 
+function isTrustedProfilePictureUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.twimg.com');
+  } catch {
+    return false;
+  }
+}
+
 function truncateAddress(address: string): string {
   if (address.length <= 14) return address;
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
@@ -45,13 +54,18 @@ export function ResolvedUserCard({ user, loading, error }: ResolvedUserCardProps
 
   if (!user) return null;
 
+  const profilePicture =
+    user.profilePicture && isTrustedProfilePictureUrl(user.profilePicture)
+      ? user.profilePicture
+      : null;
+
   return (
     <Card>
       <CardContent>
         <div className="flex items-center gap-3">
-          {user.profilePicture ? (
+          {profilePicture ? (
             <img
-              src={user.profilePicture}
+              src={profilePicture}
               alt={`@${user.username}`}
               className="h-10 w-10 rounded-full object-cover"
             />

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
-import { resolveXUser } from '@/lib/twitter';
+import { getClientIp, invalidInputResponse } from '@/lib/api';
+import {
+  isSupportedCoinType,
+  requiresPackageIdForCoinType,
+} from '@/lib/coins';
+import { resolveXUser, TwitterApiError } from '@/lib/twitter';
 import { deriveVaultAddress } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
@@ -24,10 +29,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Invalid input', details: parsed.error.format() },
-      { status: 400 },
-    );
+    return invalidInputResponse();
   }
 
   const { username, coinType, amount, senderAddress } = parsed.data;
@@ -38,29 +40,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Amount out of valid range' }, { status: 400 });
   }
 
-  // Validate coinType against allowlist
-  const ALLOWED_COIN_TYPES = new Set([
-    `${process.env.NEXT_PUBLIC_PACKAGE_ID}::test_usdc::TEST_USDC`,
-    '0x2::sui::SUI',
-  ]);
+  if (
+    !process.env.NEXT_PUBLIC_PACKAGE_ID &&
+    requiresPackageIdForCoinType(coinType)
+  ) {
+    return NextResponse.json(
+      { error: 'Server configuration error' },
+      { status: 500 },
+    );
+  }
 
-  if (!ALLOWED_COIN_TYPES.has(coinType)) {
+  if (!isSupportedCoinType(coinType)) {
     return NextResponse.json({ error: 'Unsupported coin type' }, { status: 400 });
   }
 
   // Rate limit by IP + senderAddress (10 req/min)
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
+  const ip = getClientIp(req);
   const rl = await rateLimit(`quote:${ip}:${senderAddress}`, 60, 10);
   if (!rl.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
+
+  const now = new Date();
+
+  await prisma.paymentQuote.updateMany({
+    where: {
+      senderAddress,
+      status: 'PENDING',
+      expiresAt: { lt: now },
+    },
+    data: { status: 'EXPIRED' },
+  });
 
   // Check pending quote cap: max 10 unresolved quotes per sender
   const pendingCount = await prisma.paymentQuote.count({
     where: {
       senderAddress,
       status: 'PENDING',
-      expiresAt: { gt: new Date() },
+      expiresAt: { gt: now },
     },
   });
   if (pendingCount >= MAX_PENDING_QUOTES) {
@@ -79,7 +96,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const userInfo = await resolveXUser(username, apiKey);
+  let userInfo;
+  try {
+    userInfo = await resolveXUser(username, apiKey);
+  } catch (error) {
+    console.error('Failed to resolve quote recipient', error);
+    const status = error instanceof TwitterApiError && error.status === 504 ? 504 : 503;
+    return NextResponse.json(
+      { error: 'X lookup is temporarily unavailable' },
+      { status },
+    );
+  }
   if (!userInfo) {
     return NextResponse.json(
       { error: 'User not found on X' },

@@ -1,3 +1,5 @@
+'use client';
+
 import { createDAppKit } from '@mysten/dapp-kit-core';
 import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getClientIp, invalidInputResponse } from '@/lib/api';
 import { verifyQuoteToken } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
@@ -10,9 +11,34 @@ const RequestSchema = z.object({
   quoteToken: z.string().min(1),
 });
 
+class QuoteClaimError extends Error {
+  constructor() {
+    super('Quote is no longer claimable');
+    this.name = 'QuoteClaimError';
+  }
+}
+
+function extractTransferredCoinType(objectType: string): string | null {
+  const prefix = '0x2::coin::Coin<';
+  if (!objectType.startsWith(prefix) || !objectType.endsWith('>')) {
+    return null;
+  }
+
+  return objectType.slice(prefix.length, -1);
+}
+
+function isPrismaConflictError(error: unknown): error is { code: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'P2002'
+  );
+}
+
 export async function POST(req: NextRequest) {
   // 1. Rate limit by IP (20 req/min)
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
+  const ip = getClientIp(req);
   const rl = await rateLimit(`confirm:${ip}`, 60, 20);
   if (!rl.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -22,10 +48,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Invalid input', details: parsed.error.format() },
-      { status: 400 },
-    );
+    return invalidInputResponse();
   }
 
   const { txDigest, quoteToken } = parsed.data;
@@ -63,19 +86,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 5. Find matching PaymentQuote by hmacToken where status=PENDING
-  const quote = await prisma.paymentQuote.findFirst({
-    where: {
-      hmacToken: quoteToken,
-      status: 'PENDING',
-    },
-  });
-  if (!quote) {
-    return NextResponse.json(
-      { error: 'No matching pending quote found' },
-      { status: 404 },
-    );
-  }
+  const quotedAmount = BigInt(quotePayload.amount);
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -108,8 +119,11 @@ export async function POST(req: NextRequest) {
 
   // 6b. If tx failed on-chain, mark quote FAILED and return 409
   if (tx.effects?.status.status !== 'success') {
-    await prisma.paymentQuote.update({
-      where: { id: quote.id },
+    await prisma.paymentQuote.updateMany({
+      where: {
+        hmacToken: quoteToken,
+        status: 'PENDING',
+      },
       data: { status: 'FAILED' },
     });
     return NextResponse.json(
@@ -120,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   // 7. Verify sender matches quote's senderAddress
   const txSender = tx.transaction?.data.sender;
-  if (!txSender || txSender !== quote.senderAddress) {
+  if (!txSender || txSender !== quotePayload.senderAddress) {
     return NextResponse.json(
       { error: 'Transaction sender does not match quote' },
       { status: 400 },
@@ -135,10 +149,8 @@ export async function POST(req: NextRequest) {
     const recipient = change.recipient;
     if (typeof recipient !== 'object' || recipient === null) return false;
     if (!('AddressOwner' in recipient)) return false;
-    if (recipient.AddressOwner !== quote.vaultAddress) return false;
-    // Check objectType includes the coinType
-    if (!change.objectType.includes(quote.coinType)) return false;
-    return true;
+    if (recipient.AddressOwner !== quotePayload.vaultAddress) return false;
+    return extractTransferredCoinType(change.objectType) === quotePayload.coinType;
   });
 
   if (!transferChange) {
@@ -154,8 +166,8 @@ export async function POST(req: NextRequest) {
     const owner = bc.owner;
     if (typeof owner !== 'object' || owner === null) return false;
     if (!('AddressOwner' in owner)) return false;
-    if (owner.AddressOwner !== quote.vaultAddress) return false;
-    if (bc.coinType !== quote.coinType) return false;
+    if (owner.AddressOwner !== quotePayload.vaultAddress) return false;
+    if (bc.coinType !== quotePayload.coinType) return false;
     return true;
   });
 
@@ -168,11 +180,11 @@ export async function POST(req: NextRequest) {
 
   // 10. Verify amount matches
   const onChainAmount = BigInt(vaultBalanceChange.amount);
-  if (onChainAmount !== quote.amount) {
+  if (onChainAmount !== quotedAmount) {
     return NextResponse.json(
       {
         error: 'Amount mismatch',
-        expected: quote.amount.toString(),
+        expected: quotedAmount.toString(),
         actual: onChainAmount.toString(),
       },
       { status: 400 },
@@ -181,26 +193,93 @@ export async function POST(req: NextRequest) {
 
   // 11. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
   try {
-    await prisma.$transaction([
-      prisma.paymentLedger.create({
+    const confirmedAt = new Date();
+    await prisma.$transaction(async (txClient) => {
+      const claim = await txClient.paymentQuote.updateMany({
+        where: {
+          hmacToken: quoteToken,
+          status: 'PENDING',
+          expiresAt: { gte: confirmedAt },
+          senderAddress: quotePayload.senderAddress,
+          xUserId: quotePayload.xUserId,
+          vaultAddress: quotePayload.vaultAddress,
+          coinType: quotePayload.coinType,
+          amount: onChainAmount,
+        },
+        data: { status: 'CONFIRMED' },
+      });
+
+      if (claim.count !== 1) {
+        throw new QuoteClaimError();
+      }
+
+      await txClient.paymentLedger.create({
         data: {
           ledgerSource: 'SEND_CONFIRM',
           txDigest,
           sourceIndex: 0,
-          senderAddress: quote.senderAddress,
-          xUserId: quote.xUserId,
-          vaultAddress: quote.vaultAddress,
-          coinType: quote.coinType,
+          senderAddress: quotePayload.senderAddress,
+          xUserId: quotePayload.xUserId,
+          vaultAddress: quotePayload.vaultAddress,
+          coinType: quotePayload.coinType,
           amount: onChainAmount,
         },
-      }),
-      prisma.paymentQuote.update({
-        where: { id: quote.id },
-        data: { status: 'CONFIRMED' },
-      }),
-    ]);
-  } catch (err: any) {
-    if (err?.code === 'P2002') {
+      });
+    });
+  } catch (err: unknown) {
+    if (err instanceof QuoteClaimError) {
+      const currentQuote = await prisma.paymentQuote.findFirst({
+        where: { hmacToken: quoteToken },
+        select: {
+          status: true,
+          expiresAt: true,
+        },
+      });
+
+      if (!currentQuote) {
+        return NextResponse.json(
+          { error: 'No matching quote found' },
+          { status: 404 },
+        );
+      }
+
+      if (currentQuote.status === 'PENDING' && currentQuote.expiresAt < new Date()) {
+        await prisma.paymentQuote.updateMany({
+          where: {
+            hmacToken: quoteToken,
+            status: 'PENDING',
+            expiresAt: { lt: new Date() },
+          },
+          data: { status: 'EXPIRED' },
+        });
+
+        return NextResponse.json(
+          { error: 'Quote expired before confirmation completed' },
+          { status: 410 },
+        );
+      }
+
+      if (currentQuote.status === 'CONFIRMED') {
+        return NextResponse.json(
+          { error: 'Quote already confirmed' },
+          { status: 409 },
+        );
+      }
+
+      if (currentQuote.status === 'FAILED') {
+        return NextResponse.json(
+          { error: 'Quote already failed' },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        { error: 'Quote is no longer pending' },
+        { status: 409 },
+      );
+    }
+
+    if (isPrismaConflictError(err)) {
       return NextResponse.json({ error: 'Transaction already confirmed' }, { status: 409 });
     }
     throw err;
@@ -210,7 +289,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     status: 'confirmed',
     amount: onChainAmount.toString(),
-    vaultAddress: quote.vaultAddress,
+    vaultAddress: quotePayload.vaultAddress,
     txDigest,
   });
 }
