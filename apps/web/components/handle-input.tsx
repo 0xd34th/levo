@@ -86,7 +86,7 @@ export function HandleInput({ onResolved, onLoading, onError }: HandleInputProps
 
     debounceRef.current = setTimeout(() => {
       resolve(raw.trim());
-    }, 500);
+    }, 800);
   };
 
   // Cleanup on unmount

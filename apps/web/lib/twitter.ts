@@ -15,11 +15,12 @@ export class TwitterApiError extends Error {
   }
 }
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{1,15}$/;
+export const X_USERNAME_RE = /^[a-zA-Z0-9_]{1,15}$/;
+export const X_USERNAME_INPUT_RE = /^@?[a-zA-Z0-9_]{1,15}$/;
 
-function sanitizeUsername(raw: string): string {
+export function normalizeXUsername(raw: string): string {
   const cleaned = raw.startsWith('@') ? raw.slice(1) : raw;
-  if (!USERNAME_RE.test(cleaned)) {
+  if (!X_USERNAME_RE.test(cleaned)) {
     throw new Error('Invalid username');
   }
   return cleaned;
@@ -33,7 +34,7 @@ export async function resolveXUser(
   rawUsername: string,
   apiKey: string,
 ): Promise<XUserInfo | null> {
-  const username = sanitizeUsername(rawUsername);
+  const username = normalizeXUsername(rawUsername);
 
   let res: Response;
   try {

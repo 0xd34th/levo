@@ -6,16 +6,17 @@ import {
   isSupportedCoinType,
   requiresPackageIdForCoinType,
 } from '@/lib/coins';
-import { resolveXUser, TwitterApiError } from '@/lib/twitter';
 import { deriveVaultAddress } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
+import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
 const SUI_ADDRESS_RE = /^0x[a-fA-F0-9]{64}$/;
 
 const RequestSchema = z.object({
-  username: z.string().min(1).max(15),
+  username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username'),
   coinType: z.string().min(1),
   amount: z.string().regex(/^\d+$/, 'amount must be a numeric string'),
   senderAddress: z.string().regex(SUI_ADDRESS_RE, 'Invalid Sui address'),
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve username via twitterapi.io (always fresh)
+  // Resolve username via twitterapi.io, reusing a very recent cached resolution when possible.
   const apiKey = process.env.TWITTER_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -98,13 +99,17 @@ export async function POST(req: NextRequest) {
 
   let userInfo;
   try {
-    userInfo = await resolveXUser(username, apiKey);
+    userInfo = await resolveFreshXUser(username, apiKey);
   } catch (error) {
-    console.error('Failed to resolve quote recipient', error);
-    const status = error instanceof TwitterApiError && error.status === 504 ? 504 : 503;
+    const lookupError = getXLookupErrorDetails(error);
+    if (lookupError.status === 429) {
+      console.warn('Quote recipient lookup provider is rate limited');
+    } else {
+      console.error('Failed to resolve quote recipient', error);
+    }
     return NextResponse.json(
-      { error: 'X lookup is temporarily unavailable' },
-      { status },
+      { error: lookupError.error },
+      { status: lookupError.status, headers: lookupError.headers },
     );
   }
   if (!userInfo) {

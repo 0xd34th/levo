@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getClientIp, invalidInputResponse } from '@/lib/api';
-import { resolveXUser, TwitterApiError } from '@/lib/twitter';
 import { deriveVaultAddress } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
+import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
 const RequestSchema = z.object({
-  username: z.string().min(1).max(15),
+  username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username'),
 });
 
 export async function POST(req: NextRequest) {
@@ -38,13 +39,17 @@ export async function POST(req: NextRequest) {
 
   let userInfo;
   try {
-    userInfo = await resolveXUser(username, apiKey);
+    userInfo = await resolveFreshXUser(username, apiKey);
   } catch (error) {
-    console.error('Failed to resolve X user', error);
-    const status = error instanceof TwitterApiError && error.status === 504 ? 504 : 503;
+    const lookupError = getXLookupErrorDetails(error);
+    if (lookupError.status === 429) {
+      console.warn('X lookup provider is rate limited');
+    } else {
+      console.error('Failed to resolve X user', error);
+    }
     return NextResponse.json(
-      { error: 'X lookup is temporarily unavailable' },
-      { status },
+      { error: lookupError.error },
+      { status: lookupError.status, headers: lookupError.headers },
     );
   }
   if (!userInfo) {
