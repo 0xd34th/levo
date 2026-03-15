@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import {
   normalizeXUsername,
+  parseXUserId,
   resolveXUser,
   TwitterApiError,
   type XUserInfo,
@@ -19,9 +20,14 @@ function toXUserInfo(user: {
   username: string;
   profilePicture: string | null;
   isBlueVerified: boolean;
-}): XUserInfo {
+}): XUserInfo | null {
+  const xUserId = parseXUserId(user.xUserId);
+  if (!xUserId) {
+    return null;
+  }
+
   return {
-    xUserId: user.xUserId,
+    xUserId,
     username: user.username,
     profilePicture: user.profilePicture,
     isBlueVerified: user.isBlueVerified,
@@ -49,8 +55,9 @@ export async function resolveFreshXUser(
     orderBy: { updatedAt: 'desc' },
   });
 
-  if (cachedUser) {
-    return toXUserInfo(cachedUser);
+  const cachedUserInfo = cachedUser ? toXUserInfo(cachedUser) : null;
+  if (cachedUserInfo) {
+    return cachedUserInfo;
   }
 
   return resolveXUser(username, apiKey);

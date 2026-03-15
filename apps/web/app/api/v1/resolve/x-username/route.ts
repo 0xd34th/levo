@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getClientIp, invalidInputResponse } from '@/lib/api';
+import { getClientIp, invalidInputResponse, noStoreJson } from '@/lib/api';
 import { deriveVaultAddress } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = await rateLimit(`resolve:${ip}`, 60, 30);
   if (!rl.allowed) {
-    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+    return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   // Parse input
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   // Resolve via twitterapi.io
   const apiKey = process.env.TWITTER_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
@@ -47,13 +48,13 @@ export async function POST(req: NextRequest) {
     } else {
       console.error('Failed to resolve X user', error);
     }
-    return NextResponse.json(
+    return noStoreJson(
       { error: lookupError.error },
       { status: lookupError.status, headers: lookupError.headers },
     );
   }
   if (!userInfo) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'User not found on X' },
       { status: 404 },
     );
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   // Derive vault address
   const registryId = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
   if (!registryId) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
@@ -70,6 +71,10 @@ export async function POST(req: NextRequest) {
 
   const vaultAddress = deriveVaultAddress(registryId, BigInt(userInfo.xUserId));
   const derivationVersion = 1;
+  const profilePicture =
+    userInfo.profilePicture && isTrustedProfilePictureUrl(userInfo.profilePicture)
+      ? userInfo.profilePicture
+      : null;
 
   // Upsert x_user row (analytics/audit only)
   try {
@@ -77,13 +82,13 @@ export async function POST(req: NextRequest) {
       where: { xUserId: userInfo.xUserId },
       update: {
         username: userInfo.username,
-        profilePicture: userInfo.profilePicture,
+        profilePicture,
         isBlueVerified: userInfo.isBlueVerified,
       },
       create: {
         xUserId: userInfo.xUserId,
         username: userInfo.username,
-        profilePicture: userInfo.profilePicture,
+        profilePicture,
         isBlueVerified: userInfo.isBlueVerified,
         derivationVersion,
       },
@@ -92,10 +97,10 @@ export async function POST(req: NextRequest) {
     console.error('Failed to persist resolved X user metadata', error);
   }
 
-  return NextResponse.json({
+  return noStoreJson({
     xUserId: userInfo.xUserId,
     username: userInfo.username,
-    profilePicture: userInfo.profilePicture,
+    profilePicture,
     isBlueVerified: userInfo.isBlueVerified,
     derivationVersion,
     vaultAddress,

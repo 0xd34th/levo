@@ -1,6 +1,6 @@
 # Fixed Findings — Batch 0
 
-> Last updated: 2026-03-15
+> Last updated: 2026-03-16
 
 ### [F-001] MintButton has no mainnet guard
 
@@ -261,7 +261,47 @@ return null;
 
 ---
 
-### [F-024] History pagination uses an `id` cursor with a different primary sort key
+### [F-024] Editing the handle leaves the previous recipient live long enough to misdirect a send
+
+**File**: `apps/web/components/username-input.tsx:119`
+**Severity**: High
+**Description**: After a username resolves, changing the input to another non-empty value does not immediately clear the old resolution. `HomePage` keeps passing that stale `resolvedUser` into `SendButton`, and `SendButton` quotes the transfer with `user.username`. During the 450 ms debounce window, the field can show the new handle while clicking "Send now" still pays the previous recipient.
+**Suggested Fix**: Clear the resolved user and call `onResolvedChange(null)` on every input change before scheduling the next lookup, or disable sending until the current normalized input has been re-resolved.
+**Fixed in**: Added shared handle normalization in `apps/web/lib/send-form.ts`, and now `apps/web/components/username-input.tsx` clears the resolved user, error state, and parent callback immediately on every edit before the next debounced lookup begins.
+
+---
+
+### [F-025] The new multi-asset send flow still labels SUI amounts as dollars
+
+**File**: `apps/web/components/amount-input.tsx:29`
+**Severity**: Medium
+**Description**: The homepage now lets users switch between `TEST USDC` and `SUI`, and even defaults to `SUI` when no test-USDC package is configured. But the amount field still hardcodes a leading `$`, and the success state echoes amounts as `"$<amount> <coin>"`. Selecting SUI therefore produces copy like `$1.5 SUI`, which is financially misleading in a payment flow and can cause users to enter the wrong value.
+**Suggested Fix**: Only render a dollar prefix for dollar-denominated assets, and make the success copy format the selected coin generically instead of assuming USD.
+**Fixed in**: Added `usesDollarAmountPrefix()` in `apps/web/lib/send-form.ts`, used it in `apps/web/components/amount-input.tsx` so SUI no longer renders a dollar prefix, and updated `apps/web/components/transaction-result.tsx` to show generic `<amount> <coin>` success copy.
+
+---
+
+### [F-026] Switching assets can leave an invalid amount enabled until send time
+
+**File**: `apps/web/components/amount-input.tsx:14`
+**Severity**: Low
+**Description**: Amount validation only runs while the user is typing, not when `coinType` changes. A valid 9-decimal SUI amount can therefore stay in the field after the user switches to 6-decimal `TEST USDC`, while `SendButton` remains enabled. The first time the user learns the amount is invalid is after clicking send, when `toBaseUnits()` throws.
+**Suggested Fix**: Revalidate or clamp the current amount whenever `coinType` changes, and keep the send action disabled while the visible amount exceeds the selected asset's precision.
+**Fixed in**: Added `sanitizeAmountForCoinType()` in `apps/web/lib/send-form.ts`, applied it when `apps/web/app/page.tsx` changes the selected asset, and tightened `apps/web/components/send-button.tsx` so invalid precision disables send and surfaces a validation error before transaction building.
+
+---
+
+### [F-027] Leading `@` input truncates valid 15-character X handles
+
+**File**: `apps/web/components/username-input.tsx:114`
+**Severity**: Low
+**Description**: The field visually prefixes `@` and the resolver strips it, so users can reasonably paste or type `@handle`. But the controlled value still keeps that raw `@` while `maxLength={15}` counts it against X's 15-character limit. A valid 15-character handle entered with the leading `@` is truncated to 14 characters before resolution, which can resolve the wrong account or fail lookup entirely.
+**Suggested Fix**: Strip a leading `@` in `onChange` before storing the value and enforcing length, or allow 16 characters in the DOM while normalizing the stored value back to 15 handle characters.
+**Fixed in**: Reused the new `normalizeUsernameInput()` helper in `apps/web/components/username-input.tsx` so leading `@` characters are stripped before storage, and increased the DOM `maxLength` to `MAX_X_HANDLE_LENGTH + 1` so pasted `@handle` values still allow a full 15-character X username.
+
+---
+
+### [F-028] History pagination uses an `id` cursor with a different primary sort key
 
 **File**: `apps/web/app/api/v1/payments/history/route.ts:39`
 **Severity**: Medium
@@ -271,7 +311,7 @@ return null;
 
 ---
 
-### [F-025] Expired wallet auth always forces one visible history failure
+### [F-029] Expired wallet auth always forces one visible history failure
 
 **File**: `apps/web/app/history/page.tsx:96`
 **Severity**: Medium
@@ -281,7 +321,7 @@ return null;
 
 ---
 
-### [F-026] Valid short-form Sui addresses are rejected before normalization
+### [F-030] Valid short-form Sui addresses are rejected before normalization
 
 **File**: `apps/web/app/api/v1/wallet-auth/challenge/route.ts:17`, `apps/web/app/api/v1/payments/history/route.ts:12`
 **Severity**: Low
@@ -291,7 +331,7 @@ return null;
 
 ---
 
-### [F-027] Send-page header is not mobile-safe when mint controls are visible
+### [F-031] Send-page header is not mobile-safe when mint controls are visible
 
 **File**: `apps/web/app/send/page.tsx:43`
 **Severity**: Low
@@ -301,7 +341,7 @@ return null;
 
 ---
 
-### [F-028] Mint status leaks across wallet switches
+### [F-032] Mint status leaks across wallet switches
 
 **File**: `apps/web/components/mint-button.tsx:17`
 **Severity**: Low
@@ -311,7 +351,7 @@ return null;
 
 ---
 
-### [F-029] New `getExpectedOrigin` tests fail strict TypeScript checking
+### [F-033] New `getExpectedOrigin` tests fail strict TypeScript checking
 
 **File**: `apps/web/lib/api.test.ts:9`
 **Severity**: Low
@@ -321,7 +361,7 @@ return null;
 
 ---
 
-### [F-030] Missing `aria-label` on explorer link icon
+### [F-034] Missing `aria-label` on explorer link icon
 
 **File**: `apps/web/components/transaction-row.tsx:62-85`
 **Severity**: Low
@@ -331,7 +371,7 @@ return null;
 
 ---
 
-### [F-031] No cross-domain token rejection test in wallet-auth
+### [F-035] No cross-domain token rejection test in wallet-auth
 
 **File**: `apps/web/lib/wallet-auth.test.ts`
 **Severity**: Low
@@ -341,7 +381,7 @@ return null;
 
 ---
 
-### [F-032] Confirm endpoint missing `Cache-Control: no-store`
+### [F-036] Confirm endpoint missing `Cache-Control: no-store`
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:39-46`
 **Severity**: Medium
@@ -351,7 +391,7 @@ return null;
 
 ---
 
-### [F-033] `txDigest` regex minimum length (32) is too permissive
+### [F-037] `txDigest` regex minimum length (32) is too permissive
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:10`
 **Severity**: Medium
@@ -361,7 +401,7 @@ return null;
 
 ---
 
-### [F-034] HMAC_SECRET minimum length not validated
+### [F-038] HMAC_SECRET minimum length not validated
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:128`, `apps/web/app/api/v1/wallet-auth/challenge/route.ts:42`
 **Severity**: Low
@@ -371,12 +411,667 @@ return null;
 
 ---
 
-### [F-035] Confirm route test coverage is incomplete
+### [F-039] Confirm route test coverage is incomplete
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.test.ts`
 **Severity**: Low
 **Description**: Tests cover idempotency scenarios (regenerated quotes, P2002 conflicts) but miss: the happy path (first-time confirmation), failing transactions, sender mismatch, amount mismatch, and missing balance changes.
 **Suggested Fix**: Add test cases for missing paths.
 **Fixed in**: Expanded `apps/web/app/api/v1/payments/confirm/route.test.ts` to cover the first-time success path, failed on-chain transactions, sender mismatch, amount mismatch, missing balance changes, and short-digest input rejection.
+
+---
+
+### [F-040] New `ThemeToggle` fails the repo lint gate
+
+**File**: `apps/web/components/theme-toggle.tsx:12`
+**Severity**: Medium
+**Description**: The new theme toggle calls `setMounted(true)` inside `useEffect`, which trips the repo's `react-hooks/set-state-in-effect` rule. `pnpm --filter web lint` currently exits with code 1 on this file, so the current diff cannot pass the existing lint check.
+**Suggested Fix**: Replace the effect-driven mount flag with a lint-compliant hydration strategy, such as deriving the icon from `resolvedTheme` or moving the client-ready check to a shared hook that does not call `setState` inside an effect.
+**Fixed in**: Replaced the effect-driven mount state in `apps/web/components/theme-toggle.tsx` with a `useSyncExternalStore()` client-ready check and switched the toggle logic to `resolvedTheme`, which clears the `react-hooks/set-state-in-effect` lint error without changing behavior.
+
+---
+
+### [F-041] Public handle lookups have no stale-request protection
+
+**File**: `apps/web/app/dashboard/received/page.tsx:48`, `apps/web/app/lookup/page.tsx:29`, `apps/web/app/claim/page.tsx:34`
+**Severity**: Medium
+**Description**: The new received dashboard, public lookup page, and claim page all allow multiple in-flight lookups with no `AbortController` or request token. A slower earlier lookup can therefore overwrite a newer handle's result, and the received dashboard's `handleLoadMore()` can even merge an older handle's next page into the currently displayed handle after the user has already searched for someone else.
+**Suggested Fix**: Track each lookup with an abort signal or monotonically increasing request id and ignore stale responses before calling `setResult` / `setLookup` / `setData`. For the received dashboard, guard load-more merges against `activeHandle` changes before appending items.
+**Fixed in**: Added per-page request-id guards to `apps/web/app/lookup/page.tsx` and `apps/web/app/claim/page.tsx`, and added both lookup and load-more invalidation guards to `apps/web/app/dashboard/received/page.tsx` so stale responses no longer overwrite or append into newer handle searches.
+
+---
+
+### [F-042] Claim page reports success without performing any claim
+
+**File**: `apps/web/app/claim/page.tsx:33`
+**Severity**: Medium
+**Description**: The `/claim` route is exposed in the main navbar, but the final "Claim funds" action never calls a backend endpoint or submits a wallet transaction. `handleStepAction('claim')` just waits 900 ms, sets `claimPreviewComplete = true`, and the stepper flips to `Claimed` via `effectiveClaimed`. That makes the page present a successful claim state even though no funds moved on-chain.
+**Suggested Fix**: Keep the step pending until a real claim request/transaction succeeds, or hide/feature-flag the route until the claim flow is actually wired end to end.
+**Fixed in**: Stopped deriving claimed status from the local preview flag in `apps/web/app/claim/page.tsx`, changed the third step to explicit preview copy, and updated the post-click messaging/card so the page no longer presents an unwired preview as a completed claim.
+
+---
+
+### [F-043] Primary navigation disappears completely on mobile
+
+**File**: `apps/web/components/navbar.tsx:110`
+**Severity**: Medium
+**Description**: All route links (`/`, `/dashboard/sent`, `/lookup`, `/claim`) live inside a `<nav>` with `hidden ... md:flex`, and there is no small-screen fallback menu anywhere else in the header. On phones, users lose in-app navigation to every page except whatever URL they already opened directly.
+**Suggested Fix**: Add a mobile navigation affordance, such as a sheet/menu button or a horizontally scrollable tab row that stays visible below `md`.
+**Fixed in**: Added a dedicated `md:hidden` mobile nav row in `apps/web/components/navbar.tsx`, preserving the existing desktop nav while keeping the main routes reachable on small screens.
+
+---
+
+### [F-044] Starting a new claim lookup leaves the previous handle live and clickable
+
+**File**: `apps/web/app/claim/page.tsx:41`
+**Severity**: Medium
+**Description**: `handleLookup()` does not clear `lookup`, `hasSignedInWithX`, or `claimPreviewComplete` when a new search starts, and the empty-handle validation path returns without clearing them either. After loading one handle, entering another handle still leaves the previous vault details and stepper mounted until the new request finishes, so the user can keep clicking "Continue" or "Claim funds" against stale data while the input shows a different handle.
+**Suggested Fix**: Clear the loaded lookup and step state immediately when validation fails or when a new lookup begins, and disable the stepper while a replacement lookup is in flight.
+**Fixed in**: `apps/web/app/claim/page.tsx` now clears the loaded lookup, preview state, pending step state, and notices immediately when a new lookup starts or fails validation, so stale claim UI is removed before the next handle is processed.
+
+---
+
+### [F-045] Public lookup and incoming payment endpoints write to DB on every unauthenticated GET request
+
+**File**: `apps/web/app/api/v1/lookup/x-username/route.ts:68`, `apps/web/app/api/v1/payments/incoming/route.ts:80`
+**Severity**: High
+**Description**: Both new public API endpoints call `persistReceivedDashboardXUser(userInfo)` on every request with no authentication. This function upserts the `xUser` table, updating `username`, `profilePicture`, and `isBlueVerified` from the Twitter API response. Since these are public GET endpoints (rate limited at 30-60 req/min per IP), any anonymous user can trigger repeated upserts for any X handle. This creates unnecessary write amplification on read-heavy public endpoints, violates HTTP GET semantics (write on read), and if the Twitter API ever returns stale/inconsistent data during degradation, the persisted user record could be corrupted by unauthenticated traffic.
+**Suggested Fix**: Make the upsert conditional on a freshness check (e.g., only upsert if the existing record is older than N minutes or missing), or cache resolved user info so repeated requests don't write every time.
+**Fixed in**: Added a freshness-and-equality short-circuit in `apps/web/lib/received-dashboard.ts` so `persistReceivedDashboardXUser()` reuses recent unchanged `x_user` rows instead of upserting on every public GET.
+
+---
+
+### [F-046] Username not URL-encoded in client-side fetch calls — query parameter injection risk
+
+**File**: `apps/web/app/claim/page.tsx:58`, `apps/web/app/lookup/page.tsx:48`
+**Severity**: Medium
+**Description**: The claim and lookup pages construct fetch URLs via template literals without encoding: `` `/api/v1/lookup/x-username?username=${username}` ``. While `normalizeHandle()` strips leading `@` and trims whitespace, it does not strip characters like `&` or `#`. The server-side Zod regex would reject such inputs, but the request is still sent with potentially injected query parameters. The received dashboard correctly uses `URLSearchParams` which auto-encodes values.
+**Suggested Fix**: Use `URLSearchParams` consistently across all client-side fetch calls, matching the pattern already used in `apps/web/app/dashboard/received/page.tsx`.
+**Fixed in**: Updated `apps/web/app/claim/page.tsx` and `apps/web/app/lookup/page.tsx` to build lookup URLs with `URLSearchParams`, so handles are encoded before the request is sent.
+
+---
+
+### [F-047] `normalizeHandle` is weaker than `normalizeUsernameInput` — allows overlong/malformed handles to reach the server
+
+**File**: `apps/web/lib/received-dashboard-client.ts:50-52`
+**Severity**: Medium
+**Description**: The `normalizeHandle` function used on claim, lookup, and received dashboard pages only trims whitespace and strips a single leading `@`. Unlike `normalizeUsernameInput` in `send-form.ts`, it does not strip all whitespace, handle multiple leading `@` characters, or enforce the 15-character X handle limit. A user could enter `@@handle` (resulting in `@handle`) or a 30-character string. The server catches these but shows confusing error messages.
+**Suggested Fix**: Reuse `normalizeUsernameInput` from `send-form.ts` in the dashboard/lookup/claim pages, or unify the normalization logic so client-side validation matches server-side constraints.
+**Fixed in**: `apps/web/lib/received-dashboard-client.ts` now reuses `normalizeUsernameInput()`, and the claim, lookup, and received-dashboard inputs all apply that normalization plus the shared max-length guard as the user types.
+
+---
+
+### [F-048] `received-dashboard.ts` does not validate `xUserId` before BigInt conversion
+
+**File**: `apps/web/lib/received-dashboard.ts:138`
+**Severity**: Medium
+**Description**: `getReceivedVaultSummary` calls `BigInt(xUserId)` where `xUserId` is a string from the Twitter API. If the API returns a non-numeric ID, `BigInt()` throws a `SyntaxError` that propagates as a 503 with an opaque error message.
+**Suggested Fix**: Validate that `xUserId` matches `/^\d+$/` before conversion, and return a descriptive 400-level error if malformed.
+**Fixed in**: Added shared numeric X-user-id parsing in `apps/web/lib/twitter.ts`, ignored malformed cached ids in `apps/web/lib/x-user-lookup.ts`, and guarded `getReceivedVaultSummary()` before `BigInt()` in `apps/web/lib/received-dashboard.ts`.
+
+---
+
+### [F-049] Fake "Sign in with X" step provides no actual identity verification
+
+**File**: `apps/web/app/claim/page.tsx:121-127`
+**Severity**: Medium
+**Description**: Related to but distinct from F-042 (which addressed the fake claim step). The "Sign in with X" step (`id === 'signin'`) simulates X OAuth by waiting 700ms and setting `hasSignedInWithX = true` — no actual OAuth flow, API call, or identity verification occurs. The entire claim stepper can be advanced to the final step without proving ownership of the X handle. If the claim transaction is wired in the future without fixing this, anyone could claim any handle's vault without authentication.
+**Suggested Fix**: Either implement actual X OAuth, or clearly gate the entire claim page behind a "Coming soon" state that prevents the stepper from advancing. The current UI gives users the impression that they have authenticated when they have not.
+**Fixed in**: Changed the claim page’s sign-in step into an explicit coming-soon gate in `apps/web/app/claim/page.tsx`, so clicking it now shows notice text without marking the user authenticated or unlocking later steps.
+
+---
+
+### [F-050] `sent/page.tsx` displays full 66-character wallet address with no truncation in header badge
+
+**File**: `apps/web/app/dashboard/sent/page.tsx:239-241`
+**Severity**: Low
+**Description**: The sent dashboard renders `{account.address}` inside a Badge in the table header. A Sui address is 66 characters, which overflows on narrow screens. Other pages use `truncateAddress()`.
+**Suggested Fix**: Apply `truncateAddress(account.address)` for consistency.
+**Fixed in**: Updated `apps/web/app/dashboard/sent/page.tsx` to truncate the connected wallet address in the header badge with `truncateAddress()`.
+
+---
+
+### [F-051] "Payments sent" count shows loaded items count, not total
+
+**File**: `apps/web/app/dashboard/sent/page.tsx:216`
+**Severity**: Low
+**Description**: The "Payments sent" metric card shows `{items.length}`, which only reflects loaded items — not the user's total sent payment count. After loading 20 of 200 payments, it shows "20". Misleading for a summary metric.
+**Suggested Fix**: Either label it "Payments loaded", remove the count metric, or add a `totalCount` field to the server response.
+**Fixed in**: Relabeled the metric in `apps/web/app/dashboard/sent/page.tsx` to `Payments loaded`, so the existing `items.length` value no longer implies a backend total.
+
+---
+
+### [F-052] No AbortController in claim page or lookup page fetch calls
+
+**File**: `apps/web/app/claim/page.tsx:57-83`, `apps/web/app/lookup/page.tsx:47-71`
+**Severity**: Low
+**Description**: Both pages use `lookupRequestIdRef` to discard stale responses (from F-041 fix), but don't use `AbortController` to actually cancel in-flight HTTP requests. Old requests continue consuming network bandwidth and server resources. The sent dashboard correctly uses `AbortController`.
+**Suggested Fix**: Add `AbortController` support, aborting the previous request when a new lookup starts.
+**Fixed in**: Added per-page `AbortController` refs in `apps/web/app/claim/page.tsx` and `apps/web/app/lookup/page.tsx`, aborting superseded requests and cleaning them up on unmount.
+
+---
+
+### [F-053] Received-dashboard types duplicated between server and client modules
+
+**File**: `apps/web/lib/received-dashboard-client.ts:3-48`, `apps/web/lib/received-dashboard.ts:13-63`
+**Severity**: Low
+**Description**: Interfaces like `ReceivedClaimStatus`, `ReceivedBalance`, `IncomingPaymentItem`, etc. are defined identically in both files. If one is updated without the other, client and server silently disagree on the API contract. Same pattern as F-006 (which was fixed for `TransactionItem`).
+**Suggested Fix**: Extract shared types into a dedicated `received-dashboard-types.ts` that both import from.
+**Fixed in**: Extracted the shared received-dashboard contract into `apps/web/lib/received-dashboard-types.ts` and updated both the server and client helpers to import the same types and claim-status model constant.
+
+---
+
+### [F-054] Deleted vault objects treated as unclaimed in received dashboard
+
+**File**: `apps/web/lib/received-dashboard.ts:156`
+**Severity**: Medium
+**Description**: When the vault object lookup returns `deleted`, the code treats it the same as `notExists` — i.e., as unclaimed. A deleted vault likely means the user already claimed and the object was consumed. Treating it as "unclaimed" with `claimStatus: 'UNCLAIMED'` is misleading, as it suggests the user has never claimed when they may have already withdrawn funds.
+**Suggested Fix**: Add a distinct status for the `deleted` case (e.g., `PREVIOUSLY_CLAIMED` or handle it as `CLAIMED`), or log a warning when a deleted vault is encountered.
+**Fixed in**: Added the `PREVIOUSLY_CLAIMED` claim status in `apps/web/lib/received-dashboard-types.ts`, mapped `deleted` object lookups to it in `apps/web/lib/received-dashboard.ts`, and updated the claim/received dashboard copy to surface that state correctly.
+
+---
+
+### [F-055] Received dashboard `data.items` grows unbounded in client memory
+
+**File**: `apps/web/app/dashboard/received/page.tsx:110-116`
+**Severity**: Low
+**Description**: The "Load more" pattern appends each page into `data.items` via `setData((prev) => ({ ...payload, items: [...prev.items, ...payload.items] }))`. There is no upper bound. For a popular handle with thousands of incoming payments, continuous paging could exhaust browser memory, and all rows render without virtualization.
+**Suggested Fix**: Add a maximum item count or implement virtual scrolling for long lists.
+**Fixed in**: Added optional row virtualization to `apps/web/components/payment-table.tsx` and enabled it for the received dashboard in `apps/web/app/dashboard/received/page.tsx`, so long incoming-payment lists now render through a windowed viewport instead of mounting every row at once.
+
+---
+
+### [F-056] `mapIncomingPayment` throws on unsupported coin types stored in the payment ledger
+
+**File**: `apps/web/lib/received-dashboard.ts:48-49`
+**Severity**: High
+**Description**: After F-054 tightened `getCoinLabel`/`getCoinDecimals` to throw for unsupported coin types, `mapIncomingPayment` calls both on every ledger row without filtering. `getIncomingPaymentsPage` maps all rows regardless of coin type. If any ledger row contains a coin type not in the display whitelist (e.g., a token temporarily supported then removed, or a future migration), the entire paginated response crashes with an unhandled exception (503). The balance code in `getReceivedVaultSummary` correctly filters via `isDisplaySupportedCoinType`, but the payment listing does not.
+**Suggested Fix**: Filter unsupported coin types before mapping, or wrap in a safe mapper that returns `null` for unsupported types and filters them out:
+```typescript
+const mapped = mapIncomingPayment(row);
+// where mapIncomingPayment returns null for unsupported coinType
+items: items.map(mapIncomingPayment).filter(Boolean)
+```
+**Fixed in**: Made `mapIncomingPayment()` return `null` for unsupported assets in `apps/web/lib/received-dashboard.ts`, and updated `getIncomingPaymentsPage()` to keep scanning paginated ledger rows until it fills the page with displayable items instead of crashing on a single unsupported coin type.
+
+---
+
+### [F-057] `summarizeAmount` in sent dashboard crashes on unsupported coin types from DB
+
+**File**: `apps/web/app/dashboard/sent/page.tsx:22-38`
+**Severity**: High
+**Description**: Same root cause as R-001. `summarizeAmount` iterates all loaded `TransactionItem` objects and calls `formatAmount(total.toString(), coinType)` and `getCoinLabel(coinType)` — both throw post-F-054 for unsupported coin types. The history API returns `coinType` directly from the database without filtering against the display whitelist. A single unsupported ledger row crashes the entire sent dashboard client-side.
+**Suggested Fix**: Guard with `isDisplaySupportedCoinType` or wrap in try/catch with a fallback label:
+```typescript
+try {
+  return `${formatAmount(total.toString(), coinType)} ${getCoinLabel(coinType)}`;
+} catch {
+  return `${total.toString()} (unknown asset)`;
+}
+```
+**Fixed in**: Added a shared `formatSentAmount()` guard in `apps/web/app/dashboard/sent/page.tsx` so both the volume summary and each table row fall back to raw units for unsupported assets instead of throwing.
+
+---
+
+### [F-058] Received dashboard `fetchIncoming` lacks AbortController — rapid searches leak concurrent requests
+
+**File**: `apps/web/app/dashboard/received/page.tsx:35-49`
+**Severity**: Medium
+**Description**: F-052 added `AbortController` to the claim and lookup pages, but the received dashboard was not included. `handleSubmit` does not abort the previous request when a new search starts. Rapid handle searches cause concurrent in-flight fetches that each consume network bandwidth and server resources (including Sui RPC calls via `getReceivedVaultSummary`). The request-id guard from F-041 discards stale responses, but the HTTP requests themselves continue running.
+**Suggested Fix**: Add `AbortController` ref matching the claim/lookup pattern, aborting previous requests on new search and on unmount.
+**Fixed in**: Added a shared request `AbortController` ref in `apps/web/app/dashboard/received/page.tsx`, wired it into both initial lookups and load-more fetches, and abort the active request on replacement and unmount.
+
+---
+
+### [F-059] `persistReceivedDashboardXUser` silently swallows errors and returns default derivation version
+
+**File**: `apps/web/lib/received-dashboard.ts:109-112`
+**Severity**: Medium
+**Description**: The entire function body is wrapped in a try/catch that swallows all errors and returns `DEFAULT_DERIVATION_VERSION` (1). If the database is down or the Prisma query fails, the function silently succeeds with version 1. A wrong derivation version produces a completely wrong vault address, showing incorrect balances and potentially directing funds to an unrelated address. Callers in the lookup and incoming payment routes proceed to build responses using this potentially-wrong derivation version.
+**Suggested Fix**: Separate read and write error handling. Throw on read failures (where the real derivation version is needed) and only fall back to default on write failures for genuinely new users.
+**Fixed in**: Split `persistReceivedDashboardXUser()` in `apps/web/lib/received-dashboard.ts` so lookup reads now fail loudly, write failures reuse the known derivation version when possible, and both public routes now catch persistence failures before returning a 503 instead of building a response with the wrong vault derivation.
+
+---
+
+### [F-060] Vault summary re-fetched from Sui RPC on every paginated incoming payments request
+
+**File**: `apps/web/lib/received-dashboard.ts:251-268`
+**Severity**: Medium
+**Description**: `buildIncomingPaymentsResponse` calls `getReceivedVaultSummary` on every request, including "Load more" pagination. This makes two RPC calls (`getObject` + `getAllBalances`) to the Sui fullnode per page load. The vault summary (existence, claim status, balances) is unlikely to change between consecutive page loads during a single browsing session. With 60 req/min rate limits, heavy paging generates unnecessary RPC load. Distinct from N-013 (Twitter API caching, already addressed).
+**Suggested Fix**: Return vault summary only on the first page (no cursor) and have the client reuse it for subsequent pages, or add short TTL caching for vault summary by xUserId.
+**Fixed in**: Added a short TTL vault-summary cache in `apps/web/lib/received-dashboard.ts`, seeded from the first page load and reused for subsequent paginated incoming-payment requests for the same `xUserId` / registry / derivation tuple.
+
+---
+
+### [F-061] `PaymentTable` `desktopColSpan` off-by-one — spacer rows don't span full table width
+
+**File**: `apps/web/components/payment-table.tsx:129`
+**Severity**: Medium
+**Description**: `desktopColSpan` is calculated as `3 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0)`. The base count of 3 accounts for Counterparty + Amount + Status, but the table always renders a Date column too. The actual base should be 4. The undercounted `colSpan` causes virtualization spacer `<td>` elements to not span the full table width, producing layout glitches where spacer rows are narrower than data rows.
+**Suggested Fix**: Change base count to 4:
+```typescript
+const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
+```
+**Fixed in**: Corrected the base desktop column count to `4` in `apps/web/components/payment-table.tsx`, so virtualized spacer rows now span the full table width.
+
+---
+
+### [F-062] `receivedVaultSummaryCache` is an unbounded in-memory Map — memory leak in production
+
+**File**: `apps/web/lib/received-dashboard.ts:37`
+**Severity**: High
+**Description**: `receivedVaultSummaryCache` is a `Map<string, CachedReceivedVaultSummary>` at module scope with no size limit. Expired entries are only removed on individual `get` lookups — entries that are never re-fetched stay forever. In a long-running server handling many unique usernames, the cache grows without bound, causing memory exhaustion.
+**Suggested Fix**: Use an LRU cache with a max entry count or add periodic sweeping of expired entries.
+**Fixed in**: Added bounded cache pruning in `apps/web/lib/received-dashboard.ts`, evicting expired entries and capping the vault-summary cache at 500 entries while promoting active keys on cache hits.
+
+---
+
+### [F-063] Bundled Apple San Francisco fonts may violate license terms
+
+**File**: `apps/web/app/fonts/SFNS.ttf`, `apps/web/app/fonts/SFCompact.ttf`, `apps/web/app/fonts/SFNSMono.ttf`
+**Severity**: High
+**Description**: The font files (`SFNS`, `SFCompact`, `SFNSMono`) are Apple's San Francisco family. Apple's license restricts these fonts to use exclusively on Apple platforms. Serving them from a web server to non-Apple devices is a license violation.
+**Suggested Fix**: Replace with a redistributable alternative or a system font stack.
+**Fixed in**: Replaced the local Apple font bundle in `apps/web/app/layout.tsx` with redistributable `next/font/google` families (`Manrope`, `Space_Grotesk`, `JetBrains_Mono`) and removed the bundled San Francisco `.ttf` assets from `apps/web/app/fonts/`.
+
+---
+
+### [F-064] `getIncomingPaymentsPage` loop has no iteration cap — can execute unlimited DB queries
+
+**File**: `apps/web/lib/received-dashboard.ts:281`
+**Severity**: Medium
+**Description**: The `while (mappedItems.length <= limit && !exhausted)` loop keeps fetching batches from the database until enough displayable items are found. If a user has thousands of payments with unsupported coin types (filtered out by `isDisplaySupportedCoinType`), the loop will issue a proportionally large number of queries with no ceiling.
+**Suggested Fix**: Add a max iteration guard.
+**Fixed in**: Added `MAX_INCOMING_PAYMENT_SCAN_ITERATIONS` in `apps/web/lib/received-dashboard.ts`, stopping the scan after 10 queries and returning a continuation cursor instead of allowing unbounded database pagination.
+
+---
+
+### [F-065] Missing `/dashboard` index page causes 404
+
+**File**: `apps/web/app/dashboard/` (no `page.tsx`)
+**Severity**: Medium
+**Description**: Only `/dashboard/sent/page.tsx` and `/dashboard/received/page.tsx` exist. Users navigating to `/dashboard` directly get a 404. The old `/history` route redirects to `/dashboard/sent` but `/dashboard` itself has no redirect.
+**Suggested Fix**: Add a redirecting `apps/web/app/dashboard/page.tsx`.
+**Fixed in**: Added `apps/web/app/dashboard/page.tsx` with a server-side redirect to `/dashboard/sent`.
+
+---
+
+### [F-066] `getCoinLabel` and `getCoinDecimals` now throw for unknown coin types — breaking `transaction-row.tsx`
+
+**File**: `apps/web/lib/coins.ts:34`, `apps/web/components/transaction-row.tsx:61`
+**Severity**: Medium
+**Description**: `getCoinLabel` and `getCoinDecimals` were changed to throw for unsupported coin types instead of returning a fallback. `transaction-row.tsx` called both without a guard. If the sent-history API returns a payment with an unsupported coin type, the component crashes.
+**Suggested Fix**: Guard with `isDisplaySupportedCoinType(coinType)` before calling `formatAmount` / `getCoinLabel`, or add a fallback display.
+**Fixed in**: Guarded `apps/web/components/transaction-row.tsx` with `isDisplaySupportedCoinType()` and now render a safe `Unsupported asset` fallback instead of throwing on historical unsupported coin types.
+
+---
+
+### [F-067] `parseXUserId` accepts "0" as a valid X user ID
+
+**File**: `apps/web/lib/twitter.ts:40`
+**Severity**: Medium
+**Description**: The `X_USER_ID_RE` pattern is `/^\d+$/`, which matches "0" and "00000". X user IDs are positive integers starting from 1. A zero-valued ID could produce a degenerate vault address derivation via `BigInt("0")`, potentially colliding with an uninitialized default.
+**Suggested Fix**: Tighten the regex to positive integers only.
+**Fixed in**: Tightened `X_USER_ID_RE` in `apps/web/lib/twitter.ts` to `/^[1-9]\\d*$/` and added regression coverage in `apps/web/lib/twitter.test.ts` for zero-valued ids.
+
+---
+
+### [F-068] Explorer URL `txDigest` is interpolated without format validation
+
+**File**: `apps/web/lib/coins.ts:72`
+**Severity**: Medium
+**Description**: `getExplorerTransactionUrl` constructs a URL by interpolating `txDigest` directly. If a malformed digest contains URL-special characters, the resulting URL could point somewhere unexpected. The URLs are used in `<a href>` and `<Link href>` throughout the codebase.
+**Suggested Fix**: Validate `txDigest` before constructing the URL.
+**Fixed in**: Added base58 transaction-digest validation in `apps/web/lib/coins.ts` using `fromBase58()` and return `null` for malformed digests; `apps/web/lib/coins.test.ts` now covers the accepted and rejected cases.
+
+---
+
+### [F-069] `amount-input.tsx` uses hardcoded `id="amount-input"` — breaks with multiple instances
+
+**File**: `apps/web/components/amount-input.tsx:40`
+**Severity**: Low
+**Description**: The component uses a static `id="amount-input"` for both `<Label htmlFor>` and `<Input id>`. If two `AmountInput` components render on the same page, IDs collide, breaking accessibility label association. `UsernameInput` correctly uses `useId()`.
+**Suggested Fix**: Use React's `useId()` hook for the input id.
+**Fixed in**: Switched `apps/web/components/amount-input.tsx` to `useId()` so each rendered amount input gets its own unique label/input association.
+
+---
+
+### [F-070] `resolved-user-card.tsx` imports `ResolvedUser` from legacy `handle-input` instead of `username-input`
+
+**File**: `apps/web/components/resolved-user-card.tsx:3`
+**Severity**: Low
+**Description**: Line 3 imports `ResolvedUser` from `@/components/handle-input`. Other components were updated to import from `@/components/username-input`. While `handle-input.tsx` still exists so this compiles, it creates a fragile split between the old and new canonical type sources.
+**Suggested Fix**: Update the import to `import type { ResolvedUser } from '@/components/username-input';`
+**Fixed in**: Updated `apps/web/components/resolved-user-card.tsx` to import `ResolvedUser` from the canonical `@/components/username-input` source.
+
+---
+
+### [F-071] `images.remotePatterns` hostname glob `**.twimg.com` is broader than needed
+
+**File**: `apps/web/next.config.ts:10`
+**Severity**: Low
+**Description**: `**.twimg.com` allows image loading from any subdomain. Profile pictures only come from `pbs.twimg.com`. While `isTrustedProfilePictureUrl` provides defense in depth, the Next.js image proxy accepts any twimg subdomain.
+**Suggested Fix**: Narrow to `hostname: 'pbs.twimg.com'`.
+**Fixed in**: Restricted `images.remotePatterns` in `apps/web/next.config.ts` to `pbs.twimg.com` only.
+
+---
+
+### [F-072] `getIncomingPaymentsPage` over-fetches rows on subsequent scan iterations
+
+**File**: `apps/web/lib/received-dashboard.ts:313`
+**Severity**: Medium
+**Description**: Each iteration of the scan loop fetched `limit + 1` rows from the database, even after previous batches had already contributed displayable items. That over-scanned the ledger on later iterations.
+**Suggested Fix**: Compute the remaining number of rows needed per iteration and fetch only that amount.
+**Fixed in**: Updated `apps/web/lib/received-dashboard.ts` to request only the remaining `limit + 1 - mappedItems.length` rows on each scan iteration, and adjusted `apps/web/lib/received-dashboard.test.ts` to assert the smaller second fetch.
+
+---
+
+### [F-073] Redundant double prune call in vault summary cache
+
+**File**: `apps/web/lib/received-dashboard.ts:160,166`
+**Severity**: Low
+**Description**: `cacheReceivedVaultSummary` called `pruneReceivedVaultSummaryCache(now)` twice with the same timestamp, so the second pass re-scanned the full cache for no effect.
+**Suggested Fix**: Remove the redundant second prune.
+**Fixed in**: Removed the duplicate post-insert prune call from `apps/web/lib/received-dashboard.ts`; the cache is still swept before insertion and bounded by the existing size cap.
+
+---
+
+### [F-074] `PaymentTable` does not validate avatar image URLs through `isTrustedProfilePictureUrl`
+
+**File**: `apps/web/components/payment-table.tsx:138-140,186-188`
+**Severity**: Medium
+**Description**: `PaymentTable` rendered `AvatarImage` from `row.counterpartyAvatarUrl` directly, unlike the other avatar-rendering components in the app.
+**Suggested Fix**: Validate the avatar URL before rendering.
+**Fixed in**: Added `isTrustedProfilePictureUrl()` checks in both the mobile and desktop `PaymentTable` avatar paths so only trusted image URLs reach `AvatarImage`.
+
+---
+
+### [F-075] Hardcoded dark-mode colors throughout new components break light mode
+
+**File**: Multiple new components and pages
+**Severity**: Medium
+**Description**: A large set of newly added pages/components used white-alpha borders/backgrounds and hardcoded dark surfaces that only looked correct on dark backgrounds, leaving light mode with washed-out or nearly invisible surfaces.
+**Suggested Fix**: Replace hardcoded values with theme-aware tokens or explicit dark-mode overrides.
+**Fixed in**: Reworked the affected surfaces in `apps/web/app/page.tsx`, `apps/web/app/lookup/page.tsx`, `apps/web/app/claim/page.tsx`, `apps/web/app/dashboard/received/page.tsx`, `apps/web/app/dashboard/sent/page.tsx`, `apps/web/components/amount-input.tsx`, `apps/web/components/username-input.tsx`, `apps/web/components/coin-selector.tsx`, `apps/web/components/dashboard-tabs.tsx`, `apps/web/components/claim-stepper.tsx`, `apps/web/components/payment-table.tsx`, `apps/web/components/transaction-result.tsx`, `apps/web/components/ui/avatar.tsx`, and `apps/web/components/ui/table.tsx` to use semantic light-mode surfaces with dark-mode overrides instead of hardcoded dark-only colors.
+
+---
+
+### [F-076] `UsernameInput` clears resolved state redundantly in both `onChange` and debounce callback
+
+**File**: `apps/web/components/username-input.tsx:52-55,122-126`
+**Severity**: Low
+**Description**: The input already cleared resolved state in `onChange`, then repeated the same clear when the debounced lookup began.
+**Suggested Fix**: Keep the immediate clear in `onChange` and avoid the duplicate clear in the debounce callback.
+**Fixed in**: Removed the redundant `setResolvedUser(null)` and `onResolvedChange(null)` calls from the debounced lookup path in `apps/web/components/username-input.tsx`, leaving a single clear point in `onChange`.
+
+---
+
+### [F-077] `coin-selector.tsx` badge uses theme-unaware `border-white/10`
+
+**File**: `apps/web/components/coin-selector.tsx:46`
+**Severity**: Low
+**Description**: The "Sui settlement" badge border was effectively invisible in light mode because it used a white-alpha border.
+**Suggested Fix**: Replace the hardcoded white border with a theme-aware border token.
+**Fixed in**: Updated the `CoinSelector` badge in `apps/web/components/coin-selector.tsx` to use `border-border` in light mode with the previous white-alpha border preserved only behind `dark:`.
+
+---
+
+### [F-078] SendButton lacks AbortController — stale callbacks and non-cancellable confirm retries
+
+**File**: `apps/web/components/send-button.tsx:30`
+**Severity**: Medium
+**Description**: `handleSend` issued sequential fetch calls to `/api/v1/payments/quote` and `confirmWithRetry` with no `AbortController`. If the user navigated away mid-transaction or the component unmounted, the fetch calls and retry loop continued running, and stale callbacks could still call `onError`/`onConfirm`.
+**Suggested Fix**: Accept an `AbortSignal` in `confirmWithRetry`, pass it to confirm fetches, make the retry delay abortable, and abort the active request from component cleanup so stale callbacks stop on unmount.
+**Fixed in**: Added request-scoped `AbortController` cleanup in `apps/web/components/send-button.tsx`, passed the signal through quote and confirm requests, made the confirm retry delay abortable, and guarded stale completion/error callbacks after unmount.
+
+---
+
+### [F-079] API error responses missing `Cache-Control: no-store` header
+
+**File**: `apps/web/app/api/v1/lookup/x-username/route.ts:14`, `apps/web/app/api/v1/payments/incoming/route.ts:18`
+**Severity**: Low
+**Description**: The public lookup and incoming-payment endpoints already marked success responses `Cache-Control: no-store`, but several error paths still returned cacheable 404/429/500/503 responses.
+**Suggested Fix**: Attach `Cache-Control: no-store` to all error responses on these public GET endpoints, including paths that also need to preserve existing headers such as `Retry-After`.
+**Fixed in**: Added shared `withNoStore()` / `noStoreJson()` helpers in `apps/web/lib/api.ts`, switched both public GET routes to use them on error responses, and added focused route tests covering the merged `Retry-After` + `no-store` case and the 404 `no-store` case.
+
+---
+
+### [F-080] UsernameInput still calls old `/api/v1/resolve/x-username` — incomplete API migration
+
+**File**: `apps/web/components/username-input.tsx:48`
+**Severity**: High
+**Description**: The send flow still resolved recipients through the legacy `POST /api/v1/resolve/x-username` path even though the newer `GET /api/v1/lookup/x-username` endpoint already backs the claim flow and carries the hardened public-lookup response shape.
+**Suggested Fix**: Move `UsernameInput` onto `GET /api/v1/lookup/x-username?username=...`, keep the request cancellable, and map only the fields needed for the existing `ResolvedUser` contract.
+**Fixed in**: Updated `apps/web/components/username-input.tsx` to fetch the new lookup endpoint with `URLSearchParams`, `cache: 'no-store'`, and a typed `PublicLookupResponse` to `ResolvedUser` mapping so the send flow no longer depends on the old resolve route.
+
+---
+
+### [F-081] Old resolve endpoint returns unsanitized `profilePicture` URL in API response
+
+**File**: `apps/web/app/api/v1/resolve/x-username/route.ts:64`
+**Severity**: Medium
+**Description**: The legacy resolve route returned and persisted `userInfo.profilePicture` directly from the upstream lookup result, leaving the raw URL exposed on that API path.
+**Suggested Fix**: Sanitize the profile picture URL inside the route before persistence and before building the JSON response.
+**Fixed in**: Added a route-local sanitized `profilePicture` value in `apps/web/app/api/v1/resolve/x-username/route.ts`, used it for both the Prisma upsert and the API response, and added `apps/web/app/api/v1/resolve/x-username/route.test.ts` to lock the behavior.
+
+---
+
+### [F-082] `isTrustedProfilePictureUrl` uses `endsWith('.twimg.com')` instead of exact hostname
+
+**File**: `apps/web/lib/transaction-history.ts:18`
+**Severity**: Low
+**Description**: The runtime profile-picture trust check accepted any HTTPS `*.twimg.com` hostname, which was broader than the exact `pbs.twimg.com` host already allowed by the app’s image configuration.
+**Suggested Fix**: Match the runtime trust check to the image allowlist by accepting only the exact `pbs.twimg.com` hostname.
+**Fixed in**: Tightened `isTrustedProfilePictureUrl()` in `apps/web/lib/transaction-history.ts` to require `https://pbs.twimg.com`, and added `apps/web/lib/transaction-history.test.ts` to cover the exact-host and sibling-subdomain cases.
+
+---
+
+### [F-083] Unsanitized `profilePicture` persisted to DB via `persistReceivedDashboardXUser`
+
+**File**: `apps/web/lib/received-dashboard.ts:101`
+**Severity**: Medium
+**Description**: `persistReceivedDashboardXUser()` still compared and persisted the raw upstream `profilePicture` URL even though the public lookup response already sanitized that field before returning it to clients.
+**Suggested Fix**: Sanitize the avatar URL before the freshness comparison and use the sanitized value for both the Prisma `update` and `create` branches.
+**Fixed in**: Updated `apps/web/lib/received-dashboard.ts` to sanitize `profilePicture` once via `sanitizeProfilePictureUrl()` before freshness checks and before the Prisma upsert, and expanded `apps/web/lib/received-dashboard.test.ts` to cover both trusted and untrusted avatar cases.
+
+---
+
+### [F-084] `truncateAddress` crashes on null/undefined input
+
+**File**: `apps/web/lib/received-dashboard-client.ts:25`
+**Severity**: Medium
+**Description**: `truncateAddress()` assumed a non-empty string and sliced directly, which made the helper brittle against missing or short address values.
+**Suggested Fix**: Accept nullable input defensively, return an empty string for missing values, and leave already-short addresses unchanged.
+**Fixed in**: Hardened `truncateAddress()` in `apps/web/lib/received-dashboard-client.ts` to handle `null`, `undefined`, and short addresses safely, and added `apps/web/lib/received-dashboard-client.test.ts` coverage for all three cases.
+
+---
+
+### [F-085] Claim and lookup page submit buttons not disabled during loading
+
+**File**: `apps/web/app/claim/page.tsx:203`, `apps/web/app/lookup/page.tsx:122`
+**Severity**: Low
+**Description**: Both pages changed the submit label during an in-flight lookup but still allowed repeated clicks, which could burn redundant API requests until the current fetch finished.
+**Suggested Fix**: Disable the submit button while the current lookup is pending.
+**Fixed in**: Added `disabled={loadingLookup}` to the claim-page submit button in `apps/web/app/claim/page.tsx` and `disabled={loading}` to the lookup-page submit button in `apps/web/app/lookup/page.tsx`.
+
+---
+
+### [F-086] `TransactionResult` calls `getCoinLabel` without guard — crashes on unsupported coin types
+
+**File**: `apps/web/components/transaction-result.tsx:20`
+**Severity**: High
+**Description**: `TransactionResult` still called `getCoinLabel()` directly even after coin-type formatting was tightened to throw for unsupported assets, which meant a malformed `coinType` could crash the post-send success state.
+**Suggested Fix**: Guard the label lookup with the same display-support check already used elsewhere and provide a safe fallback label.
+**Fixed in**: Updated `apps/web/components/transaction-result.tsx` to gate `getCoinLabel()` behind `isDisplaySupportedCoinType()` and fall back to `unsupported asset`, and added `apps/web/components/transaction-result.test.tsx` to verify the component no longer throws on unknown coin types.
+
+---
+
+### [F-087] Resolve endpoint (`POST /api/v1/resolve/x-username`) success response lacks `Cache-Control: no-store`
+
+**File**: `apps/web/app/api/v1/resolve/x-username/route.ts:15`
+**Severity**: Medium
+**Description**: The legacy resolve route still returned cacheable JSON responses after `noStoreJson()` was introduced for the newer public lookup endpoints.
+**Suggested Fix**: Route all resolve responses through the shared `noStoreJson()` helper.
+**Fixed in**: Switched `apps/web/app/api/v1/resolve/x-username/route.ts` to use `noStoreJson()` for success and error responses, and extended `apps/web/app/api/v1/resolve/x-username/route.test.ts` to assert the `Cache-Control: no-store` header on success.
+
+---
+
+### [F-088] `UsernameInput` sends heavyweight lookup request for every debounced keystroke
+
+**File**: `apps/web/components/username-input.tsx:47`
+**Severity**: Medium
+**Description**: The send flow had been moved to the full public lookup endpoint, which performs extra RPC and database work that the sender form does not actually need.
+**Suggested Fix**: Restore the lightweight resolve path for `UsernameInput` now that the resolve route is sanitized and no-store, while keeping the heavier lookup endpoint for claim/lookup surfaces that need vault summary data.
+**Fixed in**: Moved `apps/web/components/username-input.tsx` back to `POST /api/v1/resolve/x-username`, preserved abortable debounce behavior, and kept the newer consistency fix by using `normalizeUsernameInput(value)` for the derived `normalizedValue`.
+
+---
+
+### [F-089] `summarizeAmount` in sent dashboard crashes on malformed `amount` strings
+
+**File**: `apps/web/app/dashboard/sent/page.tsx:18`
+**Severity**: Medium
+**Description**: `summarizeAmount()` converted every `item.amount` directly with `BigInt()`, so a malformed ledger amount could crash the whole sent dashboard summary.
+**Suggested Fix**: Validate raw amount strings before converting them to `BigInt` and skip malformed values.
+**Fixed in**: Added `parseLedgerAmount()` in `apps/web/app/dashboard/sent/page.tsx` and now ignore malformed amount strings when computing the summary totals instead of throwing.
+
+---
+
+### [F-090] Claim page `handleStepAction` for 'claim' step lacks sign-in precondition guard
+
+**File**: `apps/web/app/claim/page.tsx:149`
+**Severity**: Medium
+**Description**: The claim-step handler relied on UI state alone and did not defensively re-check the X sign-in and wallet-connection prerequisites inside the action branch itself.
+**Suggested Fix**: Add explicit `hasSignedInWithX` and `walletReady` guards before the claim preview branch proceeds.
+**Fixed in**: Added precondition guards in `apps/web/app/claim/page.tsx` so the claim action now exits with a notice unless both X sign-in and wallet connection are satisfied.
+
+---
+
+### [F-091] Received dashboard submit button not disabled during loading
+
+**File**: `apps/web/app/dashboard/received/page.tsx:180`
+**Severity**: Low
+**Description**: The received dashboard still allowed repeated “Load dashboard” submissions while the current lookup was in flight.
+**Suggested Fix**: Disable the submit button while `loading` is true.
+**Fixed in**: Added `disabled={loading}` to the received-dashboard submit button in `apps/web/app/dashboard/received/page.tsx`.
+
+---
+
+### [F-092] `UsernameInput` `normalizedValue` uses weaker normalization than `normalizeUsernameInput`
+
+**File**: `apps/web/components/username-input.tsx:85`
+**Severity**: Low
+**Description**: The component derived `normalizedValue` with a weaker one-`@` / trim-only transform than the canonical username normalization helper used everywhere else in the same component.
+**Suggested Fix**: Use `normalizeUsernameInput(value)` for the derived `normalizedValue` as well.
+**Fixed in**: Updated `apps/web/components/username-input.tsx` to derive `normalizedValue` with `normalizeUsernameInput(value)`, matching the component’s input and request normalization path.
+
+---
+
+### [F-093] `defaultCoinType` may produce malformed coin type from whitespace-only `NEXT_PUBLIC_PACKAGE_ID`
+
+**File**: `apps/web/lib/coins.ts:7`
+**Severity**: Low
+**Description**: `getTestUsdcCoinType()` treated whitespace-only package ids as truthy and could build malformed `TEST_USDC` coin-type strings.
+**Suggested Fix**: Trim the package id before the truthy check.
+**Fixed in**: Updated `apps/web/lib/coins.ts` to trim `packageId` before constructing the test-USDC coin type and added `apps/web/lib/coins.test.ts` coverage for whitespace-only input.
+
+---
+
+### [F-094] Claim page `handleStepAction` timeouts not cleaned up on unmount
+
+**File**: `apps/web/app/claim/page.tsx:28`
+**Severity**: Low
+**Description**: The simulated sign-in and claim delays used bare `setTimeout` promises with no cleanup, which left pending timers alive after unmount.
+**Suggested Fix**: Track the active timeout and clear it during effect cleanup, or replace the raw timeout with a cleanup-aware helper.
+**Fixed in**: Added a shared `stepTimeoutRef` / `waitForStepDelay()` helper in `apps/web/app/claim/page.tsx` and clear the active timeout on unmount so the preview-step timers no longer survive the page lifecycle.
+
+---
+
+### [F-095] Sent dashboard retry/load-more calls lack AbortController
+
+**File**: `apps/web/app/dashboard/sent/page.tsx:294,325`
+**Severity**: Medium
+**Description**: The retry button and "Load more" button both called `fetchHistory()` without an abort signal, so unmounts or wallet switches could leave stale requests alive until completion.
+**Suggested Fix**: Store the active AbortController in a ref that covers every history request path and abort it on unmount and wallet changes.
+**Fixed in**: Added a shared `requestControllerRef` in `apps/web/app/dashboard/sent/page.tsx`, routed initial load, retry, and load-more through it, and now abort the active request during cleanup and account resets.
+
+---
+
+### [F-096] Received dashboard does not clear `data` on new search
+
+**File**: `apps/web/app/dashboard/received/page.tsx:55-98`
+**Severity**: Medium
+**Description**: `handleSubmit()` cleared `activeHandle` but left the previous `data` payload in place, so the old payments table stayed visible while the next search loaded.
+**Suggested Fix**: Clear `data` alongside `activeHandle` at the start of a new lookup.
+**Fixed in**: Added `setData(null)` at the start of `handleSubmit()` in `apps/web/app/dashboard/received/page.tsx` so a new search no longer flashes stale dashboard content.
+
+---
+
+### [F-097] Claim page `waitForStepDelay` concurrent calls overwrite timeout state
+
+**File**: `apps/web/app/claim/page.tsx:47-54`
+**Severity**: Medium
+**Description**: Rapid repeated step actions could overwrite the pending delay state, leaving the earlier async path orphaned.
+**Suggested Fix**: Make delayed step actions cancellable and sequence-aware instead of storing a single raw timeout id.
+**Fixed in**: Replaced the claim-step timeout bookkeeping in `apps/web/app/claim/page.tsx` with abortable per-action controllers plus a request id guard, so a new step action now cancels and supersedes any previous delayed run cleanly.
+
+---
+
+### [F-098] Claim page step delay returns a never-resolving Promise on unmount
+
+**File**: `apps/web/app/claim/page.tsx:47-54`
+**Severity**: Medium
+**Description**: Clearing the timeout on unmount left the awaiting `waitForStepDelay()` Promise pending forever.
+**Suggested Fix**: Reject the delay Promise when the component or action is aborted.
+**Fixed in**: Updated `waitForStepDelay()` in `apps/web/app/claim/page.tsx` to accept an `AbortSignal`, reject with `AbortError` on cancellation, and abort outstanding step delays during lookup resets and unmount cleanup.
+
+---
+
+### [F-099] Lookup page does not clear `result` on new search
+
+**File**: `apps/web/app/lookup/page.tsx:39-91`
+**Severity**: Low
+**Description**: The previous lookup result stayed rendered until the next request finished because `setResult(null)` only ran on validation failure or fetch error.
+**Suggested Fix**: Clear the current result before starting a fresh lookup request.
+**Fixed in**: Added `setResult(null)` before the new request starts in `apps/web/app/lookup/page.tsx`, so successful follow-up searches no longer flash stale data while loading.
+
+---
+
+### [F-100] `PaymentTable` computes virtualization windows even when virtualization is off
+
+**File**: `apps/web/components/payment-table.tsx:112-129`
+**Severity**: Low
+**Description**: The component eagerly computed visible windows and sliced rows even when `shouldVirtualize` was false.
+**Suggested Fix**: Only compute the virtualization window when virtualization is active.
+**Fixed in**: Gated `getVisibleWindow()` and the derived row slicing behind `shouldVirtualize` in `apps/web/components/payment-table.tsx`, leaving the non-virtualized render path free of that extra work.
+
+---
+
+### [F-101] Received dashboard uses unsafe type assertions for Sui object responses
+
+**File**: `apps/web/lib/received-dashboard.ts:248-254`
+**Severity**: Low
+**Description**: The vault summary path manually cast the Sui object response into ad hoc shapes for `data` and `error.code`.
+**Suggested Fix**: Use the SDK's typed response object directly.
+**Fixed in**: Imported `SuiObjectResponse` from `@mysten/sui/jsonRpc` in `apps/web/lib/received-dashboard.ts` and now read `data` / `error?.code` through the SDK type instead of unchecked local assertions.
+
+---
+
+### [F-102] `TransactionResult` amount type does not clarify display-vs-base-unit semantics
+
+**File**: `apps/web/components/transaction-result.tsx:40`
+**Severity**: Low
+**Description**: `TransactionResultData.amount` is a plain `string`, but this component expects the send form's already formatted display value rather than raw base units.
+**Suggested Fix**: Add a doc comment clarifying the field semantics or rename the property.
+**Fixed in**: Added an inline type comment on `TransactionResultData.amount` in `apps/web/components/transaction-result.tsx` to document that the value is pre-formatted for display.
+
+---
+
+### [F-103] TEST_USDC display whitelist still accepts spoofed package IDs
+
+**File**: `apps/web/lib/coins.ts:28`
+**Severity**: Medium
+**Description**: `getCoinLabel()`, `getCoinDecimals()`, and `isDisplaySupportedCoinType()` still accept any coin type whose suffix is `::test_usdc::TEST_USDC`. A malicious sender can deposit a different package's look-alike token into a recipient vault, and the public lookup / incoming-payment dashboards will format it as legitimate `TEST_USDC` instead of rejecting it.
+**Suggested Fix**: Resolve the configured TEST_USDC type with `getTestUsdcCoinType()` and require exact equality in the display helpers, rather than matching any package that ends with the TEST_USDC suffix.
+**Fixed in**: Tightened `apps/web/lib/coins.ts` so display helpers only accept the exact configured TEST_USDC package id, and added regression coverage in `apps/web/lib/coins.test.ts` to reject spoofed package-suffix lookalikes.
 
 ---

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolveXUser } from './twitter';
+import { parseXUserId, resolveXUser, TwitterApiError } from './twitter';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -68,5 +68,30 @@ describe('resolveXUser', () => {
 
   it('throws on invalid username format', async () => {
     await expect(resolveXUser('inv@lid!', 'test-api-key')).rejects.toThrow('Invalid username');
+  });
+
+  it('rejects malformed provider ids', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...MOCK_API_RESPONSE, id: 'abc123' }),
+    });
+
+    await expect(resolveXUser('death_xyz', 'test-api-key')).rejects.toMatchObject({
+      name: 'TwitterApiError',
+      status: 502,
+    } satisfies Partial<TwitterApiError>);
+  });
+});
+
+describe('parseXUserId', () => {
+  it('rejects zero-valued ids', () => {
+    expect(parseXUserId('0')).toBeNull();
+    expect(parseXUserId(0)).toBeNull();
+    expect(parseXUserId('0000')).toBeNull();
+  });
+
+  it('accepts positive integer ids', () => {
+    expect(parseXUserId('1')).toBe('1');
+    expect(parseXUserId(123456789)).toBe('123456789');
   });
 });

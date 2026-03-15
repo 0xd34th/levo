@@ -1,6 +1,12 @@
 'use client';
 
-import { formatAmount, getCoinLabel, getExplorerTransactionUrl } from '@/lib/coins';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  formatAmount,
+  getCoinLabel,
+  getExplorerTransactionUrl,
+  isDisplaySupportedCoinType,
+} from '@/lib/coins';
 import { isTrustedProfilePictureUrl, type TransactionRecipient } from '@/lib/transaction-history';
 
 interface TransactionRowProps {
@@ -32,22 +38,26 @@ export function TransactionRow({
     recipient.profilePicture && isTrustedProfilePictureUrl(recipient.profilePicture)
       ? recipient.profilePicture
       : null;
+  const coinDisplay = isDisplaySupportedCoinType(coinType)
+    ? `${formatAmount(amount, coinType)} ${getCoinLabel(coinType)}`
+    : 'Unsupported asset';
 
   const explorerUrl = getExplorerTransactionUrl(network, txDigest);
 
   return (
     <div className="flex items-center gap-3 py-3 border-b last:border-b-0">
-      {profilePicture ? (
-        <img
-          src={profilePicture}
-          alt={`@${recipient.username}`}
-          className="h-9 w-9 rounded-full object-cover"
-        />
-      ) : (
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm">
+      <Avatar className="size-9">
+        {profilePicture ? (
+          <AvatarImage
+            alt={`@${recipient.username}`}
+            sizes="36px"
+            src={profilePicture}
+          />
+        ) : null}
+        <AvatarFallback className="text-sm text-muted-foreground">
           {recipient.username[0]?.toUpperCase() ?? '?'}
-        </div>
-      )}
+        </AvatarFallback>
+      </Avatar>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">@{recipient.username}</p>
         <p className="text-xs text-muted-foreground">
@@ -55,9 +65,7 @@ export function TransactionRow({
         </p>
       </div>
       <div className="flex items-center gap-2 text-right">
-        <span className="text-sm font-medium">
-          {formatAmount(amount, coinType)} {getCoinLabel(coinType)}
-        </span>
+        <span className="text-sm font-medium">{coinDisplay}</span>
         {explorerUrl && (
           <a
             href={explorerUrl}

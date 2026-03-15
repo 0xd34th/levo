@@ -1,11 +1,16 @@
+import { fromBase58 } from '@mysten/sui/utils';
+
 const TEST_USDC_SUFFIX = '::test_usdc::TEST_USDC';
+const SUI_DECIMALS = 9;
+const TEST_USDC_DECIMALS = 6;
 
 export const SUI_COIN_TYPE = '0x2::sui::SUI';
 
 export function getTestUsdcCoinType(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
 ): string | null {
-  return packageId ? `${packageId}${TEST_USDC_SUFFIX}` : null;
+  const normalizedPackageId = packageId?.trim();
+  return normalizedPackageId ? `${normalizedPackageId}${TEST_USDC_SUFFIX}` : null;
 }
 
 export function requiresPackageIdForCoinType(coinType: string): boolean {
@@ -20,17 +25,48 @@ export function isSupportedCoinType(
   return coinType === SUI_COIN_TYPE || coinType === testUsdcCoinType;
 }
 
-export function getCoinLabel(coinType: string): string {
+function isConfiguredTestUsdcCoinType(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+): boolean {
+  return coinType === getTestUsdcCoinType(packageId);
+}
+
+export function getCoinLabel(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+): string {
   if (coinType === SUI_COIN_TYPE) {
     return 'SUI';
   }
 
-  const parts = coinType.split('::');
-  return parts.length >= 3 ? parts[parts.length - 1]! : 'TOKEN';
+  if (isConfiguredTestUsdcCoinType(coinType, packageId)) {
+    return 'TEST_USDC';
+  }
+
+  throw new Error(`Unsupported coin type: ${coinType}`);
 }
 
-export function getCoinDecimals(coinType: string): number {
-  return coinType === SUI_COIN_TYPE ? 9 : 6;
+export function isDisplaySupportedCoinType(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+): boolean {
+  return coinType === SUI_COIN_TYPE || isConfiguredTestUsdcCoinType(coinType, packageId);
+}
+
+export function getCoinDecimals(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+): number {
+  if (coinType === SUI_COIN_TYPE) {
+    return SUI_DECIMALS;
+  }
+
+  if (isConfiguredTestUsdcCoinType(coinType, packageId)) {
+    return TEST_USDC_DECIMALS;
+  }
+
+  throw new Error(`Unsupported coin type: ${coinType}`);
 }
 
 export function isValidAmountInput(value: string, coinType: string): boolean {
@@ -50,6 +86,10 @@ export function getExplorerTransactionUrl(
   network: string,
   txDigest: string,
 ): string | null {
+  if (!isValidTransactionDigest(txDigest)) {
+    return null;
+  }
+
   const configuredBaseUrl = process.env.NEXT_PUBLIC_SUI_EXPLORER_BASE_URL?.replace(/\/$/, '');
   if (configuredBaseUrl) {
     return `${configuredBaseUrl}/tx/${txDigest}`;
@@ -60,4 +100,12 @@ export function getExplorerTransactionUrl(
   }
 
   return null;
+}
+
+function isValidTransactionDigest(txDigest: string): boolean {
+  try {
+    return fromBase58(txDigest).length === 32;
+  } catch {
+    return false;
+  }
 }

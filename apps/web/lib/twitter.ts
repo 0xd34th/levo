@@ -17,6 +17,7 @@ export class TwitterApiError extends Error {
 
 export const X_USERNAME_RE = /^[a-zA-Z0-9_]{1,15}$/;
 export const X_USERNAME_INPUT_RE = /^@?[a-zA-Z0-9_]{1,15}$/;
+const X_USER_ID_RE = /^[1-9]\d*$/;
 
 export function normalizeXUsername(raw: string): string {
   const cleaned = raw.startsWith('@') ? raw.slice(1) : raw;
@@ -24,6 +25,19 @@ export function normalizeXUsername(raw: string): string {
     throw new Error('Invalid username');
   }
   return cleaned;
+}
+
+export function parseXUserId(raw: unknown): string | null {
+  if (
+    typeof raw !== 'string' &&
+    typeof raw !== 'number' &&
+    typeof raw !== 'bigint'
+  ) {
+    return null;
+  }
+
+  const xUserId = String(raw);
+  return X_USER_ID_RE.test(xUserId) ? xUserId : null;
 }
 
 /**
@@ -64,10 +78,13 @@ export async function resolveXUser(
   const data = json.data ?? json;
 
   if (data.unavailable) return null;
-  if (!data.id) return null;
+  const xUserId = parseXUserId(data.id);
+  if (!xUserId) {
+    throw new TwitterApiError('Twitter API returned malformed user id', 502);
+  }
 
   return {
-    xUserId: String(data.id),
+    xUserId,
     username: data.userName ?? username,
     profilePicture: data.profilePicture ?? null,
     isBlueVerified: Boolean(data.isBlueVerified),

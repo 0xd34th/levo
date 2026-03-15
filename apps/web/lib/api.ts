@@ -43,8 +43,21 @@ export function getClientIp(req: NextRequest): string {
   return 'missing-ip';
 }
 
+export function withNoStore(headers?: HeadersInit): Headers {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set('Cache-Control', 'no-store');
+  return responseHeaders;
+}
+
+export function noStoreJson(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: withNoStore(init?.headers),
+  });
+}
+
 export function invalidInputResponse() {
-  return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+  return noStoreJson({ error: 'Invalid input' }, { status: 400 });
 }
 
 export function parseSuiAddress(value: string): string | null {

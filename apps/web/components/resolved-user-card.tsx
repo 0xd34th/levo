@@ -1,6 +1,7 @@
 'use client';
 
-import type { ResolvedUser } from '@/components/handle-input';
+import type { ResolvedUser } from '@/components/username-input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,17 +56,18 @@ export function ResolvedUserCard({ user, loading, error }: ResolvedUserCardProps
     <Card>
       <CardContent>
         <div className="flex items-center gap-3">
-          {profilePicture ? (
-            <img
-              src={profilePicture}
-              alt={`@${user.username}`}
-              className="h-10 w-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <Avatar className="size-10">
+            {profilePicture ? (
+              <AvatarImage
+                alt={`@${user.username}`}
+                sizes="40px"
+                src={profilePicture}
+              />
+            ) : null}
+            <AvatarFallback className="text-muted-foreground">
               {user.username[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-medium text-sm truncate">@{user.username}</span>
