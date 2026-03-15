@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getClientIp, invalidInputResponse } from '@/lib/api';
-import { verifyQuoteToken } from '@/lib/hmac';
+import { getClientIp, hasValidHmacSecret, invalidInputResponse } from '@/lib/api';
+import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
-  txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid transaction digest format'),
+  txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/, 'Invalid transaction digest format'),
   quoteToken: z.string().min(1),
 });
 
@@ -36,6 +36,84 @@ function isPrismaConflictError(error: unknown): error is { code: string } {
   );
 }
 
+function confirmedResponse(amount: bigint, vaultAddress: string, txDigest: string) {
+  return NextResponse.json(
+    {
+      status: 'confirmed',
+      amount: amount.toString(),
+      vaultAddress,
+      txDigest,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
+}
+
+async function findMatchingConfirmedLedgerEntry(
+  txDigest: string,
+  quotePayload: QuotePayload,
+): Promise<{ amount: bigint; vaultAddress: string; txDigest: string } | null> {
+  const existingLedger = await prisma.paymentLedger.findUnique({
+    where: {
+      ledgerSource_txDigest_sourceIndex: {
+        ledgerSource: 'SEND_CONFIRM',
+        txDigest,
+        sourceIndex: 0,
+      },
+    },
+    select: {
+      txDigest: true,
+      senderAddress: true,
+      xUserId: true,
+      vaultAddress: true,
+      coinType: true,
+      amount: true,
+    },
+  });
+
+  if (
+    !existingLedger ||
+    existingLedger.senderAddress !== quotePayload.senderAddress ||
+    existingLedger.xUserId !== quotePayload.xUserId ||
+    existingLedger.vaultAddress !== quotePayload.vaultAddress ||
+    existingLedger.coinType !== quotePayload.coinType ||
+    existingLedger.amount !== BigInt(quotePayload.amount)
+  ) {
+    return null;
+  }
+
+  return {
+    amount: existingLedger.amount,
+    vaultAddress: existingLedger.vaultAddress,
+    txDigest: existingLedger.txDigest,
+  };
+}
+
+async function syncPendingQuoteWithConfirmedLedger(
+  quoteToken: string,
+  quotePayload: QuotePayload,
+  txDigest: string,
+) {
+  await prisma.paymentQuote.updateMany({
+    where: {
+      hmacToken: quoteToken,
+      status: 'PENDING',
+      senderAddress: quotePayload.senderAddress,
+      xUserId: quotePayload.xUserId,
+      vaultAddress: quotePayload.vaultAddress,
+      coinType: quotePayload.coinType,
+      amount: BigInt(quotePayload.amount),
+    },
+    data: {
+      status: 'CONFIRMED',
+      confirmedTxDigest: txDigest,
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   // 1. Rate limit by IP (20 req/min)
   const ip = getClientIp(req);
@@ -55,7 +133,7 @@ export async function POST(req: NextRequest) {
 
   // 3. Verify HMAC token
   const hmacSecret = process.env.HMAC_SECRET;
-  if (!hmacSecret) {
+  if (!hasValidHmacSecret(hmacSecret)) {
     return NextResponse.json(
       { error: 'Server configuration error' },
       { status: 500 },
@@ -70,20 +148,55 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 4. Idempotency check: look for existing ledger entry
-  const existingLedger = await prisma.paymentLedger.findFirst({
+  // 4. Idempotency check: if this specific quote is already confirmed, return success
+  const existingQuote = await prisma.paymentQuote.findFirst({
     where: {
-      ledgerSource: 'SEND_CONFIRM',
-      txDigest,
+      hmacToken: quoteToken,
+      status: 'CONFIRMED',
+    },
+    select: {
+      amount: true,
+      vaultAddress: true,
+      confirmedTxDigest: true,
     },
   });
-  if (existingLedger) {
-    return NextResponse.json({
-      status: 'confirmed',
-      amount: existingLedger.amount.toString(),
-      vaultAddress: existingLedger.vaultAddress,
-      txDigest: existingLedger.txDigest,
-    });
+  if (existingQuote) {
+    if (existingQuote.confirmedTxDigest) {
+      return confirmedResponse(
+        existingQuote.amount,
+        existingQuote.vaultAddress,
+        existingQuote.confirmedTxDigest,
+      );
+    }
+
+    // Keep legacy retries working for rows confirmed before confirmed_tx_digest existed.
+    const matchingLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+    if (matchingLedger) {
+      return confirmedResponse(
+        existingQuote.amount,
+        existingQuote.vaultAddress,
+        matchingLedger.txDigest,
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Confirmed quote is missing its finalized transaction digest' },
+      { status: 409 },
+    );
+  }
+
+  const matchingLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+  if (matchingLedger) {
+    await syncPendingQuoteWithConfirmedLedger(
+      quoteToken,
+      quotePayload,
+      matchingLedger.txDigest,
+    );
+    return confirmedResponse(
+      matchingLedger.amount,
+      matchingLedger.vaultAddress,
+      matchingLedger.txDigest,
+    );
   }
 
   const quotedAmount = BigInt(quotePayload.amount);
@@ -144,12 +257,16 @@ export async function POST(req: NextRequest) {
   // 8. Find matching transfer in objectChanges
   const objectChanges = tx.objectChanges ?? [];
   const transferChange = objectChanges.find((change) => {
-    if (change.type !== 'transferred') return false;
-    // Check recipient matches vault address
-    const recipient = change.recipient;
-    if (typeof recipient !== 'object' || recipient === null) return false;
-    if (!('AddressOwner' in recipient)) return false;
-    if (recipient.AddressOwner !== quotePayload.vaultAddress) return false;
+    // Accept both 'transferred' and 'created' — SplitCoins + TransferObjects
+    // produces a 'created' change, not 'transferred'
+    if (change.type !== 'transferred' && change.type !== 'created') return false;
+
+    // 'transferred' uses recipient, 'created' uses owner
+    const ownerField = change.type === 'transferred' ? change.recipient : change.owner;
+    if (typeof ownerField !== 'object' || ownerField === null) return false;
+    if (!('AddressOwner' in ownerField)) return false;
+    if (ownerField.AddressOwner !== quotePayload.vaultAddress) return false;
+
     return extractTransferredCoinType(change.objectType) === quotePayload.coinType;
   });
 
@@ -206,7 +323,10 @@ export async function POST(req: NextRequest) {
           coinType: quotePayload.coinType,
           amount: onChainAmount,
         },
-        data: { status: 'CONFIRMED' },
+        data: {
+          status: 'CONFIRMED',
+          confirmedTxDigest: txDigest,
+        },
       });
 
       if (claim.count !== 1) {
@@ -233,6 +353,9 @@ export async function POST(req: NextRequest) {
         select: {
           status: true,
           expiresAt: true,
+          amount: true,
+          vaultAddress: true,
+          confirmedTxDigest: true,
         },
       });
 
@@ -260,8 +383,25 @@ export async function POST(req: NextRequest) {
       }
 
       if (currentQuote.status === 'CONFIRMED') {
+        if (currentQuote.confirmedTxDigest) {
+          return confirmedResponse(
+            currentQuote.amount,
+            currentQuote.vaultAddress,
+            currentQuote.confirmedTxDigest,
+          );
+        }
+
+        const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+        if (confirmedLedger) {
+          return confirmedResponse(
+            currentQuote.amount,
+            currentQuote.vaultAddress,
+            confirmedLedger.txDigest,
+          );
+        }
+
         return NextResponse.json(
-          { error: 'Quote already confirmed' },
+          { error: 'Quote already confirmed without a stored finalized digest' },
           { status: 409 },
         );
       }
@@ -280,16 +420,25 @@ export async function POST(req: NextRequest) {
     }
 
     if (isPrismaConflictError(err)) {
+      const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+      if (confirmedLedger) {
+        await syncPendingQuoteWithConfirmedLedger(
+          quoteToken,
+          quotePayload,
+          confirmedLedger.txDigest,
+        );
+        return confirmedResponse(
+          confirmedLedger.amount,
+          confirmedLedger.vaultAddress,
+          confirmedLedger.txDigest,
+        );
+      }
+
       return NextResponse.json({ error: 'Transaction already confirmed' }, { status: 409 });
     }
     throw err;
   }
 
   // 12. Return confirmed result
-  return NextResponse.json({
-    status: 'confirmed',
-    amount: onChainAmount.toString(),
-    vaultAddress: quotePayload.vaultAddress,
-    txDigest,
-  });
+  return confirmedResponse(onChainAmount, quotePayload.vaultAddress, txDigest);
 }

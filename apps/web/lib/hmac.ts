@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createLegacyHmac, createScopedHmac, hasMatchingHmac } from './scoped-hmac';
 
 export interface QuotePayload {
   xUserId: string;
@@ -11,13 +11,34 @@ export interface QuotePayload {
   expiresAt: number;       // unix timestamp (seconds)
 }
 
+const QUOTE_HMAC_SCOPE = 'quote';
+
+function isQuotePayload(value: unknown): value is QuotePayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const payload = value as Partial<QuotePayload>;
+  return (
+    typeof payload.xUserId === 'string' &&
+    Number.isInteger(payload.derivationVersion) &&
+    typeof payload.vaultAddress === 'string' &&
+    typeof payload.coinType === 'string' &&
+    typeof payload.amount === 'string' &&
+    /^\d+$/.test(payload.amount) &&
+    typeof payload.senderAddress === 'string' &&
+    typeof payload.nonce === 'string' &&
+    Number.isInteger(payload.expiresAt)
+  );
+}
+
 /**
  * Sign a quote payload into an opaque token: base64(json_payload).base64(hmac).
  */
 export function signQuoteToken(payload: QuotePayload, secret: string): string {
   const jsonStr = JSON.stringify(payload);
   const payloadB64 = Buffer.from(jsonStr).toString('base64url');
-  const hmac = createHmac('sha256', secret).update(payloadB64).digest('base64url');
+  const hmac = createScopedHmac(payloadB64, secret, QUOTE_HMAC_SCOPE);
   return `${payloadB64}.${hmac}`;
 }
 
@@ -31,19 +52,21 @@ export function verifyQuoteToken(token: string, secret: string): QuotePayload | 
   const payloadB64 = token.slice(0, dotIndex);
   const receivedHmac = token.slice(dotIndex + 1);
 
-  const expectedHmac = createHmac('sha256', secret).update(payloadB64).digest('base64url');
+  const expectedHmacs = [
+    createScopedHmac(payloadB64, secret, QUOTE_HMAC_SCOPE),
+    // TODO(2026-Q2): Remove legacy HMAC fallback after rollout.
+    createLegacyHmac(payloadB64, secret),
+  ];
 
-  // Timing-safe comparison
-  try {
-    const a = Buffer.from(receivedHmac, 'base64url');
-    const b = Buffer.from(expectedHmac, 'base64url');
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  } catch {
+  if (!hasMatchingHmac(receivedHmac, expectedHmacs)) {
     return null;
   }
 
   try {
-    const payload: QuotePayload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+    if (!isQuotePayload(payload)) {
+      return null;
+    }
 
     // Check expiration
     const now = Math.floor(Date.now() / 1000);

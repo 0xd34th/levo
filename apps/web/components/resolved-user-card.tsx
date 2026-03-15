@@ -4,20 +4,12 @@ import type { ResolvedUser } from '@/components/handle-input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 
 interface ResolvedUserCardProps {
   user: ResolvedUser | null;
   loading: boolean;
   error: string | null;
-}
-
-function isTrustedProfilePictureUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.twimg.com');
-  } catch {
-    return false;
-  }
 }
 
 function truncateAddress(address: string): string {

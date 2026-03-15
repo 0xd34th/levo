@@ -38,6 +38,14 @@ export function isValidAmountInput(value: string, coinType: string): boolean {
   return new RegExp(`^\\d*(?:\\.\\d{0,${decimals}})?$`).test(value);
 }
 
+export function formatAmount(baseUnits: string, coinType: string): string {
+  const decimals = getCoinDecimals(coinType);
+  const str = baseUnits.padStart(decimals + 1, '0');
+  const whole = str.slice(0, -decimals);
+  const frac = str.slice(-decimals).replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole;
+}
+
 export function getExplorerTransactionUrl(
   network: string,
   txDigest: string,

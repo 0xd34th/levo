@@ -42,6 +42,7 @@ model PaymentQuote {
   expiresAt         DateTime    @map("expires_at")
   status            QuoteStatus @default(PENDING)
   hmacToken         String      @map("hmac_token")
+  confirmedTxDigest String?     @map("confirmed_tx_digest")
   createdAt         DateTime    @default(now()) @map("created_at")
 
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
@@ -75,7 +76,7 @@ model PaymentLedger {
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
 
   @@unique([ledgerSource, txDigest, sourceIndex])
-  @@index([senderAddress])
+  @@index([senderAddress, createdAt(sort: Desc), id(sort: Desc)])
   @@index([xUserId])
   @@map("payment_ledger")
 }

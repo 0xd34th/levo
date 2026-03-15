@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { signQuoteToken, verifyQuoteToken, type QuotePayload } from './hmac';
+import { createLegacyHmac } from './scoped-hmac';
 
 const TEST_SECRET = 'a'.repeat(64); // 32-byte hex secret
 
@@ -61,5 +62,28 @@ describe('verifyQuoteToken', () => {
     const token = signQuoteToken(expiredPayload, TEST_SECRET);
     const result = verifyQuoteToken(token, TEST_SECRET);
     expect(result).toBeNull();
+  });
+
+  it('accepts legacy unscoped tokens during rollout', () => {
+    const payload = makeValidPayload();
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const token = `${payloadB64}.${createLegacyHmac(payloadB64, TEST_SECRET)}`;
+
+    expect(verifyQuoteToken(token, TEST_SECRET)).toEqual(payload);
+  });
+
+  it('rejects legacy tokens that do not decode to a quote payload', () => {
+    const walletAuthPayload = {
+      address: `0x${'1'.repeat(64)}`,
+      origin: 'http://localhost:3000',
+      path: '/api/v1/payments/history',
+      nonce: 'challenge-nonce',
+      issuedAt: Date.now(),
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    };
+    const payloadB64 = Buffer.from(JSON.stringify(walletAuthPayload)).toString('base64url');
+    const token = `${payloadB64}.${createLegacyHmac(payloadB64, TEST_SECRET)}`;
+
+    expect(verifyQuoteToken(token, TEST_SECRET)).toBeNull();
   });
 });

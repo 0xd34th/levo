@@ -1,0 +1,396 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+
+const {
+  rateLimitMock,
+  verifyQuoteTokenMock,
+  getTransactionBlockMock,
+  findUniqueMock,
+  findFirstMock,
+  updateManyMock,
+  transactionMock,
+} = vi.hoisted(() => ({
+  rateLimitMock: vi.fn(),
+  verifyQuoteTokenMock: vi.fn(),
+  getTransactionBlockMock: vi.fn(),
+  findUniqueMock: vi.fn(),
+  findFirstMock: vi.fn(),
+  updateManyMock: vi.fn(),
+  transactionMock: vi.fn(),
+}));
+
+vi.mock('@/lib/api', () => ({
+  getClientIp: () => '127.0.0.1',
+  hasValidHmacSecret: (secret: string | undefined) =>
+    typeof secret === 'string' && secret.trim().length >= 32,
+  invalidInputResponse: () =>
+    new Response(JSON.stringify({ error: 'Invalid input' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    }),
+}));
+
+vi.mock('@/lib/hmac', () => ({
+  verifyQuoteToken: verifyQuoteTokenMock,
+}));
+
+vi.mock('@/lib/sui', () => ({
+  getSuiClient: () => ({
+    getTransactionBlock: getTransactionBlockMock,
+  }),
+}));
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    paymentLedger: {
+      findUnique: findUniqueMock,
+    },
+    paymentQuote: {
+      findFirst: findFirstMock,
+      updateMany: updateManyMock,
+    },
+    $transaction: transactionMock,
+  },
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimit: rateLimitMock,
+}));
+
+import { POST } from './route';
+
+const VALID_TX_DIGEST = '4'.repeat(44);
+
+function makeQuotePayload() {
+  return {
+    xUserId: '12345',
+    derivationVersion: 1,
+    vaultAddress: '0xvault',
+    coinType: '0x2::sui::SUI',
+    amount: '1000000',
+    senderAddress: '0xsender',
+    nonce: 'test-nonce',
+    expiresAt: Math.floor(Date.now() / 1000) + 300,
+  };
+}
+
+describe('POST /api/v1/payments/confirm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.HMAC_SECRET = 'a'.repeat(64);
+    rateLimitMock.mockResolvedValue({ allowed: true });
+  });
+
+  it('marks regenerated pending quotes confirmed when a matching ledger entry already exists', async () => {
+    const quotePayload = makeQuotePayload();
+    const txDigest = VALID_TX_DIGEST;
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue({
+      txDigest,
+      senderAddress: quotePayload.senderAddress,
+      xUserId: quotePayload.xUserId,
+      vaultAddress: quotePayload.vaultAddress,
+      coinType: quotePayload.coinType,
+      amount: BigInt(quotePayload.amount),
+    });
+    findFirstMock.mockResolvedValue(null);
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(updateManyMock).toHaveBeenCalledWith({
+      where: {
+        hmacToken: 'quote-token',
+        status: 'PENDING',
+        senderAddress: quotePayload.senderAddress,
+        xUserId: quotePayload.xUserId,
+        vaultAddress: quotePayload.vaultAddress,
+        coinType: quotePayload.coinType,
+        amount: BigInt(quotePayload.amount),
+      },
+      data: {
+        status: 'CONFIRMED',
+        confirmedTxDigest: txDigest,
+      },
+    });
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest,
+    });
+  });
+
+  it('syncs regenerated pending quotes after a ledger conflict resolves idempotently', async () => {
+    const quotePayload = makeQuotePayload();
+    const txDigest = VALID_TX_DIGEST;
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        txDigest,
+        senderAddress: quotePayload.senderAddress,
+        xUserId: quotePayload.xUserId,
+        vaultAddress: quotePayload.vaultAddress,
+        coinType: quotePayload.coinType,
+        amount: BigInt(quotePayload.amount),
+      });
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [
+        {
+          type: 'created',
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
+        },
+      ],
+      balanceChanges: [
+        {
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          coinType: quotePayload.coinType,
+          amount: quotePayload.amount,
+        },
+      ],
+    });
+    transactionMock.mockRejectedValue({ code: 'P2002' });
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(updateManyMock).toHaveBeenCalledWith({
+      where: {
+        hmacToken: 'quote-token',
+        status: 'PENDING',
+        senderAddress: quotePayload.senderAddress,
+        xUserId: quotePayload.xUserId,
+        vaultAddress: quotePayload.vaultAddress,
+        coinType: quotePayload.coinType,
+        amount: BigInt(quotePayload.amount),
+      },
+      data: {
+        status: 'CONFIRMED',
+        confirmedTxDigest: txDigest,
+      },
+    });
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest,
+    });
+  });
+
+  it('returns a confirmed response with no-store headers on the first successful confirmation', async () => {
+    const quotePayload = makeQuotePayload();
+    const quoteUpdateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const ledgerCreateMock = vi.fn().mockResolvedValue({});
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [
+        {
+          type: 'created',
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
+        },
+      ],
+      balanceChanges: [
+        {
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          coinType: quotePayload.coinType,
+          amount: quotePayload.amount,
+        },
+      ],
+    });
+    transactionMock.mockImplementation(async (callback) =>
+      callback({
+        paymentQuote: { updateMany: quoteUpdateManyMock },
+        paymentLedger: { create: ledgerCreateMock },
+      }),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(quoteUpdateManyMock).toHaveBeenCalled();
+    expect(ledgerCreateMock).toHaveBeenCalled();
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
+  it('marks quotes failed when the transaction failed on-chain', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'failure' } },
+    });
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(updateManyMock).toHaveBeenCalledWith({
+      where: {
+        hmacToken: 'quote-token',
+        status: 'PENDING',
+      },
+      data: { status: 'FAILED' },
+    });
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Transaction failed on-chain',
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
+  it('rejects confirmations when the on-chain sender does not match the quote sender', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: '0xsomeone-else' } },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Transaction sender does not match quote',
+    });
+  });
+
+  it('rejects confirmations when the on-chain amount does not match the quote', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [
+        {
+          type: 'created',
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
+        },
+      ],
+      balanceChanges: [
+        {
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          coinType: quotePayload.coinType,
+          amount: '999999',
+        },
+      ],
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Amount mismatch',
+      expected: quotePayload.amount,
+      actual: '999999',
+    });
+  });
+
+  it('rejects confirmations when no matching vault balance change is present', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [
+        {
+          type: 'created',
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
+        },
+      ],
+      balanceChanges: [],
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No matching balance change found for vault',
+    });
+  });
+
+  it('rejects malformed short transaction digests before calling the RPC', async () => {
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: '4'.repeat(32), quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(getTransactionBlockMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: 'Invalid input' });
+  });
+});
