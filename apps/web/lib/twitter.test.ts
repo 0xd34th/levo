@@ -70,16 +70,14 @@ describe('resolveXUser', () => {
     await expect(resolveXUser('inv@lid!', 'test-api-key')).rejects.toThrow('Invalid username');
   });
 
-  it('rejects malformed provider ids', async () => {
+  it('returns null for malformed provider ids', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ ...MOCK_API_RESPONSE, id: 'abc123' }),
     });
 
-    await expect(resolveXUser('death_xyz', 'test-api-key')).rejects.toMatchObject({
-      name: 'TwitterApiError',
-      status: 502,
-    } satisfies Partial<TwitterApiError>);
+    const result = await resolveXUser('death_xyz', 'test-api-key');
+    expect(result).toBeNull();
   });
 });
 

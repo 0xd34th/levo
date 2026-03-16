@@ -79,9 +79,7 @@ export async function resolveXUser(
 
   if (data.unavailable) return null;
   const xUserId = parseXUserId(data.id);
-  if (!xUserId) {
-    throw new TwitterApiError('Twitter API returned malformed user id', 502);
-  }
+  if (!xUserId) return null;
 
   return {
     xUserId,
