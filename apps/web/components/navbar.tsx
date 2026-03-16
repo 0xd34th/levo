@@ -37,7 +37,7 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-3 rounded-full border border-border bg-secondary px-3 py-2 transition-colors hover:bg-muted"
+            className="inline-flex items-center gap-3 rounded-full border border-border/80 bg-background/90 px-3 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition-colors hover:bg-secondary/90 dark:border-white/10 dark:bg-white/5 dark:shadow-[0_12px_28px_rgba(0,0,0,0.2)] dark:hover:bg-white/8"
           >
             <span className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(91,127,255,0.38)] dark:shadow-[0_12px_30px_rgba(91,127,255,0.38)]">
               L
@@ -52,7 +52,7 @@ export function Navbar() {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 rounded-full border border-border bg-secondary p-1 md:flex">
+          <nav className="hidden items-center gap-1 rounded-full border border-border/80 bg-background/90 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.06)] md:flex dark:border-white/8 dark:bg-white/4 dark:shadow-none">
             {navigation.map((item) => {
               const active =
                 item.matchPrefix === '/' ? pathname === '/' : pathname.startsWith(item.matchPrefix);
@@ -64,8 +64,8 @@ export function Navbar() {
                   className={cn(
                     'inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors',
                     active
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      ? 'bg-background text-foreground shadow-sm dark:bg-white/10'
+                      : 'text-secondary-foreground hover:bg-secondary/90 hover:text-foreground dark:text-muted-foreground dark:hover:bg-white/6',
                   )}
                 >
                   <item.icon className="size-4" />
@@ -89,7 +89,7 @@ export function Navbar() {
             <ThemeToggle />
             <WalletConnectButton />
 
-            <div className="hidden items-center gap-2 rounded-full border border-border bg-secondary px-2 py-1.5 sm:flex">
+            <div className="hidden items-center gap-2 rounded-full border border-border/80 bg-background/90 px-2 py-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] sm:flex dark:border-white/8 dark:bg-white/4 dark:shadow-none">
               <Avatar className="size-8 border-border">
                 <AvatarFallback className="text-[11px]">
                   {initials(account?.address)}
@@ -119,8 +119,8 @@ export function Navbar() {
                 className={cn(
                   'inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors',
                   active
-                    ? 'border-border bg-secondary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:bg-secondary hover:text-foreground',
+                    ? 'border-border/80 bg-background/90 text-foreground shadow-sm dark:border-white/8 dark:bg-white/10 dark:shadow-none'
+                    : 'border-transparent text-secondary-foreground hover:border-border/80 hover:bg-background/90 hover:text-foreground dark:text-muted-foreground dark:hover:border-white/8 dark:hover:bg-white/6',
                 )}
               >
                 <item.icon className="size-4" />

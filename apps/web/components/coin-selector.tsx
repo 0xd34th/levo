@@ -58,8 +58,8 @@ export function CoinSelector({ value, onValueChange }: CoinSelectorProps) {
               className={cn(
                 'h-auto justify-start rounded-[22px] border px-4 py-3 text-left',
                 active
-                  ? 'border-primary/40 bg-primary/14 text-foreground hover:bg-primary/16'
-                  : 'border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/80 hover:text-foreground dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/7',
+                  ? 'border-primary/35 bg-primary/12 text-foreground shadow-[0_14px_30px_rgba(65,99,239,0.14)] hover:bg-primary/14 dark:shadow-none'
+                  : 'border-border/70 bg-card/92 text-secondary-foreground shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:bg-secondary/90 hover:text-foreground dark:border-white/8 dark:bg-white/4 dark:text-muted-foreground dark:shadow-none dark:hover:bg-white/7',
               )}
               variant="ghost"
               onClick={() => onValueChange(option.value)}
@@ -67,7 +67,7 @@ export function CoinSelector({ value, onValueChange }: CoinSelectorProps) {
               <span
                 className={cn(
                   'flex size-10 items-center justify-center rounded-2xl',
-                  active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground dark:bg-white/8',
+                  active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground dark:bg-white/8 dark:text-muted-foreground',
                 )}
               >
                 <option.icon className="size-4" />

@@ -16,7 +16,12 @@ export function ThemeToggle() {
 
   if (!isClient) {
     return (
-      <Button variant="ghost" size="icon" className="size-9" disabled>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-9 rounded-full border border-border/80 bg-background/92 text-secondary-foreground shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
+        disabled
+      >
         <Sun className="size-4" />
       </Button>
     );
@@ -26,7 +31,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="size-9"
+      className="size-9 rounded-full border border-border/80 bg-background/92 text-secondary-foreground shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:bg-secondary hover:text-foreground"
       onClick={() => setTheme(activeTheme === 'dark' ? 'light' : 'dark')}
       aria-label={activeTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
     >
