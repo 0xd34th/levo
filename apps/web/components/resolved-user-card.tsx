@@ -1,52 +1,23 @@
 'use client';
 
-import type { ResolvedUser } from '@/components/username-input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import type { ResolvedUserPreview } from '@/lib/resolved-user';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 
-interface ResolvedUserCardProps {
-  user: ResolvedUser | null;
-  loading: boolean;
-  error: string | null;
-}
+export type { ResolvedUserPreview } from '@/lib/resolved-user';
 
 function truncateAddress(address: string): string {
   if (address.length <= 14) return address;
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
-export function ResolvedUserCard({ user, loading, error }: ResolvedUserCardProps) {
-  if (error) {
-    return (
-      <Card>
-        <CardContent>
-          <p className="text-sm text-destructive">{error}</p>
-        </CardContent>
-      </Card>
-    );
-  }
+interface ResolvedUserCardProps {
+  user: ResolvedUserPreview;
+}
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-40" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!user) return null;
-
+export function ResolvedUserCard({ user }: ResolvedUserCardProps) {
   const profilePicture =
     user.profilePicture && isTrustedProfilePictureUrl(user.profilePicture)
       ? user.profilePicture

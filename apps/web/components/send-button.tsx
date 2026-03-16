@@ -3,18 +3,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { Transaction, coinWithBalance } from '@mysten/sui/transactions';
 import { useDAppKit, useCurrentAccount } from '@mysten/dapp-kit-react';
+import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
+import {
+  RecipientConfirmationModal,
+  type RecipientConfirmationData,
+} from '@/components/recipient-confirmation-modal';
 import { Button } from '@/components/ui/button';
-import type { ResolvedUser } from '@/components/username-input';
 import type { TransactionResultData } from '@/components/transaction-result';
 import { getCoinDecimals, isValidAmountInput } from '@/lib/coins';
+import type { ResolvedUserPreview } from '@/lib/resolved-user';
+import { normalizeUsernameInput } from '@/lib/send-form';
 
 interface SendButtonProps {
-  user: ResolvedUser | null;
+  username: string;
   amount: string;
   coinType: string;
   onError: (error: string | null) => void;
   onConfirm: (data: TransactionResultData) => void;
+  onSendingChange?: (sending: boolean) => void;
 }
 
 /** Convert a human-readable amount (e.g. "1.5") to base units (bigint) for a given decimal count. */
@@ -31,6 +38,65 @@ function toBaseUnits(amount: string, decimals = 6): bigint {
 
 function createAbortError() {
   return new DOMException('Request aborted', 'AbortError');
+}
+
+type QuoteResponse = {
+  quoteToken: string;
+} & ResolvedUserPreview;
+
+type SendStage = 'idle' | 'resolving' | 'reviewing' | 'awaiting_wallet' | 'confirming';
+
+async function getResponseError(response: Response, fallback: string) {
+  try {
+    const payload = await response.clone().json();
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      'error' in payload &&
+      typeof payload.error === 'string' &&
+      payload.error
+    ) {
+      return payload.error;
+    }
+  } catch {
+    // Fall through to a generic status-aware message when the server response is not JSON.
+  }
+
+  return response.status ? `${fallback} (${response.status})` : fallback;
+}
+
+function parseQuoteResponse(payload: unknown): QuoteResponse | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  const {
+    isBlueVerified,
+    profilePicture,
+    quoteToken,
+    username,
+    vaultAddress,
+  } = payload as Partial<QuoteResponse>;
+  if (
+    typeof quoteToken !== 'string' ||
+    quoteToken === '' ||
+    typeof username !== 'string' ||
+    username === '' ||
+    typeof vaultAddress !== 'string' ||
+    vaultAddress === '' ||
+    typeof isBlueVerified !== 'boolean' ||
+    (profilePicture !== null && typeof profilePicture !== 'string')
+  ) {
+    return null;
+  }
+
+  return {
+    isBlueVerified,
+    profilePicture,
+    quoteToken,
+    username,
+    vaultAddress,
+  };
 }
 
 function waitForRetryDelay(delayMs: number, signal?: AbortSignal) {
@@ -93,14 +159,25 @@ async function confirmWithRetry(
   return { ok: false, data: { error: 'Confirm timed out' } };
 }
 
-export function SendButton({ user, amount, coinType, onError, onConfirm }: SendButtonProps) {
+export function SendButton({
+  username,
+  amount,
+  coinType,
+  onError,
+  onConfirm,
+  onSendingChange,
+}: SendButtonProps) {
   const [sending, setSending] = useState(false);
+  const [sendStage, setSendStage] = useState<SendStage>('idle');
+  const [confirmationData, setConfirmationData] = useState<RecipientConfirmationData | null>(null);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const confirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
   const dAppKit = useDAppKit();
   const account = useCurrentAccount();
   const amountNum = amount === '' ? Number.NaN : Number(amount);
+  const normalizedUsername = normalizeUsernameInput(username);
   const hasValidAmount =
     amount !== '' &&
     !Number.isNaN(amountNum) &&
@@ -108,19 +185,42 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
     isValidAmountInput(amount, coinType);
   const disabled =
     !account ||
-    !user ||
+    !normalizedUsername ||
     !hasValidAmount ||
     sending;
+
+  const setSendingState = (nextSending: boolean) => {
+    setSending(nextSending);
+    if (!nextSending) {
+      setSendStage('idle');
+    }
+    onSendingChange?.(nextSending);
+  };
+
+  const requestRecipientConfirmation = (data: RecipientConfirmationData) => {
+    setConfirmationData(data);
+    setSendStage('reviewing');
+    return new Promise<boolean>((resolve) => {
+      confirmationResolverRef.current = resolve;
+    });
+  };
+
+  const resolveRecipientConfirmation = (confirmed: boolean) => {
+    confirmationResolverRef.current?.(confirmed);
+    confirmationResolverRef.current = null;
+    setConfirmationData(null);
+  };
 
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      resolveRecipientConfirmation(false);
       requestControllerRef.current?.abort();
     };
   }, []);
 
   const handleSend = async () => {
-    if (!account || !user || inFlightRef.current) return;
+    if (!account || !normalizedUsername || inFlightRef.current) return;
 
     const amountNum = amount === '' ? Number.NaN : Number(amount);
     if (amount === '' || Number.isNaN(amountNum) || amountNum <= 0) {
@@ -132,6 +232,14 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       return;
     }
 
+    let senderAddress: string;
+    try {
+      senderAddress = normalizeSuiAddress(account.address);
+    } catch {
+      onError('Invalid wallet address');
+      return;
+    }
+
     const baseAmount = toBaseUnits(amount, getCoinDecimals(coinType));
     const controller = new AbortController();
     const isAborted = () => controller.signal.aborted || !mountedRef.current;
@@ -139,19 +247,20 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
     requestControllerRef.current?.abort();
     requestControllerRef.current = controller;
     inFlightRef.current = true;
-    setSending(true);
+    setSendingState(true);
+    setSendStage('resolving');
     onError(null);
 
     try {
-      // 1. Request a payment quote
+      // 1. Request a payment quote, resolving the recipient server-side.
       const quoteRes = await fetch('/api/v1/payments/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: user.username,
+          username: normalizedUsername,
           coinType,
           amount: baseAmount.toString(),
-          senderAddress: account.address,
+          senderAddress,
         }),
         signal: controller.signal,
       });
@@ -159,18 +268,32 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       if (isAborted()) return;
 
       if (!quoteRes.ok) {
-        const err = await quoteRes.json().catch(() => ({ error: 'Quote failed' }));
+        const error = await getResponseError(quoteRes, 'Quote failed');
         if (isAborted()) return;
-        onError(err.error ?? `Quote error ${quoteRes.status}`);
+        onError(error);
         return;
       }
 
-      const quote = await quoteRes.json();
+      const quotePayload = await quoteRes.json().catch(() => null);
       if (isAborted()) return;
-      const { quoteToken, vaultAddress } = quote as {
-        quoteToken: string;
-        vaultAddress: string;
-      };
+      const quote = parseQuoteResponse(quotePayload);
+      if (!quote) {
+        onError('Invalid quote response');
+        return;
+      }
+      const { quoteToken, ...resolvedRecipient } = quote;
+
+      const confirmed = await requestRecipientConfirmation({
+        amount,
+        coinType,
+        recipient: resolvedRecipient,
+      });
+      if (isAborted()) return;
+      if (!confirmed) {
+        return;
+      }
+      setSendStage('awaiting_wallet');
+      const { username: resolvedUsername, vaultAddress } = resolvedRecipient;
 
       // 2. Build Sui transaction: transfer coin to vaultAddress
       const tx = new Transaction();
@@ -192,6 +315,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       }
 
       const txDigest = result.Transaction.digest;
+      setSendStage('confirming');
 
       // 4. Confirm payment on backend (with retries for 202)
       const confirmResult = await confirmWithRetry(
@@ -215,7 +339,7 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
       onConfirm({
         amount,
         coinType,
-        username: user.username,
+        username: resolvedUsername,
         txDigest,
       });
     } catch (err) {
@@ -232,29 +356,48 @@ export function SendButton({ user, amount, coinType, onError, onConfirm }: SendB
         requestControllerRef.current = null;
       }
       if (mountedRef.current) {
-        setSending(false);
+        setSendingState(false);
       }
     }
   };
 
+  let buttonLabel = 'Send now';
+  if (sendStage === 'resolving') {
+    buttonLabel = 'Resolving recipient';
+  } else if (sendStage === 'reviewing') {
+    buttonLabel = 'Review recipient';
+  } else if (sendStage === 'awaiting_wallet') {
+    buttonLabel = 'Approve in wallet';
+  } else if (sendStage === 'confirming') {
+    buttonLabel = 'Sending payment';
+  }
+
   return (
-    <Button
-      className="h-16 w-full rounded-[22px] bg-primary text-base font-semibold text-primary-foreground shadow-[0_20px_50px_rgba(91,127,255,0.35)] hover:bg-primary/90"
-      size="lg"
-      disabled={disabled}
-      onClick={handleSend}
-    >
-      {sending ? (
-        <span className="inline-flex items-center gap-2">
-          <LoaderCircle className="size-5 animate-spin" />
-          Sending payment
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-2">
-          Send now
-          <ArrowRight className="size-5" />
-        </span>
-      )}
-    </Button>
+    <>
+      <Button
+        className="h-16 w-full rounded-[22px] bg-primary text-base font-semibold text-primary-foreground shadow-[0_20px_50px_rgba(91,127,255,0.35)] hover:bg-primary/90"
+        size="lg"
+        disabled={disabled}
+        onClick={handleSend}
+      >
+        {sending ? (
+          <span className="inline-flex items-center gap-2">
+            <LoaderCircle className="size-5 animate-spin" />
+            {buttonLabel}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            Send now
+            <ArrowRight className="size-5" />
+          </span>
+        )}
+      </Button>
+
+      <RecipientConfirmationModal
+        data={confirmationData}
+        onCancel={() => resolveRecipientConfirmation(false)}
+        onConfirm={() => resolveRecipientConfirmation(true)}
+      />
+    </>
   );
 }

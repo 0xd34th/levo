@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 interface CoinSelectorProps {
   value: string;
   onValueChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 function getCoinOptions() {
@@ -34,7 +35,7 @@ function getCoinOptions() {
   ];
 }
 
-export function CoinSelector({ value, onValueChange }: CoinSelectorProps) {
+export function CoinSelector({ value, onValueChange, disabled = false }: CoinSelectorProps) {
   const options = getCoinOptions();
 
   return (
@@ -62,6 +63,7 @@ export function CoinSelector({ value, onValueChange }: CoinSelectorProps) {
                   : 'border-border/70 bg-card/92 text-secondary-foreground shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:bg-secondary/90 hover:text-foreground dark:border-white/8 dark:bg-white/4 dark:text-muted-foreground dark:shadow-none dark:hover:bg-white/7',
               )}
               variant="ghost"
+              disabled={disabled}
               onClick={() => onValueChange(option.value)}
             >
               <span

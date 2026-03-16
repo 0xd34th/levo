@@ -261,17 +261,7 @@ return null;
 
 ---
 
-### [F-024] Editing the handle leaves the previous recipient live long enough to misdirect a send
-
-**File**: `apps/web/components/username-input.tsx:119`
-**Severity**: High
-**Description**: After a username resolves, changing the input to another non-empty value does not immediately clear the old resolution. `HomePage` keeps passing that stale `resolvedUser` into `SendButton`, and `SendButton` quotes the transfer with `user.username`. During the 450 ms debounce window, the field can show the new handle while clicking "Send now" still pays the previous recipient.
-**Suggested Fix**: Clear the resolved user and call `onResolvedChange(null)` on every input change before scheduling the next lookup, or disable sending until the current normalized input has been re-resolved.
-**Fixed in**: Added shared handle normalization in `apps/web/lib/send-form.ts`, and now `apps/web/components/username-input.tsx` clears the resolved user, error state, and parent callback immediately on every edit before the next debounced lookup begins.
-
----
-
-### [F-025] The new multi-asset send flow still labels SUI amounts as dollars
+### [F-024] The new multi-asset send flow still labels SUI amounts as dollars
 
 **File**: `apps/web/components/amount-input.tsx:29`
 **Severity**: Medium
@@ -281,7 +271,7 @@ return null;
 
 ---
 
-### [F-026] Switching assets can leave an invalid amount enabled until send time
+### [F-025] Switching assets can leave an invalid amount enabled until send time
 
 **File**: `apps/web/components/amount-input.tsx:14`
 **Severity**: Low
@@ -291,7 +281,7 @@ return null;
 
 ---
 
-### [F-027] Leading `@` input truncates valid 15-character X handles
+### [F-026] Leading `@` input truncates valid 15-character X handles
 
 **File**: `apps/web/components/username-input.tsx:114`
 **Severity**: Low
@@ -301,7 +291,7 @@ return null;
 
 ---
 
-### [F-028] History pagination uses an `id` cursor with a different primary sort key
+### [F-027] History pagination uses an `id` cursor with a different primary sort key
 
 **File**: `apps/web/app/api/v1/payments/history/route.ts:39`
 **Severity**: Medium
@@ -311,7 +301,7 @@ return null;
 
 ---
 
-### [F-029] Expired wallet auth always forces one visible history failure
+### [F-028] Expired wallet auth always forces one visible history failure
 
 **File**: `apps/web/app/history/page.tsx:96`
 **Severity**: Medium
@@ -321,7 +311,7 @@ return null;
 
 ---
 
-### [F-030] Valid short-form Sui addresses are rejected before normalization
+### [F-029] Valid short-form Sui addresses are rejected before normalization
 
 **File**: `apps/web/app/api/v1/wallet-auth/challenge/route.ts:17`, `apps/web/app/api/v1/payments/history/route.ts:12`
 **Severity**: Low
@@ -331,7 +321,7 @@ return null;
 
 ---
 
-### [F-031] Send-page header is not mobile-safe when mint controls are visible
+### [F-030] Send-page header is not mobile-safe when mint controls are visible
 
 **File**: `apps/web/app/send/page.tsx:43`
 **Severity**: Low
@@ -341,7 +331,7 @@ return null;
 
 ---
 
-### [F-032] Mint status leaks across wallet switches
+### [F-031] Mint status leaks across wallet switches
 
 **File**: `apps/web/components/mint-button.tsx:17`
 **Severity**: Low
@@ -351,7 +341,7 @@ return null;
 
 ---
 
-### [F-033] New `getExpectedOrigin` tests fail strict TypeScript checking
+### [F-032] New `getExpectedOrigin` tests fail strict TypeScript checking
 
 **File**: `apps/web/lib/api.test.ts:9`
 **Severity**: Low
@@ -361,7 +351,7 @@ return null;
 
 ---
 
-### [F-034] Missing `aria-label` on explorer link icon
+### [F-033] Missing `aria-label` on explorer link icon
 
 **File**: `apps/web/components/transaction-row.tsx:62-85`
 **Severity**: Low
@@ -371,17 +361,17 @@ return null;
 
 ---
 
-### [F-035] No cross-domain token rejection test in wallet-auth
+### [F-034] No cross-domain token rejection test in wallet-auth
 
 **File**: `apps/web/lib/wallet-auth.test.ts`
 **Severity**: Low
-**Description**: `hmac.test.ts` tests that legacy wallet-auth tokens are rejected by `verifyQuoteToken`, but `wallet-auth.test.ts` does not test the inverse. Would catch the vulnerability in [R-002].
+**Description**: `hmac.test.ts` tests that legacy wallet-auth tokens are rejected by `verifyQuoteToken`, but `wallet-auth.test.ts` does not test the inverse. That missing coverage would have caught the inverse wallet-auth/quote-token acceptance bug directly.
 **Suggested Fix**: Add a test creating a legacy quote token and asserting `verifyWalletAuthChallenge` returns null.
 **Fixed in**: Added the inverse legacy-token regression test in `apps/web/lib/wallet-auth.test.ts`, asserting that a legacy quote token is rejected by `verifyWalletAuthChallenge()`.
 
 ---
 
-### [F-036] Confirm endpoint missing `Cache-Control: no-store`
+### [F-035] Confirm endpoint missing `Cache-Control: no-store`
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:39-46`
 **Severity**: Medium
@@ -391,7 +381,7 @@ return null;
 
 ---
 
-### [F-037] `txDigest` regex minimum length (32) is too permissive
+### [F-036] `txDigest` regex minimum length (32) is too permissive
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:10`
 **Severity**: Medium
@@ -401,7 +391,7 @@ return null;
 
 ---
 
-### [F-038] HMAC_SECRET minimum length not validated
+### [F-037] HMAC_SECRET minimum length not validated
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.ts:128`, `apps/web/app/api/v1/wallet-auth/challenge/route.ts:42`
 **Severity**: Low
@@ -411,7 +401,7 @@ return null;
 
 ---
 
-### [F-039] Confirm route test coverage is incomplete
+### [F-038] Confirm route test coverage is incomplete
 
 **File**: `apps/web/app/api/v1/payments/confirm/route.test.ts`
 **Severity**: Low
@@ -421,7 +411,7 @@ return null;
 
 ---
 
-### [F-040] New `ThemeToggle` fails the repo lint gate
+### [F-039] New `ThemeToggle` fails the repo lint gate
 
 **File**: `apps/web/components/theme-toggle.tsx:12`
 **Severity**: Medium
@@ -431,7 +421,7 @@ return null;
 
 ---
 
-### [F-041] Public handle lookups have no stale-request protection
+### [F-040] Public handle lookups have no stale-request protection
 
 **File**: `apps/web/app/dashboard/received/page.tsx:48`, `apps/web/app/lookup/page.tsx:29`, `apps/web/app/claim/page.tsx:34`
 **Severity**: Medium
@@ -441,7 +431,7 @@ return null;
 
 ---
 
-### [F-042] Claim page reports success without performing any claim
+### [F-041] Claim page reports success without performing any claim
 
 **File**: `apps/web/app/claim/page.tsx:33`
 **Severity**: Medium
@@ -451,7 +441,7 @@ return null;
 
 ---
 
-### [F-043] Primary navigation disappears completely on mobile
+### [F-042] Primary navigation disappears completely on mobile
 
 **File**: `apps/web/components/navbar.tsx:110`
 **Severity**: Medium
@@ -461,7 +451,7 @@ return null;
 
 ---
 
-### [F-044] Starting a new claim lookup leaves the previous handle live and clickable
+### [F-043] Starting a new claim lookup leaves the previous handle live and clickable
 
 **File**: `apps/web/app/claim/page.tsx:41`
 **Severity**: Medium
@@ -471,7 +461,7 @@ return null;
 
 ---
 
-### [F-045] Public lookup and incoming payment endpoints write to DB on every unauthenticated GET request
+### [F-044] Public lookup and incoming payment endpoints write to DB on every unauthenticated GET request
 
 **File**: `apps/web/app/api/v1/lookup/x-username/route.ts:68`, `apps/web/app/api/v1/payments/incoming/route.ts:80`
 **Severity**: High
@@ -481,7 +471,7 @@ return null;
 
 ---
 
-### [F-046] Username not URL-encoded in client-side fetch calls — query parameter injection risk
+### [F-045] Username not URL-encoded in client-side fetch calls — query parameter injection risk
 
 **File**: `apps/web/app/claim/page.tsx:58`, `apps/web/app/lookup/page.tsx:48`
 **Severity**: Medium
@@ -491,7 +481,7 @@ return null;
 
 ---
 
-### [F-047] `normalizeHandle` is weaker than `normalizeUsernameInput` — allows overlong/malformed handles to reach the server
+### [F-046] `normalizeHandle` is weaker than `normalizeUsernameInput` — allows overlong/malformed handles to reach the server
 
 **File**: `apps/web/lib/received-dashboard-client.ts:50-52`
 **Severity**: Medium
@@ -501,7 +491,7 @@ return null;
 
 ---
 
-### [F-048] `received-dashboard.ts` does not validate `xUserId` before BigInt conversion
+### [F-047] `received-dashboard.ts` does not validate `xUserId` before BigInt conversion
 
 **File**: `apps/web/lib/received-dashboard.ts:138`
 **Severity**: Medium
@@ -511,17 +501,17 @@ return null;
 
 ---
 
-### [F-049] Fake "Sign in with X" step provides no actual identity verification
+### [F-048] Fake "Sign in with X" step provides no actual identity verification
 
 **File**: `apps/web/app/claim/page.tsx:121-127`
 **Severity**: Medium
-**Description**: Related to but distinct from F-042 (which addressed the fake claim step). The "Sign in with X" step (`id === 'signin'`) simulates X OAuth by waiting 700ms and setting `hasSignedInWithX = true` — no actual OAuth flow, API call, or identity verification occurs. The entire claim stepper can be advanced to the final step without proving ownership of the X handle. If the claim transaction is wired in the future without fixing this, anyone could claim any handle's vault without authentication.
+**Description**: Related to but distinct from the separate fake-claim-step finding in this batch. The "Sign in with X" step (`id === 'signin'`) simulates X OAuth by waiting 700ms and setting `hasSignedInWithX = true` — no actual OAuth flow, API call, or identity verification occurs. The entire claim stepper can be advanced to the final step without proving ownership of the X handle. If the claim transaction is wired in the future without fixing this, anyone could claim any handle's vault without authentication.
 **Suggested Fix**: Either implement actual X OAuth, or clearly gate the entire claim page behind a "Coming soon" state that prevents the stepper from advancing. The current UI gives users the impression that they have authenticated when they have not.
 **Fixed in**: Changed the claim page’s sign-in step into an explicit coming-soon gate in `apps/web/app/claim/page.tsx`, so clicking it now shows notice text without marking the user authenticated or unlocking later steps.
 
 ---
 
-### [F-050] `sent/page.tsx` displays full 66-character wallet address with no truncation in header badge
+### [F-049] `sent/page.tsx` displays full 66-character wallet address with no truncation in header badge
 
 **File**: `apps/web/app/dashboard/sent/page.tsx:239-241`
 **Severity**: Low
@@ -531,7 +521,7 @@ return null;
 
 ---
 
-### [F-051] "Payments sent" count shows loaded items count, not total
+### [F-050] "Payments sent" count shows loaded items count, not total
 
 **File**: `apps/web/app/dashboard/sent/page.tsx:216`
 **Severity**: Low
@@ -541,17 +531,17 @@ return null;
 
 ---
 
-### [F-052] No AbortController in claim page or lookup page fetch calls
+### [F-051] No AbortController in claim page or lookup page fetch calls
 
 **File**: `apps/web/app/claim/page.tsx:57-83`, `apps/web/app/lookup/page.tsx:47-71`
 **Severity**: Low
-**Description**: Both pages use `lookupRequestIdRef` to discard stale responses (from F-041 fix), but don't use `AbortController` to actually cancel in-flight HTTP requests. Old requests continue consuming network bandwidth and server resources. The sent dashboard correctly uses `AbortController`.
+**Description**: Both pages use `lookupRequestIdRef` to discard stale responses from an earlier stale-request fix, but don't use `AbortController` to actually cancel in-flight HTTP requests. Old requests continue consuming network bandwidth and server resources. The sent dashboard correctly uses `AbortController`.
 **Suggested Fix**: Add `AbortController` support, aborting the previous request when a new lookup starts.
 **Fixed in**: Added per-page `AbortController` refs in `apps/web/app/claim/page.tsx` and `apps/web/app/lookup/page.tsx`, aborting superseded requests and cleaning them up on unmount.
 
 ---
 
-### [F-053] Received-dashboard types duplicated between server and client modules
+### [F-052] Received-dashboard types duplicated between server and client modules
 
 **File**: `apps/web/lib/received-dashboard-client.ts:3-48`, `apps/web/lib/received-dashboard.ts:13-63`
 **Severity**: Low
@@ -561,7 +551,7 @@ return null;
 
 ---
 
-### [F-054] Deleted vault objects treated as unclaimed in received dashboard
+### [F-053] Deleted vault objects treated as unclaimed in received dashboard
 
 **File**: `apps/web/lib/received-dashboard.ts:156`
 **Severity**: Medium
@@ -571,7 +561,7 @@ return null;
 
 ---
 
-### [F-055] Received dashboard `data.items` grows unbounded in client memory
+### [F-054] Received dashboard `data.items` grows unbounded in client memory
 
 **File**: `apps/web/app/dashboard/received/page.tsx:110-116`
 **Severity**: Low
@@ -581,11 +571,11 @@ return null;
 
 ---
 
-### [F-056] `mapIncomingPayment` throws on unsupported coin types stored in the payment ledger
+### [F-055] `mapIncomingPayment` throws on unsupported coin types stored in the payment ledger
 
 **File**: `apps/web/lib/received-dashboard.ts:48-49`
 **Severity**: High
-**Description**: After F-054 tightened `getCoinLabel`/`getCoinDecimals` to throw for unsupported coin types, `mapIncomingPayment` calls both on every ledger row without filtering. `getIncomingPaymentsPage` maps all rows regardless of coin type. If any ledger row contains a coin type not in the display whitelist (e.g., a token temporarily supported then removed, or a future migration), the entire paginated response crashes with an unhandled exception (503). The balance code in `getReceivedVaultSummary` correctly filters via `isDisplaySupportedCoinType`, but the payment listing does not.
+**Description**: After the display helpers were tightened to throw for unsupported coin types, `mapIncomingPayment` calls both on every ledger row without filtering. `getIncomingPaymentsPage` maps all rows regardless of coin type. If any ledger row contains a coin type not in the display whitelist (e.g., a token temporarily supported then removed, or a future migration), the entire paginated response crashes with an unhandled exception (503). The balance code in `getReceivedVaultSummary` correctly filters via `isDisplaySupportedCoinType`, but the payment listing does not.
 **Suggested Fix**: Filter unsupported coin types before mapping, or wrap in a safe mapper that returns `null` for unsupported types and filters them out:
 ```typescript
 const mapped = mapIncomingPayment(row);
@@ -596,11 +586,11 @@ items: items.map(mapIncomingPayment).filter(Boolean)
 
 ---
 
-### [F-057] `summarizeAmount` in sent dashboard crashes on unsupported coin types from DB
+### [F-056] `summarizeAmount` in sent dashboard crashes on unsupported coin types from DB
 
 **File**: `apps/web/app/dashboard/sent/page.tsx:22-38`
 **Severity**: High
-**Description**: Same root cause as R-001. `summarizeAmount` iterates all loaded `TransactionItem` objects and calls `formatAmount(total.toString(), coinType)` and `getCoinLabel(coinType)` — both throw post-F-054 for unsupported coin types. The history API returns `coinType` directly from the database without filtering against the display whitelist. A single unsupported ledger row crashes the entire sent dashboard client-side.
+**Description**: Same root cause as the preceding unsupported-coin listing finding. `summarizeAmount` iterates all loaded `TransactionItem` objects and calls `formatAmount(total.toString(), coinType)` and `getCoinLabel(coinType)` — both throw after the display helpers were tightened for unsupported coin types. The history API returns `coinType` directly from the database without filtering against the display whitelist. A single unsupported ledger row crashes the entire sent dashboard client-side.
 **Suggested Fix**: Guard with `isDisplaySupportedCoinType` or wrap in try/catch with a fallback label:
 ```typescript
 try {
@@ -613,17 +603,17 @@ try {
 
 ---
 
-### [F-058] Received dashboard `fetchIncoming` lacks AbortController — rapid searches leak concurrent requests
+### [F-057] Received dashboard `fetchIncoming` lacks AbortController — rapid searches leak concurrent requests
 
 **File**: `apps/web/app/dashboard/received/page.tsx:35-49`
 **Severity**: Medium
-**Description**: F-052 added `AbortController` to the claim and lookup pages, but the received dashboard was not included. `handleSubmit` does not abort the previous request when a new search starts. Rapid handle searches cause concurrent in-flight fetches that each consume network bandwidth and server resources (including Sui RPC calls via `getReceivedVaultSummary`). The request-id guard from F-041 discards stale responses, but the HTTP requests themselves continue running.
+**Description**: Earlier fixes added `AbortController` support to the claim and lookup pages, but the received dashboard was not included. `handleSubmit` does not abort the previous request when a new search starts. Rapid handle searches cause concurrent in-flight fetches that each consume network bandwidth and server resources (including Sui RPC calls via `getReceivedVaultSummary`). The request-id guard from the earlier stale-response fix discards stale responses, but the HTTP requests themselves continue running.
 **Suggested Fix**: Add `AbortController` ref matching the claim/lookup pattern, aborting previous requests on new search and on unmount.
 **Fixed in**: Added a shared request `AbortController` ref in `apps/web/app/dashboard/received/page.tsx`, wired it into both initial lookups and load-more fetches, and abort the active request on replacement and unmount.
 
 ---
 
-### [F-059] `persistReceivedDashboardXUser` silently swallows errors and returns default derivation version
+### [F-058] `persistReceivedDashboardXUser` silently swallows errors and returns default derivation version
 
 **File**: `apps/web/lib/received-dashboard.ts:109-112`
 **Severity**: Medium
@@ -633,7 +623,7 @@ try {
 
 ---
 
-### [F-060] Vault summary re-fetched from Sui RPC on every paginated incoming payments request
+### [F-059] Vault summary re-fetched from Sui RPC on every paginated incoming payments request
 
 **File**: `apps/web/lib/received-dashboard.ts:251-268`
 **Severity**: Medium
@@ -643,7 +633,7 @@ try {
 
 ---
 
-### [F-061] `PaymentTable` `desktopColSpan` off-by-one — spacer rows don't span full table width
+### [F-060] `PaymentTable` `desktopColSpan` off-by-one — spacer rows don't span full table width
 
 **File**: `apps/web/components/payment-table.tsx:129`
 **Severity**: Medium
@@ -656,7 +646,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-062] `receivedVaultSummaryCache` is an unbounded in-memory Map — memory leak in production
+### [F-061] `receivedVaultSummaryCache` is an unbounded in-memory Map — memory leak in production
 
 **File**: `apps/web/lib/received-dashboard.ts:37`
 **Severity**: High
@@ -666,7 +656,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-063] Bundled Apple San Francisco fonts may violate license terms
+### [F-062] Bundled Apple San Francisco fonts may violate license terms
 
 **File**: `apps/web/app/fonts/SFNS.ttf`, `apps/web/app/fonts/SFCompact.ttf`, `apps/web/app/fonts/SFNSMono.ttf`
 **Severity**: High
@@ -676,7 +666,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-064] `getIncomingPaymentsPage` loop has no iteration cap — can execute unlimited DB queries
+### [F-063] `getIncomingPaymentsPage` loop has no iteration cap — can execute unlimited DB queries
 
 **File**: `apps/web/lib/received-dashboard.ts:281`
 **Severity**: Medium
@@ -686,7 +676,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-065] Missing `/dashboard` index page causes 404
+### [F-064] Missing `/dashboard` index page causes 404
 
 **File**: `apps/web/app/dashboard/` (no `page.tsx`)
 **Severity**: Medium
@@ -696,7 +686,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-066] `getCoinLabel` and `getCoinDecimals` now throw for unknown coin types — breaking `transaction-row.tsx`
+### [F-065] `getCoinLabel` and `getCoinDecimals` now throw for unknown coin types — breaking `transaction-row.tsx`
 
 **File**: `apps/web/lib/coins.ts:34`, `apps/web/components/transaction-row.tsx:61`
 **Severity**: Medium
@@ -706,7 +696,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-067] `parseXUserId` accepts "0" as a valid X user ID
+### [F-066] `parseXUserId` accepts "0" as a valid X user ID
 
 **File**: `apps/web/lib/twitter.ts:40`
 **Severity**: Medium
@@ -716,7 +706,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-068] Explorer URL `txDigest` is interpolated without format validation
+### [F-067] Explorer URL `txDigest` is interpolated without format validation
 
 **File**: `apps/web/lib/coins.ts:72`
 **Severity**: Medium
@@ -726,7 +716,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-069] `amount-input.tsx` uses hardcoded `id="amount-input"` — breaks with multiple instances
+### [F-068] `amount-input.tsx` uses hardcoded `id="amount-input"` — breaks with multiple instances
 
 **File**: `apps/web/components/amount-input.tsx:40`
 **Severity**: Low
@@ -736,7 +726,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-070] `resolved-user-card.tsx` imports `ResolvedUser` from legacy `handle-input` instead of `username-input`
+### [F-069] `resolved-user-card.tsx` imports `ResolvedUser` from legacy `handle-input` instead of `username-input`
 
 **File**: `apps/web/components/resolved-user-card.tsx:3`
 **Severity**: Low
@@ -746,7 +736,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-071] `images.remotePatterns` hostname glob `**.twimg.com` is broader than needed
+### [F-070] `images.remotePatterns` hostname glob `**.twimg.com` is broader than needed
 
 **File**: `apps/web/next.config.ts:10`
 **Severity**: Low
@@ -756,7 +746,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-072] `getIncomingPaymentsPage` over-fetches rows on subsequent scan iterations
+### [F-071] `getIncomingPaymentsPage` over-fetches rows on subsequent scan iterations
 
 **File**: `apps/web/lib/received-dashboard.ts:313`
 **Severity**: Medium
@@ -766,7 +756,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-073] Redundant double prune call in vault summary cache
+### [F-072] Redundant double prune call in vault summary cache
 
 **File**: `apps/web/lib/received-dashboard.ts:160,166`
 **Severity**: Low
@@ -776,7 +766,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-074] `PaymentTable` does not validate avatar image URLs through `isTrustedProfilePictureUrl`
+### [F-073] `PaymentTable` does not validate avatar image URLs through `isTrustedProfilePictureUrl`
 
 **File**: `apps/web/components/payment-table.tsx:138-140,186-188`
 **Severity**: Medium
@@ -786,7 +776,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-075] Hardcoded dark-mode colors throughout new components break light mode
+### [F-074] Hardcoded dark-mode colors throughout new components break light mode
 
 **File**: Multiple new components and pages
 **Severity**: Medium
@@ -796,7 +786,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-076] `UsernameInput` clears resolved state redundantly in both `onChange` and debounce callback
+### [F-075] `UsernameInput` clears resolved state redundantly in both `onChange` and debounce callback
 
 **File**: `apps/web/components/username-input.tsx:52-55,122-126`
 **Severity**: Low
@@ -806,7 +796,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-077] `coin-selector.tsx` badge uses theme-unaware `border-white/10`
+### [F-076] `coin-selector.tsx` badge uses theme-unaware `border-white/10`
 
 **File**: `apps/web/components/coin-selector.tsx:46`
 **Severity**: Low
@@ -816,7 +806,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-078] SendButton lacks AbortController — stale callbacks and non-cancellable confirm retries
+### [F-077] SendButton lacks AbortController — stale callbacks and non-cancellable confirm retries
 
 **File**: `apps/web/components/send-button.tsx:30`
 **Severity**: Medium
@@ -826,7 +816,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-079] API error responses missing `Cache-Control: no-store` header
+### [F-078] API error responses missing `Cache-Control: no-store` header
 
 **File**: `apps/web/app/api/v1/lookup/x-username/route.ts:14`, `apps/web/app/api/v1/payments/incoming/route.ts:18`
 **Severity**: Low
@@ -836,7 +826,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-080] UsernameInput still calls old `/api/v1/resolve/x-username` — incomplete API migration
+### [F-079] UsernameInput still calls old `/api/v1/resolve/x-username` — incomplete API migration
 
 **File**: `apps/web/components/username-input.tsx:48`
 **Severity**: High
@@ -846,7 +836,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-081] Old resolve endpoint returns unsanitized `profilePicture` URL in API response
+### [F-080] Old resolve endpoint returns unsanitized `profilePicture` URL in API response
 
 **File**: `apps/web/app/api/v1/resolve/x-username/route.ts:64`
 **Severity**: Medium
@@ -856,7 +846,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-082] `isTrustedProfilePictureUrl` uses `endsWith('.twimg.com')` instead of exact hostname
+### [F-081] `isTrustedProfilePictureUrl` uses `endsWith('.twimg.com')` instead of exact hostname
 
 **File**: `apps/web/lib/transaction-history.ts:18`
 **Severity**: Low
@@ -866,7 +856,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-083] Unsanitized `profilePicture` persisted to DB via `persistReceivedDashboardXUser`
+### [F-082] Unsanitized `profilePicture` persisted to DB via `persistReceivedDashboardXUser`
 
 **File**: `apps/web/lib/received-dashboard.ts:101`
 **Severity**: Medium
@@ -876,7 +866,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-084] `truncateAddress` crashes on null/undefined input
+### [F-083] `truncateAddress` crashes on null/undefined input
 
 **File**: `apps/web/lib/received-dashboard-client.ts:25`
 **Severity**: Medium
@@ -886,7 +876,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-085] Claim and lookup page submit buttons not disabled during loading
+### [F-084] Claim and lookup page submit buttons not disabled during loading
 
 **File**: `apps/web/app/claim/page.tsx:203`, `apps/web/app/lookup/page.tsx:122`
 **Severity**: Low
@@ -896,7 +886,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-086] `TransactionResult` calls `getCoinLabel` without guard — crashes on unsupported coin types
+### [F-085] `TransactionResult` calls `getCoinLabel` without guard — crashes on unsupported coin types
 
 **File**: `apps/web/components/transaction-result.tsx:20`
 **Severity**: High
@@ -906,7 +896,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-087] Resolve endpoint (`POST /api/v1/resolve/x-username`) success response lacks `Cache-Control: no-store`
+### [F-086] Resolve endpoint (`POST /api/v1/resolve/x-username`) success response lacks `Cache-Control: no-store`
 
 **File**: `apps/web/app/api/v1/resolve/x-username/route.ts:15`
 **Severity**: Medium
@@ -916,7 +906,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-088] `UsernameInput` sends heavyweight lookup request for every debounced keystroke
+### [F-087] `UsernameInput` sends heavyweight lookup request for every debounced keystroke
 
 **File**: `apps/web/components/username-input.tsx:47`
 **Severity**: Medium
@@ -926,7 +916,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-089] `summarizeAmount` in sent dashboard crashes on malformed `amount` strings
+### [F-088] `summarizeAmount` in sent dashboard crashes on malformed `amount` strings
 
 **File**: `apps/web/app/dashboard/sent/page.tsx:18`
 **Severity**: Medium
@@ -936,7 +926,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-090] Claim page `handleStepAction` for 'claim' step lacks sign-in precondition guard
+### [F-089] Claim page `handleStepAction` for 'claim' step lacks sign-in precondition guard
 
 **File**: `apps/web/app/claim/page.tsx:149`
 **Severity**: Medium
@@ -946,7 +936,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-091] Received dashboard submit button not disabled during loading
+### [F-090] Received dashboard submit button not disabled during loading
 
 **File**: `apps/web/app/dashboard/received/page.tsx:180`
 **Severity**: Low
@@ -956,7 +946,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-092] `UsernameInput` `normalizedValue` uses weaker normalization than `normalizeUsernameInput`
+### [F-091] `UsernameInput` `normalizedValue` uses weaker normalization than `normalizeUsernameInput`
 
 **File**: `apps/web/components/username-input.tsx:85`
 **Severity**: Low
@@ -966,7 +956,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-093] `defaultCoinType` may produce malformed coin type from whitespace-only `NEXT_PUBLIC_PACKAGE_ID`
+### [F-092] `defaultCoinType` may produce malformed coin type from whitespace-only `NEXT_PUBLIC_PACKAGE_ID`
 
 **File**: `apps/web/lib/coins.ts:7`
 **Severity**: Low
@@ -976,7 +966,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-094] Claim page `handleStepAction` timeouts not cleaned up on unmount
+### [F-093] Claim page `handleStepAction` timeouts not cleaned up on unmount
 
 **File**: `apps/web/app/claim/page.tsx:28`
 **Severity**: Low
@@ -986,7 +976,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-095] Sent dashboard retry/load-more calls lack AbortController
+### [F-094] Sent dashboard retry/load-more calls lack AbortController
 
 **File**: `apps/web/app/dashboard/sent/page.tsx:294,325`
 **Severity**: Medium
@@ -996,7 +986,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-096] Received dashboard does not clear `data` on new search
+### [F-095] Received dashboard does not clear `data` on new search
 
 **File**: `apps/web/app/dashboard/received/page.tsx:55-98`
 **Severity**: Medium
@@ -1006,7 +996,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-097] Claim page `waitForStepDelay` concurrent calls overwrite timeout state
+### [F-096] Claim page `waitForStepDelay` concurrent calls overwrite timeout state
 
 **File**: `apps/web/app/claim/page.tsx:47-54`
 **Severity**: Medium
@@ -1016,7 +1006,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-098] Claim page step delay returns a never-resolving Promise on unmount
+### [F-097] Claim page step delay returns a never-resolving Promise on unmount
 
 **File**: `apps/web/app/claim/page.tsx:47-54`
 **Severity**: Medium
@@ -1026,7 +1016,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-099] Lookup page does not clear `result` on new search
+### [F-098] Lookup page does not clear `result` on new search
 
 **File**: `apps/web/app/lookup/page.tsx:39-91`
 **Severity**: Low
@@ -1036,7 +1026,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-100] `PaymentTable` computes virtualization windows even when virtualization is off
+### [F-099] `PaymentTable` computes virtualization windows even when virtualization is off
 
 **File**: `apps/web/components/payment-table.tsx:112-129`
 **Severity**: Low
@@ -1046,7 +1036,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-101] Received dashboard uses unsafe type assertions for Sui object responses
+### [F-100] Received dashboard uses unsafe type assertions for Sui object responses
 
 **File**: `apps/web/lib/received-dashboard.ts:248-254`
 **Severity**: Low
@@ -1056,7 +1046,7 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-102] `TransactionResult` amount type does not clarify display-vs-base-unit semantics
+### [F-101] `TransactionResult` amount type does not clarify display-vs-base-unit semantics
 
 **File**: `apps/web/components/transaction-result.tsx:40`
 **Severity**: Low
@@ -1066,12 +1056,176 @@ const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
 
 ---
 
-### [F-103] TEST_USDC display whitelist still accepts spoofed package IDs
+### [F-102] TEST_USDC display whitelist still accepts spoofed package IDs
 
 **File**: `apps/web/lib/coins.ts:28`
 **Severity**: Medium
 **Description**: `getCoinLabel()`, `getCoinDecimals()`, and `isDisplaySupportedCoinType()` still accept any coin type whose suffix is `::test_usdc::TEST_USDC`. A malicious sender can deposit a different package's look-alike token into a recipient vault, and the public lookup / incoming-payment dashboards will format it as legitimate `TEST_USDC` instead of rejecting it.
 **Suggested Fix**: Resolve the configured TEST_USDC type with `getTestUsdcCoinType()` and require exact equality in the display helpers, rather than matching any package that ends with the TEST_USDC suffix.
 **Fixed in**: Tightened `apps/web/lib/coins.ts` so display helpers only accept the exact configured TEST_USDC package id, and added regression coverage in `apps/web/lib/coins.test.ts` to reject spoofed package-suffix lookalikes.
+
+---
+
+### [F-103] 24-hour X-user cache can route payments to a reassigned handle
+
+**File**: `apps/web/lib/x-user-lookup.ts:10`
+**Severity**: High
+**Description**: `resolveFreshXUser()` now trusts any cached `xUser` row updated within the last 24 hours before it asks X for the current owner of the handle. That helper is on the payment path for both `POST /api/v1/resolve/x-username` and `POST /api/v1/payments/quote`. If an X handle is renamed or reassigned during that window, the cached stale `xUserId` is reused, the app derives the previous owner’s vault address, and the sender can quote and send funds to the wrong recipient. The helper comment still describes this cache as protection for back-to-back lookups in the same client flow, which a one-day TTL no longer satisfies.
+**Suggested Fix**: Keep the cache window short for payment-critical lookups (seconds or a few minutes), or force a live revalidation before deriving a vault address / issuing a payment quote.
+**Fixed in**: Restored the `resolveFreshXUser()` cache TTL in `apps/web/lib/x-user-lookup.ts` to 60 seconds so payment-critical lookups only reuse very recent handle ownership data.
+
+---
+
+### [F-104] Redis readiness failures now block every rate-limited API as a fake 429
+
+**File**: `apps/web/lib/rate-limit.ts:88`
+**Severity**: High
+**Description**: `rateLimit()` now returns `allowed: false` whenever Redis is not yet `ready` or the Lua script throws. All callers treat that the same as an actual quota hit and return `429 Rate limit exceeded`, so a Redis cold start, reconnect, or transient outage now hard-fails core flows like username resolve, quote creation, wallet-auth challenge, payment confirm, history, and public lookup even when the user has made zero requests. Because `getRedis()` constructs the client lazily and `rateLimit()` checks `redis.status` immediately, the first requests after process start are especially likely to be rejected before Redis becomes ready.
+**Suggested Fix**: Do not collapse infrastructure failure into quota exhaustion. Either keep limiter failures fail-open as before, or return a distinct unavailable state so callers can emit `503` and preserve valid traffic when Redis is merely unhealthy.
+**Fixed in**: Restored fail-open behavior in `apps/web/lib/rate-limit.ts` for Redis-not-ready and Redis-eval failure cases so infrastructure issues no longer surface as fake `429 Rate limit exceeded` responses.
+
+---
+
+### [F-105] Editing the handle no longer cancels the in-flight send target
+
+**File**: `apps/web/components/send-button.tsx:124`
+**Severity**: High
+**Description**: Recipient resolution now happens inside `handleSend()`, but the request controller is only aborted on unmount or when another send starts. If the user clicks send for `@alice` and then edits the visible handle to `@bob` while the resolve, quote, or wallet-sign flow is still in flight, the transaction continues against the old `normalizedUsername` captured at click time. That reintroduces the same misdirected-send class that an earlier handle-edit fix in this batch had already addressed: the form can show one handle while the payment still targets another recipient.
+**Suggested Fix**: Abort the active send whenever the handle changes, or lock the recipient field once sending starts and keep an explicit immutable recipient preview visible until the flow completes.
+**Fixed in**: Added parent-managed send state in `apps/web/app/page.tsx`, wired `apps/web/components/send-button.tsx` to report when a send is in flight, and disabled `apps/web/components/username-input.tsx` during that window so the visible recipient cannot diverge from the active send target.
+
+---
+
+### [F-106] Handle edits no longer clear failed recipient-lookup errors
+
+**File**: `apps/web/app/page.tsx:42`
+**Severity**: Low
+**Description**: The refactor removed `UsernameInput`'s local resolve/error state and now reports lookup failures through `sendError` in `HomePage`, but typing a new handle only updates `username`. After a failed `resolve/x-username` response such as `User not found on X`, the stale error banner keeps showing while the user corrects the handle, so the form still looks invalid even when the current input may now be fine. Previously those lookup errors were cleared immediately on edit inside `UsernameInput`.
+**Suggested Fix**: Clear `sendError` whenever the handle changes, or keep recipient-resolution errors local to the handle field so they reset with the current input.
+**Fixed in**: Routed handle edits through `handleUsernameChange()` in `apps/web/app/page.tsx`, which now clears `sendError` before storing the next username value.
+
+---
+
+### [F-107] Sending flow still allows the visible amount and asset to diverge from the actual transfer
+
+**File**: `apps/web/app/page.tsx:103`, `apps/web/components/send-button.tsx:157`
+**Severity**: Medium
+**Description**: The latest fix freezes `UsernameInput` while a send is in flight, but `AmountInput` and `CoinSelector` remain editable. `handleSend()` captures `amount`, `coinType`, and `baseAmount` at click time, then continues through resolve, quote, wallet-sign, and confirm with those original values. If the user changes the visible amount or asset while the request is in flight, the form can show one set of values while the wallet prompt and actual transfer still use the earlier ones.
+**Suggested Fix**: Freeze `AmountInput` and `CoinSelector` for the duration of the send flow as well, or abort and restart the in-flight send whenever either value changes.
+**Fixed in**: Added `disabled` support to `apps/web/components/amount-input.tsx` and `apps/web/components/coin-selector.tsx`, then wired `apps/web/app/page.tsx` to lock both controls whenever `isSending` is true so the on-screen amount and asset stay aligned with the in-flight send parameters.
+
+---
+
+### [F-108] Quote route test leaks env state into the rest of the suite
+
+**File**: `apps/web/app/api/v1/payments/quote/route.test.ts:80`
+**Severity**: Low
+**Description**: The new test sets `process.env.TWITTER_API_KEY`, `process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID`, and `process.env.HMAC_SECRET` in `beforeEach()` but never restores the previous values. Because Vitest files can share a worker process, later tests can inherit these vars and incorrectly miss configuration-error paths or fail depending on execution order, which makes the suite order-dependent.
+**Suggested Fix**: Snapshot and restore the touched env vars in `afterEach()`/`afterAll()`, or use `vi.stubEnv()` with `vi.unstubAllEnvs()` so the test does not leak global process state.
+**Fixed in**: Switched `apps/web/app/api/v1/payments/quote/route.test.ts` to `vi.stubEnv()` in `beforeEach()` and added `vi.unstubAllEnvs()` in `afterEach()` so the test no longer leaks env mutations into later Vitest workers.
+
+---
+
+### [F-109] Sequential double X API resolution per send — redundant Twitter lookup
+
+**File**: `apps/web/components/send-button.tsx:190`, `apps/web/app/api/v1/payments/quote/route.ts:106`
+**Severity**: Medium
+**Description**: The refactored send flow resolves the X username client-side via `POST /api/v1/resolve/x-username` (step 1), then sends the resolved username to `POST /api/v1/payments/quote` (step 2), which calls `resolveFreshXUser()` again server-side. Every send triggers two Twitter API lookups for the same user. The `resolveFreshXUser` 60-second cache may absorb the second call, but if the two requests straddle a cache boundary or the resolve-to-quote latency exceeds the cache window, external API consumption doubles and the user experiences extra latency from the sequential round-trips.
+**Suggested Fix**: Either pass the resolved `xUserId` from step 1 into the quote request so the quote endpoint can skip the redundant lookup when a valid ID is provided, or remove the separate resolve call and let the quote endpoint be the single resolver.
+**Fixed in**: Simplified `apps/web/components/send-button.tsx` so the send flow no longer calls `/api/v1/resolve/x-username` first. The button now sends the normalized handle directly to `/api/v1/payments/quote`, making the quote endpoint the single server-side resolver for this flow.
+
+---
+
+### [F-110] Resolve and quote response shapes cast without runtime validation
+
+**File**: `apps/web/components/send-button.tsx:206`, `apps/web/components/send-button.tsx:233`
+**Severity**: Medium
+**Description**: The resolve response is cast with `as ResolvedUser` (line 206) and the quote response with `as { quoteToken: string; vaultAddress: string }` (line 233), both without any runtime field checks. If either endpoint changes its response shape, or if a proxy/CDN injects an unexpected response, the code proceeds with potentially undefined fields. The critical path is `resolvedUser.username` (sent to the quote endpoint) and `quote.vaultAddress` (used to build the on-chain transfer). A missing `vaultAddress` would cause the Sui transaction to target an undefined address; a missing `quoteToken` would fail at the confirm step with a confusing error.
+**Suggested Fix**: Add minimal runtime checks before proceeding:
+```ts
+const resolvedUser = (await resolveRes.json()) as ResolvedUser;
+if (!resolvedUser?.username || !resolvedUser?.vaultAddress) {
+  onError('Unexpected resolve response');
+  return;
+}
+```
+And for the quote:
+```ts
+if (!quote?.quoteToken || !quote?.vaultAddress) {
+  onError('Invalid quote response');
+  return;
+}
+```
+**Fixed in**: Removed the unsafe resolve-response cast by collapsing the send flow to a single quote call, and added `parseQuoteResponse()` in `apps/web/components/send-button.tsx` to require `username`, `quoteToken`, and `vaultAddress` before proceeding to transaction construction.
+
+---
+
+### [F-111] Quote route test has no negative test case for invalid sender address
+
+**File**: `apps/web/app/api/v1/payments/quote/route.test.ts`
+**Severity**: Low
+**Description**: The new test file contains a single test case that verifies short-form address normalization succeeds. There is no negative test for an invalid `senderAddress` (e.g., `"not-a-sui-address"`) to verify that `parseSuiAddress` correctly rejects it and returns 400. The `parseSuiAddress` function is the key change in this route — validating both the happy and unhappy paths is important for regression coverage.
+**Suggested Fix**: Add a negative test:
+```ts
+it('rejects invalid sender addresses', async () => {
+  const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+    method: 'POST',
+    body: JSON.stringify({
+      username: 'alice',
+      coinType: '0x2::sui::SUI',
+      amount: '1000000000',
+      senderAddress: 'not-a-sui-address',
+    }),
+    headers: { 'content-type': 'application/json' },
+  });
+  const res = await POST(req);
+  expect(res.status).toBe(400);
+});
+```
+**Fixed in**: Added an invalid-address regression test to `apps/web/app/api/v1/payments/quote/route.test.ts` and asserted that the route returns `400` before rate limiting or X-user resolution runs.
+
+---
+
+### [F-112] Redundant disabled guard inside CoinSelector onClick handler
+
+**File**: `apps/web/components/coin-selector.tsx:68`
+**Severity**: Low
+**Description**: The `onClick` handler has an explicit `if (disabled) return` guard on line 68, but the `<Button>` element already receives `disabled={disabled}` on line 66. When a native HTML button is disabled, browsers do not fire click events. The manual guard is dead code in practice.
+**Suggested Fix**: Remove the redundant check:
+```tsx
+onClick={() => onValueChange(option.value)}
+```
+Or keep it with a comment if it is intentional defense-in-depth.
+**Fixed in**: Removed the dead `disabled` branch from `apps/web/components/coin-selector.tsx` and left the control state to the existing `Button disabled={disabled}` prop.
+
+---
+
+### [F-113] No pre-send recipient confirmation after removing client-side resolution
+
+**File**: `apps/web/components/send-button.tsx:214`, `apps/web/components/username-input.tsx`
+**Severity**: Medium
+**Description**: The refactored send flow resolves the recipient server-side during the quote step, which happens after the user clicks "Send." The old `UsernameInput` showed a loading spinner, avatar, verified badge, and vault address, giving the user visual confirmation of the resolved recipient before committing. Now the first feedback about whether the handle exists or resolved to the expected person comes from the quote API response — but that response is consumed internally by `SendButton` and never shown to the user before the wallet prompt. The resolved `username` only surfaces in the success screen. A mistyped handle (e.g., `alicee` instead of `alice`) that resolves to a different valid X user would proceed to the wallet signature without the sender realizing the mistake. The wallet popup shows only the raw vault address, not the human-readable recipient.
+**Suggested Fix**: After the quote response returns and before building the transaction, show a brief confirmation step (e.g., a modal or inline card) displaying the resolved username, avatar, and vault address. Alternatively, re-introduce a lightweight pre-send resolution that shows the resolved identity in the form (without blocking on it for the send action).
+**Fixed in**: Added `apps/web/components/recipient-confirmation-modal.tsx` and wired `apps/web/components/send-button.tsx` to pause after quote creation, display the resolved username/avatar/verified state/vault address, and only open the wallet flow after the sender explicitly confirms the recipient.
+
+---
+
+### [F-114] Dead code: `ResolvedUser` type export and `resolved-user-card.tsx` / `handle-input.tsx` components
+
+**File**: `apps/web/components/username-input.tsx:8-15`, `apps/web/components/resolved-user-card.tsx`, `apps/web/components/handle-input.tsx`
+**Severity**: Low
+**Description**: `UsernameInput` still exports the `ResolvedUser` type, and `resolved-user-card.tsx` imports it. Neither `resolved-user-card.tsx` nor `handle-input.tsx` is imported by any live application code (only by plan docs under `docs/plans/`). After the refactor that removed client-side resolution from `UsernameInput`, these components and the exported type are dead code that adds confusion about which components are canonical.
+**Suggested Fix**: Remove `ResolvedUser` from `username-input.tsx`, delete `resolved-user-card.tsx` and `handle-input.tsx` if they are not part of an active plan, or move `ResolvedUser` to a shared types file if it will be needed for a future recipient-confirmation step.
+**Fixed in**: Moved the live recipient-preview type into `apps/web/lib/resolved-user.ts`, removed the stale export from `apps/web/components/username-input.tsx`, simplified `apps/web/components/resolved-user-card.tsx` into the active preview card used by the confirmation modal, and deleted the unused `apps/web/components/handle-input.tsx`.
+
+---
+
+### [F-115] `SendButton` button label says "Sending payment" during quote resolution
+
+**File**: `apps/web/components/send-button.tsx:317-320`
+**Severity**: Low
+**Description**: When the user clicks "Send", the button immediately shows "Sending payment" with a spinner. However, the actual flow is: (1) fetch quote from server (1-3s including Twitter API resolution), (2) build transaction, (3) wallet prompt. The "Sending payment" label during step 1 is misleading — the payment hasn't started yet; the system is resolving the recipient. This is a minor UX clarity issue, not a bug.
+**Suggested Fix**: Use a two-phase label: "Resolving recipient..." during the quote fetch, switching to "Sending payment" after the wallet signature begins.
+**Fixed in**: Added explicit send stages in `apps/web/components/send-button.tsx` so the button now shows `Resolving recipient`, `Review recipient`, `Approve in wallet`, and `Sending payment` at the appropriate points in the flow.
 
 ---

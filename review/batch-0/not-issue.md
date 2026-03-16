@@ -131,7 +131,7 @@ if (decimals === 0) return baseUnits;
 **Severity**: Medium
 **Description**: Every call to `/api/v1/payments/incoming` — including "Load more" pagination — calls `resolveFreshXUser(username, apiKey)` which hits the external Twitter API. This is unnecessary on pagination because the user's identity was already verified on the first page load. With a rate limit of 60 req/min per IP, a user paging through many results will quickly exhaust the Twitter API budget and hit 429 errors just from paging.
 **Suggested Fix**: Cache the resolved user info with a short TTL so subsequent paginated requests for the same username within the same session skip the Twitter API call. Alternatively, accept an `xUserId` parameter on pagination requests and look up the user from the database.
-**Reason**: Already addressed in current code. `resolveFreshXUser()` reuses a fresh cached `x_user` row before calling the Twitter provider, so pagination does not hit the provider on every request; the remaining real problem was the write-on-read path fixed in F-045.
+**Reason**: Already addressed in current code. `resolveFreshXUser()` reuses a fresh cached `x_user` row before calling the Twitter provider, so pagination does not hit the provider on every request; the remaining real problem was the separate write-on-read issue that was later fixed elsewhere in this batch.
 
 ---
 
@@ -292,5 +292,15 @@ if (decimals === 0) return baseUnits;
 **Description**: The resolve route hardcodes `const derivationVersion = 1` while the read-path endpoints (lookup, incoming payments) read `derivationVersion` from the database via `persistReceivedDashboardXUser()`. The reviewer flagged this as a potential fund-loss risk if the derivation version is ever bumped in the DB.
 **Suggested Fix**: Read the derivation version from the `xUser` row after the upsert instead of hardcoding.
 **Reason**: Not a current defect. `deriveVaultAddress(registryId, BigInt(xUserId))` does NOT take `derivationVersion` as a parameter — the address derivation is identical regardless of version. The field is metadata-only, used for cache keys and response payloads. The hardcoded `1` matches `DEFAULT_DERIVATION_VERSION` used by all read paths. This is extension debt for a hypothetical future derivation scheme change, not a present inconsistency that affects vault addresses or fund routing.
+
+---
+
+### [N-030] `fixed.md` renumbering removes old F-024 without explicit trail
+
+**File**: `review/batch-0/fixed.md`
+**Severity**: Low
+**Description**: The old F-024 ("Editing the handle leaves the previous recipient live long enough to misdirect a send") was deleted from `fixed.md` rather than kept with a note explaining why it was superseded. The remaining findings were renumbered from F-025→F-024 through F-056→F-055. While the architectural change (server-side resolution) genuinely eliminates the old F-024's root cause, deleting it and renumbering makes it harder to trace audit history. Future references to "F-040" in commit messages or conversations now point to a different finding.
+**Suggested Fix**: When superseding a finding via architecture change, keep the entry with a note like "**Superseded**: Root cause eliminated by moving recipient resolution server-side" rather than deleting and renumbering. Alternatively, add the superseded finding to a separate section.
+**Reason**: This batch workflow intentionally renumbers finding IDs after each processing round, and the active `new-fix-batch` instructions explicitly require sequential renumbering in `review.md`, `fixed.md`, and `not-issue.md`. The current files still preserve the substantive recipient-routing history through later findings such as the reopened send-target regressions, so this is a process-preference concern rather than a concrete defect in the code under review.
 
 ---

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
-import { getClientIp, invalidInputResponse } from '@/lib/api';
+import { getClientIp, invalidInputResponse, parseSuiAddress } from '@/lib/api';
 import {
   isSupportedCoinType,
   requiresPackageIdForCoinType,
@@ -13,13 +13,11 @@ import { rateLimit } from '@/lib/rate-limit';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
-const SUI_ADDRESS_RE = /^0x[a-fA-F0-9]{64}$/;
-
 const RequestSchema = z.object({
   username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username'),
   coinType: z.string().min(1),
   amount: z.string().regex(/^\d+$/, 'amount must be a numeric string'),
-  senderAddress: z.string().regex(SUI_ADDRESS_RE, 'Invalid Sui address'),
+  senderAddress: z.string().min(1),
 });
 
 const QUOTE_EXPIRY_SECONDS = 5 * 60; // 5 minutes
@@ -33,7 +31,13 @@ export async function POST(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  const { username, coinType, amount, senderAddress } = parsed.data;
+  const normalizedSenderAddress = parseSuiAddress(parsed.data.senderAddress);
+  if (!normalizedSenderAddress) {
+    return invalidInputResponse();
+  }
+
+  const { username, coinType, amount } = parsed.data;
+  const senderAddress = normalizedSenderAddress;
 
   // Validate amount bounds (must fit in u64)
   const amountBigInt = BigInt(amount);
@@ -209,6 +213,7 @@ export async function POST(req: NextRequest) {
     xUserId: userInfo.xUserId,
     username: userInfo.username,
     profilePicture: userInfo.profilePicture,
+    isBlueVerified: userInfo.isBlueVerified,
     vaultAddress,
     coinType,
     amount,

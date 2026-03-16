@@ -7,7 +7,7 @@ import { CoinSelector } from '@/components/coin-selector';
 import { Navbar } from '@/components/navbar';
 import { SendButton } from '@/components/send-button';
 import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
-import { UsernameInput, type ResolvedUser } from '@/components/username-input';
+import { UsernameInput } from '@/components/username-input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { SUI_COIN_TYPE, getTestUsdcCoinType } from '@/lib/coins';
@@ -37,19 +37,24 @@ const highlights = [
 
 export default function HomePage() {
   const [username, setUsername] = useState('');
-  const [resolvedUser, setResolvedUser] = useState<ResolvedUser | null>(null);
   const [amount, setAmount] = useState('');
   const [coinType, setCoinType] = useState(defaultCoinType);
+  const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [txResult, setTxResult] = useState<TransactionResultData | null>(null);
 
   const resetFlow = () => {
     setUsername('');
-    setResolvedUser(null);
     setAmount('');
+    setIsSending(false);
     setSendError(null);
     setTxResult(null);
     setCoinType(defaultCoinType);
+  };
+
+  const handleUsernameChange = (nextUsername: string) => {
+    setUsername(nextUsername);
+    setSendError(null);
   };
 
   const handleCoinTypeChange = (nextCoinType: string) => {
@@ -90,18 +95,23 @@ export default function HomePage() {
               </div>
 
               <UsernameInput
+                disabled={isSending}
                 value={username}
-                onResolvedChange={setResolvedUser}
-                onValueChange={setUsername}
+                onValueChange={handleUsernameChange}
               />
 
               <AmountInput
                 amount={amount}
                 coinType={coinType}
+                disabled={isSending}
                 onAmountChange={setAmount}
               />
 
-              <CoinSelector value={coinType} onValueChange={handleCoinTypeChange} />
+              <CoinSelector
+                disabled={isSending}
+                value={coinType}
+                onValueChange={handleCoinTypeChange}
+              />
 
               {sendError ? (
                 <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
@@ -117,7 +127,8 @@ export default function HomePage() {
                   setTxResult(data);
                 }}
                 onError={setSendError}
-                user={resolvedUser}
+                onSendingChange={setIsSending}
+                username={username}
               />
 
               <TransactionResult data={txResult} network={NETWORK} onReset={resetFlow} />
