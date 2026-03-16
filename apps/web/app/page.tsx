@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUpRight, ShieldCheck, TimerReset, Twitter } from 'lucide-react';
+import { ShieldCheck, TimerReset, Twitter } from 'lucide-react';
 import { AmountInput } from '@/components/amount-input';
 import { CoinSelector } from '@/components/coin-selector';
 import { Navbar } from '@/components/navbar';
@@ -9,7 +9,6 @@ import { SendButton } from '@/components/send-button';
 import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
 import { UsernameInput, type ResolvedUser } from '@/components/username-input';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SUI_COIN_TYPE, getTestUsdcCoinType } from '@/lib/coins';
 import { sanitizeAmountForCoinType } from '@/lib/send-form';
@@ -68,13 +67,13 @@ export default function HomePage() {
             variant="outline"
             className="rounded-full border-primary/20 bg-primary/8 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary"
           >
-            Cash App simplicity. Sui settlement.
+            Cash App simplicity. Blazing fast settlement.
           </Badge>
           <h1 className="hero-heading mt-6 max-w-2xl">
-            Send money to an X handle before they even have a wallet.
+            Send money to any X handle.
           </h1>
           <p className="mt-4 max-w-xl text-base text-muted-foreground sm:text-lg">
-            The homepage is the product. Enter a handle, enter an amount, and move stablecoins in one clean motion.
+            Enter a handle, enter an amount, and move stablecoins in one clean motion.
           </p>
         </section>
 
@@ -87,12 +86,6 @@ export default function HomePage() {
                   <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em]">
                     Ready in less than five seconds
                   </h2>
-                </div>
-                <div className="rounded-full border border-accent/20 bg-accent/10 px-3 py-2 text-right">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-                    Recipient flow
-                  </p>
-                  <p className="text-sm text-foreground">Claim later with X OAuth</p>
                 </div>
               </div>
 
@@ -126,29 +119,6 @@ export default function HomePage() {
                 onError={setSendError}
                 user={resolvedUser}
               />
-
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-border/60 bg-secondary/60 px-4 py-3 dark:border-white/8 dark:bg-white/4">
-                <div>
-                  <p className="text-sm font-medium">No wallet required for the recipient</p>
-                  <p className="text-xs text-muted-foreground">
-                    The vault address is derived from the X user id and claimed later.
-                  </p>
-                </div>
-                {txResult ? (
-                  <Button
-                    className="rounded-full border-border/70 bg-background/80 text-foreground hover:bg-secondary/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/8"
-                    variant="outline"
-                    onClick={resetFlow}
-                  >
-                    Reset form
-                  </Button>
-                ) : (
-                  <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                    <ArrowUpRight className="size-4 text-primary" />
-                    Secure on {NETWORK}
-                  </span>
-                )}
-              </div>
 
               <TransactionResult data={txResult} network={NETWORK} onReset={resetFlow} />
             </CardContent>

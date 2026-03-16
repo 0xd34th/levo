@@ -3,8 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowUpRight, CreditCard, Search, Sparkles } from 'lucide-react';
-import { useCurrentAccount } from '@mysten/dapp-kit-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
 import { Badge } from '@/components/ui/badge';
 import { MintButton } from '@/components/mint-button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -22,14 +21,8 @@ const navigation = [
   { href: '/claim', label: 'Claim', icon: Sparkles, matchPrefix: '/claim' },
 ];
 
-function initials(address: string | undefined) {
-  if (!address) return 'LV';
-  return `${address.slice(2, 4)}${address.slice(-2)}`.toUpperCase();
-}
-
 export function Navbar() {
   const pathname = usePathname();
-  const account = useCurrentAccount();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -87,23 +80,8 @@ export function Navbar() {
             </Badge>
 
             <ThemeToggle />
-            <WalletConnectButton />
 
-            <div className="hidden items-center gap-2 rounded-full border border-border/80 bg-background/90 px-2 py-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] sm:flex dark:border-white/8 dark:bg-white/4 dark:shadow-none">
-              <Avatar className="size-8 border-border">
-                <AvatarFallback className="text-[11px]">
-                  {initials(account?.address)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="text-xs font-medium">
-                  {account ? 'Connected' : 'Guest'}
-                </p>
-                <p className="max-w-28 truncate text-[11px] text-muted-foreground">
-                  {account?.address ?? 'Connect to send'}
-                </p>
-              </div>
-            </div>
+            <WalletConnectButton />
           </div>
         </div>
 
