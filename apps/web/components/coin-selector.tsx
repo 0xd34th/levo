@@ -44,9 +44,6 @@ export function CoinSelector({ value, onValueChange, disabled = false }: CoinSel
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Token
         </p>
-        <Badge variant="outline" className="rounded-full border-border/70 px-2.5 text-[11px] text-muted-foreground dark:border-white/10">
-          Sui settlement
-        </Badge>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">

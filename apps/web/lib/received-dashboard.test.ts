@@ -5,6 +5,7 @@ const {
   getAllBalances,
   getObject,
   paymentLedgerFindMany,
+  paymentLedgerGroupBy,
   xUserFindUnique,
   xUserUpsert,
 } = vi.hoisted(() => ({
@@ -14,6 +15,7 @@ const {
   xUserUpsert: vi.fn(),
   xUserFindUnique: vi.fn(),
   paymentLedgerFindMany: vi.fn(),
+  paymentLedgerGroupBy: vi.fn(() => []),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -24,6 +26,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     paymentLedger: {
       findMany: paymentLedgerFindMany,
+      groupBy: paymentLedgerGroupBy,
     },
   },
 }));
@@ -81,6 +84,7 @@ describe('getReceivedVaultSummary', () => {
           amount: '4200000000',
         },
       ],
+      recordedTotals: [],
     });
   });
 

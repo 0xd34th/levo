@@ -15,6 +15,7 @@ import {
   normalizeHandle,
   receivedPaymentDisplay,
   truncateAddress,
+  untrackedBalanceNote,
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
@@ -150,6 +151,11 @@ export default function LookupPage() {
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                   {formatPendingBalances(result.pendingBalances)}
                 </p>
+                {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus) ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus)}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-sm text-muted-foreground">Available after X login and wallet connection.</p>
               </div>
               <div className="metric-card">

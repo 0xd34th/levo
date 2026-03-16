@@ -34,6 +34,7 @@ export interface ReceivedVaultSummary {
   claimStatus: ReceivedClaimStatus;
   claimStatusModel: typeof RECEIVED_CLAIM_STATUS_MODEL;
   pendingBalances: ReceivedBalance[];
+  recordedTotals: ReceivedBalance[];
 }
 
 export interface PublicLookupResponse

@@ -62,3 +62,33 @@ export function receivedPaymentDisplay(item: IncomingPaymentItem) {
 export function explorerUrl(network: string, txDigest: string) {
   return getExplorerTransactionUrl(network, txDigest);
 }
+
+export function untrackedBalanceNote(
+  pendingBalances: ReceivedBalance[],
+  recordedTotals: ReceivedBalance[],
+  claimStatus: ReceivedClaimStatus,
+): string | null {
+  // Exact "direct transfer" deltas are only reliable before the vault is claimed.
+  if (claimStatus !== 'UNCLAIMED') {
+    return null;
+  }
+
+  const recordedMap = new Map(
+    recordedTotals.map((r) => [r.coinType, BigInt(r.amount)]),
+  );
+
+  const parts: string[] = [];
+  for (const balance of pendingBalances) {
+    const onChain = BigInt(balance.amount);
+    const recorded = recordedMap.get(balance.coinType) ?? 0n;
+    if (onChain > recorded) {
+      const gap = onChain - recorded;
+      parts.push(
+        `${formatAmount(gap.toString(), balance.coinType)} ${balance.symbol}`,
+      );
+    }
+  }
+
+  if (parts.length === 0) return null;
+  return `Includes ${parts.join(', ')} from direct transfers`;
+}

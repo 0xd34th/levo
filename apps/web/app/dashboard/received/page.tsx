@@ -16,6 +16,7 @@ import {
   normalizeHandle,
   receivedPaymentDisplay,
   truncateAddress,
+  untrackedBalanceNote,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
@@ -214,6 +215,11 @@ export default function ReceivedDashboardPage() {
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                   {formatPendingBalances(data.pendingBalances)}
                 </p>
+                {untrackedBalanceNote(data.pendingBalances, data.recordedTotals, data.claimStatus) ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {untrackedBalanceNote(data.pendingBalances, data.recordedTotals, data.claimStatus)}
+                  </p>
+                ) : null}
               </div>
               <div className="metric-card">
                 <p className="section-eyebrow">Claim status</p>

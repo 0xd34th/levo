@@ -10,6 +10,7 @@ import {
   IncomingPaymentsResponse,
   PublicLookupResponse,
   RECEIVED_CLAIM_STATUS_MODEL,
+  ReceivedBalance,
   ReceivedDashboardUser,
   ReceivedVaultSummary,
 } from '@/lib/received-dashboard-types';
@@ -46,6 +47,24 @@ interface IncomingPaymentRow {
 }
 
 const receivedVaultSummaryCache = new Map<string, CachedReceivedVaultSummary>();
+
+async function getRecordedTotals(xUserId: string): Promise<ReceivedBalance[]> {
+  const rows = await prisma.paymentLedger.groupBy({
+    by: ['coinType'],
+    where: { xUserId },
+    _sum: { amount: true },
+  });
+
+  return rows
+    .filter((row) => row._sum.amount != null && row._sum.amount > 0n)
+    .filter((row) => isDisplaySupportedCoinType(row.coinType))
+    .map((row) => ({
+      coinType: row.coinType,
+      symbol: getCoinLabel(row.coinType),
+      decimals: getCoinDecimals(row.coinType),
+      amount: row._sum.amount!.toString(),
+    }));
+}
 
 function sanitizeProfilePictureUrl(url: string | null): string | null {
   return url && isTrustedProfilePictureUrl(url) ? url : null;
@@ -238,12 +257,13 @@ export async function getReceivedVaultSummary(
   const vaultAddress = deriveVaultAddress(registryId, BigInt(normalizedXUserId));
   const client = getSuiClient();
 
-  const [objectResponse, balances] = await Promise.all([
+  const [objectResponse, balances, recordedTotals] = await Promise.all([
     client.getObject({
       id: vaultAddress,
       options: { showType: true },
     }),
     client.getAllBalances({ owner: vaultAddress }),
+    getRecordedTotals(normalizedXUserId),
   ]);
 
   const typedObjectResponse: SuiObjectResponse = objectResponse;
@@ -284,6 +304,7 @@ export async function getReceivedVaultSummary(
         decimals: getCoinDecimals(balance.coinType),
         amount: balance.totalBalance,
       })),
+    recordedTotals,
   };
 }
 

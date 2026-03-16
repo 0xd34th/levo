@@ -250,7 +250,7 @@ export default function SentDashboardPage() {
 
         <section className="mt-8 grid gap-4 md:grid-cols-3">
           <div className="metric-card">
-            <p className="section-eyebrow">Payments loaded</p>
+            <p className="section-eyebrow">Payments</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{items.length}</p>
           </div>
           <div className="metric-card">

@@ -1229,3 +1229,13 @@ Or keep it with a comment if it is intentional defense-in-depth.
 **Fixed in**: Added explicit send stages in `apps/web/components/send-button.tsx` so the button now shows `Resolving recipient`, `Review recipient`, `Approve in wallet`, and `Sending payment` at the appropriate points in the flow.
 
 ---
+
+### [F-116] Direct-transfer note compares against lifetime ledger totals, not current claimable balance
+
+**File**: `apps/web/lib/received-dashboard.ts:51`, `apps/web/lib/received-dashboard-client.ts:70`
+**Severity**: Low
+**Description**: `getRecordedTotals()` sums every historical `payment_ledger` row for the X user, and `untrackedBalanceNote()` subtracts that lifetime total from the vault's current on-chain balance. After any previous claim/sweep, those two numbers diverge: old confirmed payments stay in `payment_ledger`, but they are no longer in the vault. That makes the new note under-report or completely hide direct-transfer balances for handles with prior claim history, even though the visible pending balance still includes those coins.
+**Suggested Fix**: Compare against the current app-tracked balance per coin, not the lifetime inflow total. If the backend does not yet persist claim/sweep outflows, avoid rendering an exact `Includes X from direct transfers` amount and use softer copy until that state exists.
+**Fixed in**: Updated `untrackedBalanceNote()` in `apps/web/lib/received-dashboard-client.ts` to suppress the exact direct-transfer amount unless the vault is still `UNCLAIMED`, and wired the lookup/received dashboard pages to pass `claimStatus`. That keeps the exact delta on the only state where lifetime recorded totals still match the current unswept balance, and avoids misleading amounts after claim/sweep history exists.
+
+---
