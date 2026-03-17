@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useDAppKit, useCurrentAccount } from '@mysten/dapp-kit-react';
-import { ArrowUpRight, RefreshCcw, Wallet } from 'lucide-react';
+import { ArrowUpRight, RefreshCcw } from 'lucide-react';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { Navbar } from '@/components/navbar';
 import { PaymentTable } from '@/components/payment-table';
@@ -17,6 +16,7 @@ import {
 } from '@/lib/coins';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import type { TransactionHistoryResponse, TransactionItem } from '@/lib/transaction-history';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
@@ -64,25 +64,28 @@ function summarizeAmount(items: TransactionItem[]) {
 }
 
 export default function SentDashboardPage() {
-  const account = useCurrentAccount();
-  const dAppKit = useDAppKit();
+  const {
+    suiAddress: embeddedWalletAddress,
+    loading: walletLoading,
+    error: walletError,
+    refetch: refetchEmbeddedWallet,
+  } = useEmbeddedWallet();
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const activeAddressRef = useRef<string | null>(account?.address ?? null);
+  const activeAddressRef = useRef<string | null>(embeddedWalletAddress ?? null);
   const loadingMoreRef = useRef(false);
   const loadMoreRequestIdRef = useRef(0);
-  const signatureRef = useRef<string | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
 
-  activeAddressRef.current = account?.address ?? null;
+  activeAddressRef.current = embeddedWalletAddress ?? null;
 
   const fetchHistory = useCallback(
     async (cursor?: string) => {
-      const address = account?.address;
+      const address = embeddedWalletAddress;
       if (!address) return;
 
       const isLoadMore = !!cursor;
@@ -108,73 +111,29 @@ export default function SentDashboardPage() {
       }
 
       try {
-        for (let authAttempt = 0; authAttempt < 2; authAttempt += 1) {
-          let signature = signatureRef.current;
+        const params = new URLSearchParams({ senderAddress: address });
+        if (cursor) params.set('cursor', cursor);
 
-          if (!signature) {
-            const challengeParams = new URLSearchParams({ address });
-            const challengeRes = await fetch(`/api/v1/wallet-auth/challenge?${challengeParams}`, {
-              cache: 'no-store',
-              credentials: 'same-origin',
-              signal,
-            });
+        const response = await fetch(`/api/v1/payments/history?${params}`, {
+          cache: 'no-store',
+          signal,
+        });
 
-            if (!challengeRes.ok) {
-              throw new Error('Failed to authenticate wallet');
-            }
+        if (isStaleRequest()) return;
 
-            const challengeData = (await challengeRes.json()) as { message: string };
-
-            if (isStaleRequest()) return;
-
-            const authMessage = new TextEncoder().encode(challengeData.message);
-            const signed = await dAppKit.signPersonalMessage({
-              message: authMessage,
-            });
-
-            if (isStaleRequest()) return;
-
-            signature = signed.signature;
-            signatureRef.current = signature;
-          }
-
-          const params = new URLSearchParams({ senderAddress: address });
-          if (cursor) params.set('cursor', cursor);
-
-          const response = await fetch(`/api/v1/payments/history?${params}`, {
-            credentials: 'same-origin',
-            headers: {
-              'x-wallet-signature': signature,
-            },
-            signal,
-          });
-
-          if (isStaleRequest()) return;
-
-          if (response.status === 401 && signatureRef.current === signature) {
-            signatureRef.current = null;
-            if (authAttempt === 0) {
-              continue;
-            }
-          }
-
-          if (!response.ok) {
-            throw new Error('Failed to load payments');
-          }
-
-          const payload = (await response.json()) as TransactionHistoryResponse;
-
-          if (isLoadMore) {
-            setItems((previous) => [...previous, ...payload.items]);
-          } else {
-            setItems(payload.items);
-          }
-
-          setNextCursor(payload.nextCursor);
-          return;
+        if (!response.ok) {
+          throw new Error('Failed to load payments');
         }
 
-        throw new Error('Failed to load payments');
+        const payload = (await response.json()) as TransactionHistoryResponse;
+
+        if (isLoadMore) {
+          setItems((previous) => [...previous, ...payload.items]);
+        } else {
+          setItems(payload.items);
+        }
+
+        setNextCursor(payload.nextCursor);
       } catch (fetchError) {
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
         if (isStaleRequest()) return;
@@ -202,11 +161,10 @@ export default function SentDashboardPage() {
         }
       }
     },
-    [account?.address, dAppKit],
+    [embeddedWalletAddress],
   );
 
   useEffect(() => {
-    signatureRef.current = null;
     loadMoreRequestIdRef.current += 1;
     loadingMoreRef.current = false;
     requestControllerRef.current?.abort();
@@ -218,15 +176,16 @@ export default function SentDashboardPage() {
     setItems([]);
     setNextCursor(null);
 
-    if (!account?.address) return;
+    if (!embeddedWalletAddress) return;
 
     fetchHistory();
 
     return () => requestControllerRef.current?.abort();
-  }, [account?.address, fetchHistory]);
+  }, [embeddedWalletAddress, fetchHistory]);
 
   const totalSent = summarizeAmount(items);
   const recentRecipient = items[0]?.recipient.username ? `@${items[0].recipient.username}` : 'None yet';
+  const volumeLabel = nextCursor ? 'Loaded volume' : 'Volume';
 
   return (
     <div className="app-shell">
@@ -238,12 +197,9 @@ export default function SentDashboardPage() {
             <p className="section-eyebrow">Sender dashboard</p>
             <h1 className="hero-heading mt-3 max-w-2xl">Every payment you sent, in one calm ledger.</h1>
             <p className="mt-4 max-w-2xl text-sm text-muted-foreground sm:text-base">
-              This view stays wallet-authenticated and shows confirmed transfers only.
+              View confirmed transfers from your embedded wallet.
             </p>
           </div>
-          <Badge variant="outline" className="w-fit rounded-full border-border/70 px-4 py-1.5 text-xs text-muted-foreground dark:border-white/10">
-            Wallet-auth protected
-          </Badge>
         </section>
 
         <DashboardTabs />
@@ -254,7 +210,7 @@ export default function SentDashboardPage() {
             <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{items.length}</p>
           </div>
           <div className="metric-card">
-            <p className="section-eyebrow">Volume</p>
+            <p className="section-eyebrow">{volumeLabel}</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">{totalSent}</p>
           </div>
           <div className="metric-card">
@@ -273,25 +229,30 @@ export default function SentDashboardPage() {
                     Recipient, amount, status, date, and explorer link.
                   </p>
                 </div>
-                {account ? (
+                {embeddedWalletAddress ? (
                   <Badge className="rounded-full bg-secondary text-secondary-foreground dark:bg-white/8 dark:text-foreground">
-                    {truncateAddress(account.address)}
+                    {truncateAddress(embeddedWalletAddress)}
                   </Badge>
                 ) : null}
               </div>
 
-              {!account ? (
-                <div className="px-5 py-12 text-center">
-                  <div className="mx-auto flex max-w-md flex-col items-center">
-                    <span className="flex size-14 items-center justify-center rounded-3xl bg-secondary text-primary dark:bg-white/6">
-                      <Wallet className="size-6" />
-                    </span>
-                    <p className="mt-4 text-xl font-semibold tracking-[-0.03em]">
-                      Connect your wallet to unlock the dashboard
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Levo asks the wallet to sign a message before loading payment history.
-                    </p>
+              {walletLoading ? (
+                <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                  Setting up wallet…
+                </div>
+              ) : walletError ? (
+                <div className="px-5 py-10">
+                  <div className="rounded-[24px] border border-destructive/20 bg-destructive/8 p-5">
+                    <p className="font-medium text-destructive">{walletError}</p>
+                    <Button
+                      className="mt-4 rounded-full"
+                      variant="outline"
+                      onClick={() => {
+                        refetchEmbeddedWallet();
+                      }}
+                    >
+                      Retry wallet setup
+                    </Button>
                   </div>
                 </div>
               ) : loading ? (

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getClientIp, hasValidHmacSecret, invalidInputResponse } from '@/lib/api';
+import {
+  getClientIp,
+  hasValidHmacSecret,
+  invalidInputResponse,
+  verifySameOrigin,
+} from '@/lib/api';
 import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
@@ -10,6 +15,11 @@ const RequestSchema = z.object({
   txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/, 'Invalid transaction digest format'),
   quoteToken: z.string().min(1),
 });
+
+type QuoteVerificationData = Pick<
+  QuotePayload,
+  'senderAddress' | 'xUserId' | 'vaultAddress' | 'coinType' | 'amount'
+>;
 
 class QuoteClaimError extends Error {
   constructor() {
@@ -54,7 +64,7 @@ function confirmedResponse(amount: bigint, vaultAddress: string, txDigest: strin
 
 async function findMatchingConfirmedLedgerEntry(
   txDigest: string,
-  quotePayload: QuotePayload,
+  quoteData: QuoteVerificationData,
 ): Promise<{ amount: bigint; vaultAddress: string; txDigest: string } | null> {
   const existingLedger = await prisma.paymentLedger.findUnique({
     where: {
@@ -76,11 +86,11 @@ async function findMatchingConfirmedLedgerEntry(
 
   if (
     !existingLedger ||
-    existingLedger.senderAddress !== quotePayload.senderAddress ||
-    existingLedger.xUserId !== quotePayload.xUserId ||
-    existingLedger.vaultAddress !== quotePayload.vaultAddress ||
-    existingLedger.coinType !== quotePayload.coinType ||
-    existingLedger.amount !== BigInt(quotePayload.amount)
+    existingLedger.senderAddress !== quoteData.senderAddress ||
+    existingLedger.xUserId !== quoteData.xUserId ||
+    existingLedger.vaultAddress !== quoteData.vaultAddress ||
+    existingLedger.coinType !== quoteData.coinType ||
+    existingLedger.amount !== BigInt(quoteData.amount)
   ) {
     return null;
   }
@@ -94,18 +104,18 @@ async function findMatchingConfirmedLedgerEntry(
 
 async function syncPendingQuoteWithConfirmedLedger(
   quoteToken: string,
-  quotePayload: QuotePayload,
+  quoteData: QuoteVerificationData,
   txDigest: string,
 ) {
   await prisma.paymentQuote.updateMany({
     where: {
       hmacToken: quoteToken,
       status: 'PENDING',
-      senderAddress: quotePayload.senderAddress,
-      xUserId: quotePayload.xUserId,
-      vaultAddress: quotePayload.vaultAddress,
-      coinType: quotePayload.coinType,
-      amount: BigInt(quotePayload.amount),
+      senderAddress: quoteData.senderAddress,
+      xUserId: quoteData.xUserId,
+      vaultAddress: quoteData.vaultAddress,
+      coinType: quoteData.coinType,
+      amount: BigInt(quoteData.amount),
     },
     data: {
       status: 'CONFIRMED',
@@ -122,6 +132,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
+  const sameOrigin = verifySameOrigin(req);
+  if (!sameOrigin.ok) return sameOrigin.response;
+
   // 2. Parse and validate input
   const body = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
@@ -130,6 +143,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { txDigest, quoteToken } = parsed.data;
+  const quoteRl = await rateLimit(`confirm:token:${quoteToken}`, 60, 5);
+  if (!quoteRl.allowed) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
 
   // 3. Verify HMAC token
   const hmacSecret = process.env.HMAC_SECRET;
@@ -140,41 +157,49 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const quotePayload = verifyQuoteToken(quoteToken, hmacSecret);
-  if (!quotePayload) {
-    return NextResponse.json(
-      { error: 'Invalid or expired quote token' },
-      { status: 401 },
-    );
-  }
-
-  // 4. Idempotency check: if this specific quote is already confirmed, return success
-  const existingQuote = await prisma.paymentQuote.findFirst({
+  const storedQuote = await prisma.paymentQuote.findFirst({
     where: {
       hmacToken: quoteToken,
-      status: 'CONFIRMED',
     },
     select: {
+      status: true,
+      expiresAt: true,
       amount: true,
+      senderAddress: true,
+      xUserId: true,
       vaultAddress: true,
+      coinType: true,
       confirmedTxDigest: true,
     },
   });
-  if (existingQuote) {
-    if (existingQuote.confirmedTxDigest) {
+
+  const storedQuoteData: QuoteVerificationData | null = storedQuote
+    ? {
+        senderAddress: storedQuote.senderAddress,
+        xUserId: storedQuote.xUserId,
+        vaultAddress: storedQuote.vaultAddress,
+        coinType: storedQuote.coinType,
+        amount: storedQuote.amount.toString(),
+      }
+    : null;
+
+  if (storedQuote?.status === 'CONFIRMED') {
+    if (storedQuote.confirmedTxDigest) {
       return confirmedResponse(
-        existingQuote.amount,
-        existingQuote.vaultAddress,
-        existingQuote.confirmedTxDigest,
+        storedQuote.amount,
+        storedQuote.vaultAddress,
+        storedQuote.confirmedTxDigest,
       );
     }
 
     // Keep legacy retries working for rows confirmed before confirmed_tx_digest existed.
-    const matchingLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+    const matchingLedger = storedQuoteData
+      ? await findMatchingConfirmedLedgerEntry(txDigest, storedQuoteData)
+      : null;
     if (matchingLedger) {
       return confirmedResponse(
-        existingQuote.amount,
-        existingQuote.vaultAddress,
+        storedQuote.amount,
+        storedQuote.vaultAddress,
         matchingLedger.txDigest,
       );
     }
@@ -185,11 +210,53 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const matchingLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+  if (storedQuote?.confirmedTxDigest === txDigest && storedQuoteData) {
+    const matchingLedger = await findMatchingConfirmedLedgerEntry(
+      txDigest,
+      storedQuoteData,
+    );
+    if (matchingLedger) {
+      await syncPendingQuoteWithConfirmedLedger(
+        quoteToken,
+        storedQuoteData,
+        matchingLedger.txDigest,
+      );
+      return confirmedResponse(
+        matchingLedger.amount,
+        matchingLedger.vaultAddress,
+        matchingLedger.txDigest,
+      );
+    }
+  }
+
+  const quotePayload = verifyQuoteToken(quoteToken, hmacSecret);
+  const recoverExpiredStoredQuote =
+    !quotePayload &&
+    storedQuote?.status === 'PENDING' &&
+    storedQuote?.confirmedTxDigest === txDigest &&
+    storedQuoteData !== null;
+
+  if (!quotePayload && !recoverExpiredStoredQuote) {
+    return NextResponse.json(
+      { error: 'Invalid or expired quote token' },
+      { status: 401 },
+    );
+  }
+
+  const quoteData = quotePayload ?? storedQuoteData;
+  if (!quoteData) {
+    return NextResponse.json(
+      { error: 'Invalid or expired quote token' },
+      { status: 401 },
+    );
+  }
+  const allowExpiredPendingQuote = recoverExpiredStoredQuote;
+
+  const matchingLedger = await findMatchingConfirmedLedgerEntry(txDigest, quoteData);
   if (matchingLedger) {
     await syncPendingQuoteWithConfirmedLedger(
       quoteToken,
-      quotePayload,
+      quoteData,
       matchingLedger.txDigest,
     );
     return confirmedResponse(
@@ -199,7 +266,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const quotedAmount = BigInt(quotePayload.amount);
+  const quotedAmount = BigInt(quoteData.amount);
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -236,6 +303,7 @@ export async function POST(req: NextRequest) {
       where: {
         hmacToken: quoteToken,
         status: 'PENDING',
+        confirmedTxDigest: txDigest,
       },
       data: { status: 'FAILED' },
     });
@@ -247,7 +315,7 @@ export async function POST(req: NextRequest) {
 
   // 7. Verify sender matches quote's senderAddress
   const txSender = tx.transaction?.data.sender;
-  if (!txSender || txSender !== quotePayload.senderAddress) {
+  if (!txSender || txSender !== quoteData.senderAddress) {
     return NextResponse.json(
       { error: 'Transaction sender does not match quote' },
       { status: 400 },
@@ -265,9 +333,9 @@ export async function POST(req: NextRequest) {
     const ownerField = change.type === 'transferred' ? change.recipient : change.owner;
     if (typeof ownerField !== 'object' || ownerField === null) return false;
     if (!('AddressOwner' in ownerField)) return false;
-    if (ownerField.AddressOwner !== quotePayload.vaultAddress) return false;
+    if (ownerField.AddressOwner !== quoteData.vaultAddress) return false;
 
-    return extractTransferredCoinType(change.objectType) === quotePayload.coinType;
+    return extractTransferredCoinType(change.objectType) === quoteData.coinType;
   });
 
   if (!transferChange) {
@@ -283,8 +351,8 @@ export async function POST(req: NextRequest) {
     const owner = bc.owner;
     if (typeof owner !== 'object' || owner === null) return false;
     if (!('AddressOwner' in owner)) return false;
-    if (owner.AddressOwner !== quotePayload.vaultAddress) return false;
-    if (bc.coinType !== quotePayload.coinType) return false;
+    if (owner.AddressOwner !== quoteData.vaultAddress) return false;
+    if (bc.coinType !== quoteData.coinType) return false;
     return true;
   });
 
@@ -316,11 +384,13 @@ export async function POST(req: NextRequest) {
         where: {
           hmacToken: quoteToken,
           status: 'PENDING',
-          expiresAt: { gte: confirmedAt },
-          senderAddress: quotePayload.senderAddress,
-          xUserId: quotePayload.xUserId,
-          vaultAddress: quotePayload.vaultAddress,
-          coinType: quotePayload.coinType,
+          ...(allowExpiredPendingQuote
+            ? { confirmedTxDigest: txDigest }
+            : { expiresAt: { gte: confirmedAt } }),
+          senderAddress: quoteData.senderAddress,
+          xUserId: quoteData.xUserId,
+          vaultAddress: quoteData.vaultAddress,
+          coinType: quoteData.coinType,
           amount: onChainAmount,
         },
         data: {
@@ -338,10 +408,10 @@ export async function POST(req: NextRequest) {
           ledgerSource: 'SEND_CONFIRM',
           txDigest,
           sourceIndex: 0,
-          senderAddress: quotePayload.senderAddress,
-          xUserId: quotePayload.xUserId,
-          vaultAddress: quotePayload.vaultAddress,
-          coinType: quotePayload.coinType,
+          senderAddress: quoteData.senderAddress,
+          xUserId: quoteData.xUserId,
+          vaultAddress: quoteData.vaultAddress,
+          coinType: quoteData.coinType,
           amount: onChainAmount,
         },
       });
@@ -366,7 +436,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (currentQuote.status === 'PENDING' && currentQuote.expiresAt < new Date()) {
+      if (
+        !allowExpiredPendingQuote &&
+        currentQuote.status === 'PENDING' &&
+        currentQuote.expiresAt < new Date()
+      ) {
         await prisma.paymentQuote.updateMany({
           where: {
             hmacToken: quoteToken,
@@ -391,7 +465,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+        const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quoteData);
         if (confirmedLedger) {
           return confirmedResponse(
             currentQuote.amount,
@@ -420,11 +494,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (isPrismaConflictError(err)) {
-      const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quotePayload);
+      const confirmedLedger = await findMatchingConfirmedLedgerEntry(txDigest, quoteData);
       if (confirmedLedger) {
         await syncPendingQuoteWithConfirmedLedger(
           quoteToken,
-          quotePayload,
+          quoteData,
           confirmedLedger.txDigest,
         );
         return confirmedResponse(
@@ -440,5 +514,5 @@ export async function POST(req: NextRequest) {
   }
 
   // 12. Return confirmed result
-  return confirmedResponse(onChainAmount, quotePayload.vaultAddress, txDigest);
+  return confirmedResponse(onChainAmount, quoteData.vaultAddress, txDigest);
 }

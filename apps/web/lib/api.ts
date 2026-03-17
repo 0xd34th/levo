@@ -110,6 +110,28 @@ function walletAuthError(message: string, path: string) {
   return response;
 }
 
+export function verifySameOrigin(
+  req: NextRequest,
+): { ok: true } | { ok: false; response: NextResponse } {
+  const expectedOrigin = getExpectedOrigin(req);
+  if (!expectedOrigin) {
+    return {
+      ok: false,
+      response: noStoreJson({ error: 'Server configuration error' }, { status: 500 }),
+    };
+  }
+
+  const requestOrigin = normalizeOrigin(req.headers.get('origin') ?? '');
+  if (requestOrigin !== expectedOrigin) {
+    return {
+      ok: false,
+      response: noStoreJson({ error: 'Invalid request origin' }, { status: 403 }),
+    };
+  }
+
+  return { ok: true };
+}
+
 export async function verifyWalletAuth(
   req: NextRequest,
   address: string,

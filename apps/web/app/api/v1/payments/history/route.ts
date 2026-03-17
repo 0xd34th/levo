@@ -3,9 +3,11 @@ import { z } from 'zod';
 import {
   getClientIp,
   invalidInputResponse,
+  noStoreJson,
   parseSuiAddress,
   verifyWalletAuth,
 } from '@/lib/api';
+import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
 import {
@@ -13,8 +15,7 @@ import {
   encodeTransactionHistoryCursor,
 } from '@/lib/transaction-history-cursor';
 import { isTrustedProfilePictureUrl, type TransactionHistoryResponse } from '@/lib/transaction-history';
-// Cookie is no longer cleared per-request — it lives for its full TTL so
-// paginated load-more calls can reuse the same wallet-auth proof.
+import { WALLET_AUTH_CHALLENGE_COOKIE } from '@/lib/wallet-auth';
 
 const QuerySchema = z.object({
   senderAddress: z.string().min(1),
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = await rateLimit(`history:${ip}`, 60, 30);
   if (!rl.allowed) {
-    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+    return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   const params = Object.fromEntries(req.nextUrl.searchParams);
@@ -46,9 +47,48 @@ export async function GET(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  // Verify the caller owns this wallet
-  const auth = await verifyWalletAuth(req, senderAddress, req.nextUrl.pathname);
-  if (!auth.ok) return auth.response;
+  const hasWalletAuth =
+    Boolean(req.headers.get('x-wallet-signature')) &&
+    Boolean(req.cookies.get(WALLET_AUTH_CHALLENGE_COOKIE));
+
+  if (hasWalletAuth) {
+    const walletAuth = await verifyWalletAuth(req, senderAddress, req.nextUrl.pathname);
+    if (!walletAuth.ok) {
+      return walletAuth.response;
+    }
+  } else {
+    const auth = await verifyPrivyXAuth();
+    if (!auth.ok) return auth.response;
+
+    const viewerWallet = await prisma.xUser.findUnique({
+      where: { xUserId: auth.identity.xUserId },
+      select: { privyUserId: true, suiAddress: true },
+    });
+
+    if (!viewerWallet?.privyUserId || viewerWallet.privyUserId !== auth.identity.privyUserId) {
+      return NextResponse.json(
+        { error: 'Wallet ownership could not be verified. Please set up your wallet first.' },
+        {
+          status: 403,
+          headers: {
+            'Cache-Control': 'private, no-store',
+          },
+        },
+      );
+    }
+
+    if (viewerWallet.suiAddress !== senderAddress) {
+      return NextResponse.json(
+        { error: 'Sender address does not match the authenticated embedded wallet' },
+        {
+          status: 403,
+          headers: {
+            'Cache-Control': 'private, no-store',
+          },
+        },
+      );
+    }
+  }
 
   const cursorCreatedAt = paginationCursor ? new Date(paginationCursor.createdAt) : null;
   const rows = await prisma.paymentLedger.findMany({

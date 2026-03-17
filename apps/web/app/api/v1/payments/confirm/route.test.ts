@@ -9,6 +9,7 @@ const {
   findFirstMock,
   updateManyMock,
   transactionMock,
+  verifySameOriginMock,
 } = vi.hoisted(() => ({
   rateLimitMock: vi.fn(),
   verifyQuoteTokenMock: vi.fn(),
@@ -17,18 +18,23 @@ const {
   findFirstMock: vi.fn(),
   updateManyMock: vi.fn(),
   transactionMock: vi.fn(),
+  verifySameOriginMock: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({
-  getClientIp: () => '127.0.0.1',
-  hasValidHmacSecret: (secret: string | undefined) =>
-    typeof secret === 'string' && secret.trim().length >= 32,
-  invalidInputResponse: () =>
-    new Response(JSON.stringify({ error: 'Invalid input' }), {
-      status: 400,
-      headers: { 'content-type': 'application/json' },
-    }),
-}));
+vi.mock('@/lib/api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
+
+  return {
+    ...actual,
+    getClientIp: () => '127.0.0.1',
+    invalidInputResponse: () =>
+      new Response(JSON.stringify({ error: 'Invalid input' }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      }),
+    verifySameOrigin: verifySameOriginMock,
+  };
+});
 
 vi.mock('@/lib/hmac', () => ({
   verifyQuoteToken: verifyQuoteTokenMock,
@@ -79,6 +85,51 @@ describe('POST /api/v1/payments/confirm', () => {
     vi.clearAllMocks();
     process.env.HMAC_SECRET = 'a'.repeat(64);
     rateLimitMock.mockResolvedValue({ allowed: true });
+    verifySameOriginMock.mockReturnValue({ ok: true });
+  });
+
+  it('rejects cross-origin confirmation requests before touching quote state', async () => {
+    verifySameOriginMock.mockReturnValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ error: 'Invalid request origin' }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(403);
+    expect(findFirstMock).not.toHaveBeenCalled();
+    expect(verifyQuoteTokenMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ error: 'Invalid request origin' });
+  });
+
+  it('rate limits repeated confirmations for the same quote token', async () => {
+    rateLimitMock
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(rateLimitMock).toHaveBeenNthCalledWith(1, 'confirm:127.0.0.1', 60, 20);
+    expect(rateLimitMock).toHaveBeenNthCalledWith(2, 'confirm:token:quote-token', 60, 5);
+    expect(findFirstMock).not.toHaveBeenCalled();
+    expect(verifyQuoteTokenMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ error: 'Rate limit exceeded' });
   });
 
   it('marks regenerated pending quotes confirmed when a matching ledger entry already exists', async () => {
@@ -248,6 +299,93 @@ describe('POST /api/v1/payments/confirm', () => {
     });
   });
 
+  it('recovers an expired pending quote when the stored digest matches and the ledger already exists', async () => {
+    const quotePayload = makeQuotePayload();
+    const txDigest = VALID_TX_DIGEST;
+
+    verifyQuoteTokenMock.mockReturnValue(null);
+    findFirstMock.mockResolvedValue({
+      status: 'PENDING',
+      expiresAt: new Date(Date.now() - 60_000),
+      amount: BigInt(quotePayload.amount),
+      senderAddress: quotePayload.senderAddress,
+      xUserId: quotePayload.xUserId,
+      vaultAddress: quotePayload.vaultAddress,
+      coinType: quotePayload.coinType,
+      confirmedTxDigest: txDigest,
+    });
+    findUniqueMock.mockResolvedValue({
+      txDigest,
+      senderAddress: quotePayload.senderAddress,
+      xUserId: quotePayload.xUserId,
+      vaultAddress: quotePayload.vaultAddress,
+      coinType: quotePayload.coinType,
+      amount: BigInt(quotePayload.amount),
+    });
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest, quoteToken: 'expired-quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(updateManyMock).toHaveBeenCalledWith({
+      where: {
+        hmacToken: 'expired-quote-token',
+        status: 'PENDING',
+        senderAddress: quotePayload.senderAddress,
+        xUserId: quotePayload.xUserId,
+        vaultAddress: quotePayload.vaultAddress,
+        coinType: quotePayload.coinType,
+        amount: BigInt(quotePayload.amount),
+      },
+      data: {
+        status: 'CONFIRMED',
+        confirmedTxDigest: txDigest,
+      },
+    });
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest,
+    });
+  });
+
+  it('rejects an expired pending quote when the submitted digest does not match the stored staged digest', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(null);
+    findFirstMock.mockResolvedValue({
+      status: 'PENDING',
+      expiresAt: new Date(Date.now() - 60_000),
+      amount: BigInt(quotePayload.amount),
+      senderAddress: quotePayload.senderAddress,
+      xUserId: quotePayload.xUserId,
+      vaultAddress: quotePayload.vaultAddress,
+      coinType: quotePayload.coinType,
+      confirmedTxDigest: '5'.repeat(44),
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'expired-quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(findUniqueMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Invalid or expired quote token',
+    });
+  });
+
   it('marks quotes failed when the transaction failed on-chain', async () => {
     const quotePayload = makeQuotePayload();
 
@@ -271,6 +409,7 @@ describe('POST /api/v1/payments/confirm', () => {
       where: {
         hmacToken: 'quote-token',
         status: 'PENDING',
+        confirmedTxDigest: VALID_TX_DIGEST,
       },
       data: { status: 'FAILED' },
     });

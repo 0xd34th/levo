@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Transaction, coinWithBalance } from '@mysten/sui/transactions';
-import { useDAppKit, useCurrentAccount } from '@mysten/dapp-kit-react';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import {
@@ -19,6 +17,8 @@ interface SendButtonProps {
   username: string;
   amount: string;
   coinType: string;
+  /** Privy embedded wallet address. Required for sending. */
+  embeddedWalletAddress?: string | null;
   onError: (error: string | null) => void;
   onConfirm: (data: TransactionResultData) => void;
   onSendingChange?: (sending: boolean) => void;
@@ -44,7 +44,12 @@ type QuoteResponse = {
   quoteToken: string;
 } & ResolvedUserPreview;
 
-type SendStage = 'idle' | 'resolving' | 'reviewing' | 'awaiting_wallet' | 'confirming';
+type SendResponse = {
+  status: 'confirmed' | 'pending';
+  txDigest: string;
+};
+
+type SendStage = 'idle' | 'resolving' | 'reviewing' | 'confirming';
 
 async function getResponseError(response: Response, fallback: string) {
   try {
@@ -97,6 +102,23 @@ function parseQuoteResponse(payload: unknown): QuoteResponse | null {
     username,
     vaultAddress,
   };
+}
+
+function parseSendResponse(payload: unknown): SendResponse | null {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+
+  const { status, txDigest } = payload as Partial<SendResponse>;
+  if (
+    (status !== 'confirmed' && status !== 'pending') ||
+    typeof txDigest !== 'string' ||
+    txDigest === ''
+  ) {
+    return null;
+  }
+
+  return { status, txDigest };
 }
 
 function waitForRetryDelay(delayMs: number, signal?: AbortSignal) {
@@ -163,6 +185,7 @@ export function SendButton({
   username,
   amount,
   coinType,
+  embeddedWalletAddress,
   onError,
   onConfirm,
   onSendingChange,
@@ -174,8 +197,7 @@ export function SendButton({
   const mountedRef = useRef(true);
   const confirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
-  const dAppKit = useDAppKit();
-  const account = useCurrentAccount();
+
   const amountNum = amount === '' ? Number.NaN : Number(amount);
   const normalizedUsername = normalizeUsernameInput(username);
   const hasValidAmount =
@@ -184,7 +206,7 @@ export function SendButton({
     amountNum > 0 &&
     isValidAmountInput(amount, coinType);
   const disabled =
-    !account ||
+    !embeddedWalletAddress ||
     !normalizedUsername ||
     !hasValidAmount ||
     sending;
@@ -220,7 +242,7 @@ export function SendButton({
   }, []);
 
   const handleSend = async () => {
-    if (!account || !normalizedUsername || inFlightRef.current) return;
+    if (!embeddedWalletAddress || !normalizedUsername || inFlightRef.current) return;
 
     const amountNum = amount === '' ? Number.NaN : Number(amount);
     if (amount === '' || Number.isNaN(amountNum) || amountNum <= 0) {
@@ -234,7 +256,7 @@ export function SendButton({
 
     let senderAddress: string;
     try {
-      senderAddress = normalizeSuiAddress(account.address);
+      senderAddress = normalizeSuiAddress(embeddedWalletAddress);
     } catch {
       onError('Invalid wallet address');
       return;
@@ -292,55 +314,63 @@ export function SendButton({
       if (!confirmed) {
         return;
       }
-      setSendStage('awaiting_wallet');
-      const { username: resolvedUsername, vaultAddress } = resolvedRecipient;
 
-      // 2. Build Sui transaction: transfer coin to vaultAddress
-      const tx = new Transaction();
-      const coin = tx.add(
-        coinWithBalance({
-          type: coinType,
-          balance: baseAmount,
-        }),
-      );
-      tx.transferObjects([coin], vaultAddress);
+      const { username: resolvedUsername } = resolvedRecipient;
 
-      // 3. Sign and execute via dapp-kit
-      const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
-      if (isAborted()) return;
-
-      if (result.$kind === 'FailedTransaction') {
-        onError('Transaction failed on-chain');
-        return;
-      }
-
-      const txDigest = result.Transaction.digest;
+      // 2. Server builds, signs, and executes the transaction
       setSendStage('confirming');
 
-      // 4. Confirm payment on backend (with retries for 202)
-      const confirmResult = await confirmWithRetry(
-        txDigest,
-        quoteToken,
-        3,
-        2000,
-        controller.signal,
-      );
+      const sendRes = await fetch('/api/v1/payments/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteToken }),
+        signal: controller.signal,
+      });
+
       if (isAborted()) return;
 
-      if (!confirmResult.ok) {
-        onError(
-          (confirmResult.data.error as string) ??
-            'Failed to confirm transaction. It may still be processing.',
-        );
+      if (!sendRes.ok) {
+        const error = await getResponseError(sendRes, 'Send failed');
+        if (isAborted()) return;
+        onError(error);
         return;
       }
 
-      // 5. Success
+      const sendPayload = await sendRes.json().catch(() => null);
+      if (isAborted()) return;
+      const sendResult = parseSendResponse(sendPayload);
+      if (!sendResult) {
+        onError('Invalid send response');
+        return;
+      }
+
+      if (sendResult.status === 'pending') {
+        const confirmResult = await confirmWithRetry(
+          sendResult.txDigest,
+          quoteToken,
+          3,
+          2000,
+          controller.signal,
+        );
+        if (isAborted()) return;
+
+        if (!confirmResult.ok) {
+          const confirmError =
+            typeof confirmResult.data.error === 'string'
+              ? confirmResult.data.error
+              : 'Failed to confirm transaction. It may still be processing.';
+          onError(
+            confirmError,
+          );
+          return;
+        }
+      }
+
       onConfirm({
         amount,
         coinType,
         username: resolvedUsername,
-        txDigest,
+        txDigest: sendResult.txDigest,
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -366,10 +396,8 @@ export function SendButton({
     buttonLabel = 'Resolving recipient';
   } else if (sendStage === 'reviewing') {
     buttonLabel = 'Review recipient';
-  } else if (sendStage === 'awaiting_wallet') {
-    buttonLabel = 'Approve in wallet';
   } else if (sendStage === 'confirming') {
-    buttonLabel = 'Sending payment';
+    buttonLabel = 'Processing payment';
   }
 
   return (

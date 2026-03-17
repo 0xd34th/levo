@@ -14,8 +14,15 @@ model XUser {
   isBlueVerified    Boolean       @default(false) @map("is_blue_verified")
   accountStatus     AccountStatus @default(ACTIVE) @map("account_status")
   derivationVersion Int           @default(1) @map("derivation_version")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Privy embedded Sui wallet
+  privyUserId  String? @unique @map("privy_user_id")
+  privyWalletId String? @unique @map("privy_wallet_id")
+  suiAddress    String? @unique @map("sui_address")
+  suiPublicKey  String? @map("sui_public_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   quotes PaymentQuote[]
   ledger PaymentLedger[]

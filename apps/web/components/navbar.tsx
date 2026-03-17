@@ -2,17 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowUpRight, CreditCard, Search, Sparkles } from 'lucide-react';
+import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { ArrowUpRight, CreditCard, LogOut, Search, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import { MintButton } from '@/components/mint-button';
+import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { WalletConnectButton } from '@/components/wallet-connect-button';
 import { cn } from '@/lib/utils';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
-const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID ?? '';
-const TREASURY_CAP_ID = process.env.NEXT_PUBLIC_TREASURY_CAP_ID ?? '';
 
 const navigation = [
   { href: '/', label: 'Send', icon: CreditCard, matchPrefix: '/' },
@@ -23,6 +21,8 @@ const navigation = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const { ready, authenticated, user, logout } = usePrivy();
+  const { initOAuth } = useLoginWithOAuth();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -69,19 +69,42 @@ export function Navbar() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {PACKAGE_ID && TREASURY_CAP_ID && NETWORK !== 'mainnet' ? (
-              <div className="hidden lg:block">
-                <MintButton packageId={PACKAGE_ID} treasuryCapId={TREASURY_CAP_ID} />
-              </div>
-            ) : null}
-
             <Badge variant="outline" className="hidden border-border px-3 text-[11px] text-muted-foreground sm:inline-flex">
               {NETWORK}
             </Badge>
 
             <ThemeToggle />
 
-            <WalletConnectButton />
+            {ready && authenticated && user?.twitter ? (
+              <div className="flex items-center gap-1.5">
+                <Badge
+                  variant="outline"
+                  className="hidden cursor-default rounded-full border-border/70 px-3 py-1.5 text-xs font-medium text-foreground sm:inline-flex dark:border-white/10"
+                >
+                  @{user.twitter.username}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Sign out"
+                  className="size-8 rounded-full text-muted-foreground hover:text-foreground"
+                  onClick={() => logout()}
+                  title="Sign out of X"
+                >
+                  <LogOut className="size-3.5" />
+                </Button>
+              </div>
+            ) : ready && !authenticated ? (
+              <Button
+                variant="outline"
+                className="h-9 rounded-full border-border/70 px-3 text-xs font-medium dark:border-white/10"
+                onClick={() => {
+                  void initOAuth({ provider: 'twitter' }).catch(() => {});
+                }}
+              >
+                Sign in with X
+              </Button>
+            ) : null}
           </div>
         </div>
 

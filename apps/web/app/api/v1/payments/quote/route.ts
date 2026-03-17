@@ -1,7 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
-import { getClientIp, invalidInputResponse, parseSuiAddress } from '@/lib/api';
+import {
+  getClientIp,
+  hasValidHmacSecret,
+  invalidInputResponse,
+  noStoreJson,
+  parseSuiAddress,
+  verifySameOrigin,
+} from '@/lib/api';
 import {
   isSupportedCoinType,
   requiresPackageIdForCoinType,
@@ -9,7 +16,9 @@ import {
 import { deriveVaultAddress } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
+import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
@@ -24,7 +33,13 @@ const QUOTE_EXPIRY_SECONDS = 5 * 60; // 5 minutes
 const MAX_PENDING_QUOTES = 10;
 
 export async function POST(req: NextRequest) {
-  // Parse input first so we can use senderAddress for rate limiting
+  const sameOrigin = verifySameOrigin(req);
+  if (!sameOrigin.ok) return sameOrigin.response;
+
+  const auth = await verifyPrivyXAuth();
+  if (!auth.ok) return auth.response;
+
+  // Parse input first so we can validate the authenticated sender address
   const body = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -39,31 +54,61 @@ export async function POST(req: NextRequest) {
   const { username, coinType, amount } = parsed.data;
   const senderAddress = normalizedSenderAddress;
 
+  const xUser = await prisma.xUser.findUnique({
+    where: { xUserId: auth.identity.xUserId },
+    select: { privyUserId: true, suiAddress: true },
+  });
+  if (!xUser?.suiAddress) {
+    return noStoreJson(
+      { error: 'No embedded wallet found. Please set up your wallet first.' },
+      { status: 400 },
+    );
+  }
+
+  if (!xUser.privyUserId || xUser.privyUserId !== auth.identity.privyUserId) {
+    return noStoreJson(
+      { error: 'Wallet ownership could not be verified. Please set up your wallet first.' },
+      { status: 403 },
+    );
+  }
+
+  if (xUser.suiAddress !== senderAddress) {
+    return noStoreJson(
+      { error: 'Sender address does not match the authenticated embedded wallet' },
+      { status: 403 },
+    );
+  }
+
   // Validate amount bounds (must fit in u64)
   const amountBigInt = BigInt(amount);
   if (amountBigInt < 1n || amountBigInt > 18446744073709551615n) {
-    return NextResponse.json({ error: 'Amount out of valid range' }, { status: 400 });
+    return noStoreJson({ error: 'Amount out of valid range' }, { status: 400 });
   }
 
   if (
     !process.env.NEXT_PUBLIC_PACKAGE_ID &&
     requiresPackageIdForCoinType(coinType)
   ) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
   }
 
   if (!isSupportedCoinType(coinType)) {
-    return NextResponse.json({ error: 'Unsupported coin type' }, { status: 400 });
+    return noStoreJson({ error: 'Unsupported coin type' }, { status: 400 });
   }
 
-  // Rate limit by IP + senderAddress (10 req/min)
+  // Rate limit by authenticated sender (10 req/min)
   const ip = getClientIp(req);
-  const rl = await rateLimit(`quote:${ip}:${senderAddress}`, 60, 10);
-  if (!rl.allowed) {
-    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  const ipRl = await rateLimit(`quote:${ip}`, 60, 20);
+  if (!ipRl.allowed) {
+    return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
+  const userRl = await rateLimit(`quote:user:${auth.identity.xUserId}`, 60, 10);
+  if (!userRl.allowed) {
+    return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   const now = new Date();
@@ -86,7 +131,7 @@ export async function POST(req: NextRequest) {
     },
   });
   if (pendingCount >= MAX_PENDING_QUOTES) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Too many pending quotes. Please wait for existing quotes to resolve.' },
       { status: 429 },
     );
@@ -95,7 +140,7 @@ export async function POST(req: NextRequest) {
   // Resolve username via twitterapi.io, reusing a very recent cached resolution when possible.
   const apiKey = process.env.TWITTER_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
@@ -111,15 +156,22 @@ export async function POST(req: NextRequest) {
     } else {
       console.error('Failed to resolve quote recipient', error);
     }
-    return NextResponse.json(
+    return noStoreJson(
       { error: lookupError.error },
       { status: lookupError.status, headers: lookupError.headers },
     );
   }
   if (!userInfo) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'User not found on X' },
       { status: 404 },
+    );
+  }
+
+  if (userInfo.xUserId === auth.identity.xUserId) {
+    return noStoreJson(
+      { error: 'Cannot send to yourself' },
+      { status: 400 },
     );
   }
 
@@ -132,7 +184,7 @@ export async function POST(req: NextRequest) {
     existingUser &&
     (existingUser.accountStatus === 'SUSPENDED' || existingUser.accountStatus === 'DELETED')
   ) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'This account is not eligible for payments' },
       { status: 403 },
     );
@@ -141,7 +193,7 @@ export async function POST(req: NextRequest) {
   // Derive vault address
   const registryId = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
   if (!registryId) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
@@ -149,11 +201,15 @@ export async function POST(req: NextRequest) {
 
   const vaultAddress = deriveVaultAddress(registryId, BigInt(userInfo.xUserId));
   const derivationVersion = 1;
+  const trustedProfilePicture =
+    userInfo.profilePicture && isTrustedProfilePictureUrl(userInfo.profilePicture)
+      ? userInfo.profilePicture
+      : null;
 
   // Generate HMAC token with 5-minute expiry
   const hmacSecret = process.env.HMAC_SECRET;
-  if (!hmacSecret) {
-    return NextResponse.json(
+  if (!hasValidHmacSecret(hmacSecret)) {
+    return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
@@ -181,13 +237,13 @@ export async function POST(req: NextRequest) {
     where: { xUserId: userInfo.xUserId },
     update: {
       username: userInfo.username,
-      profilePicture: userInfo.profilePicture,
+      profilePicture: trustedProfilePicture,
       isBlueVerified: userInfo.isBlueVerified,
     },
     create: {
       xUserId: userInfo.xUserId,
       username: userInfo.username,
-      profilePicture: userInfo.profilePicture,
+      profilePicture: trustedProfilePicture,
       isBlueVerified: userInfo.isBlueVerified,
       derivationVersion,
     },
@@ -209,10 +265,10 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({
+  return noStoreJson({
     xUserId: userInfo.xUserId,
     username: userInfo.username,
-    profilePicture: userInfo.profilePicture,
+    profilePicture: trustedProfilePicture,
     isBlueVerified: userInfo.isBlueVerified,
     vaultAddress,
     coinType,

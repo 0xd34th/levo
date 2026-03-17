@@ -1,112 +1,149 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Download, Search, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { Download, Sparkles } from 'lucide-react';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { Navbar } from '@/components/navbar';
 import { PaymentTable } from '@/components/payment-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
   claimStatusLabel,
   explorerUrl,
   formatPendingBalances,
-  normalizeHandle,
   receivedPaymentDisplay,
   truncateAddress,
   untrackedBalanceNote,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
-import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
+import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
 export default function ReceivedDashboardPage() {
-  const [handle, setHandle] = useState('');
-  const [activeHandle, setActiveHandle] = useState<string | null>(null);
+  const { ready, authenticated, user } = usePrivy();
+  const { initOAuth } = useLoginWithOAuth();
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<IncomingPaymentsResponse | null>(null);
-  const lookupRequestIdRef = useRef(0);
+  const fetchRequestIdRef = useRef(0);
   const loadMoreRequestIdRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const hasFetchedRef = useRef(false);
+  const activeTwitterSubjectRef = useRef<string | null>(null);
+
+  const twitterSubject = user?.twitter?.subject;
+  const twitterUsername = user?.twitter?.username;
+  const twitterProfilePicture = user?.twitter?.profilePictureUrl;
+  const trustedTwitterProfilePicture =
+    twitterProfilePicture && isTrustedProfilePictureUrl(twitterProfilePicture)
+      ? twitterProfilePicture
+      : null;
+  const activeTwitterSubject =
+    ready && authenticated && twitterSubject ? twitterSubject : null;
+  const pendingBalanceNote = data
+    ? untrackedBalanceNote(
+        data.pendingBalances,
+        data.recordedTotals,
+        data.claimStatus,
+      )
+    : null;
 
   useEffect(() => () => requestControllerRef.current?.abort(), []);
 
-  async function fetchIncoming(username: string, cursor?: string, signal?: AbortSignal) {
-    const params = new URLSearchParams({ username });
+  useEffect(() => {
+    if (!ready) return;
+
+    if (!activeTwitterSubject) {
+      activeTwitterSubjectRef.current = null;
+      hasFetchedRef.current = false;
+      fetchRequestIdRef.current += 1;
+      loadMoreRequestIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      setLoading(false);
+      setLoadingMore(false);
+      setError(null);
+      setData(null);
+      return;
+    }
+
+    if (activeTwitterSubjectRef.current !== activeTwitterSubject) {
+      activeTwitterSubjectRef.current = activeTwitterSubject;
+      hasFetchedRef.current = false;
+      setError(null);
+      setData(null);
+    }
+  }, [ready, activeTwitterSubject]);
+
+  useEffect(() => {
+    if (!activeTwitterSubject || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+    void handleFetch();
+    return () => {
+      hasFetchedRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTwitterSubject]);
+
+  async function fetchReceived(cursor?: string, signal?: AbortSignal) {
+    const params = new URLSearchParams();
     if (cursor) params.set('cursor', cursor);
 
-    const response = await fetch(`/api/v1/payments/incoming?${params}`, {
+    const response = await fetch(`/api/v1/payments/received?${params}`, {
       cache: 'no-store',
       signal,
     });
 
     if (!response.ok) {
-      const payload = await response.json().catch(() => ({ error: 'Unable to load incoming payments' }));
-      throw new Error(payload.error ?? 'Unable to load incoming payments');
+      const payload = await response.json().catch(() => ({ error: 'Unable to load received payments' }));
+      throw new Error(payload.error ?? 'Unable to load received payments');
     }
 
     return (await response.json()) as IncomingPaymentsResponse;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const username = normalizeHandle(handle);
-    const lookupRequestId = lookupRequestIdRef.current + 1;
-    lookupRequestIdRef.current = lookupRequestId;
+  async function handleFetch() {
+    const fetchRequestId = fetchRequestIdRef.current + 1;
+    fetchRequestIdRef.current = fetchRequestId;
     loadMoreRequestIdRef.current += 1;
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
     setLoadingMore(false);
-    setActiveHandle(null);
     setData(null);
-
-    if (!username) {
-      setLoading(false);
-      setError('Enter an X handle to load received payments.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
     const controller = new AbortController();
     requestControllerRef.current = controller;
 
     try {
-      const payload = await fetchIncoming(username, undefined, controller.signal);
-
-      if (lookupRequestIdRef.current !== lookupRequestId) return;
-
+      const payload = await fetchReceived(undefined, controller.signal);
+      if (fetchRequestIdRef.current !== fetchRequestId) return;
       setData(payload);
-      setActiveHandle(username);
     } catch (requestError) {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
-      if (lookupRequestIdRef.current !== lookupRequestId) return;
+      if (fetchRequestIdRef.current !== fetchRequestId) return;
       setData(null);
-      setActiveHandle(null);
-      setError(requestError instanceof Error ? requestError.message : 'Unable to load incoming payments');
+      setError(requestError instanceof Error ? requestError.message : 'Unable to load received payments');
     } finally {
       if (requestControllerRef.current === controller) {
         requestControllerRef.current = null;
       }
-      if (lookupRequestIdRef.current === lookupRequestId) {
+      if (fetchRequestIdRef.current === fetchRequestId) {
         setLoading(false);
       }
     }
   }
 
   async function handleLoadMore() {
-    if (!activeHandle || !data?.nextCursor || loading || loadingMore) return;
+    if (!data?.nextCursor || loading || loadingMore) return;
 
     const loadMoreRequestId = loadMoreRequestIdRef.current + 1;
     loadMoreRequestIdRef.current = loadMoreRequestId;
-    const currentLookupRequestId = lookupRequestIdRef.current;
-    const currentHandle = activeHandle;
+    const currentFetchRequestId = fetchRequestIdRef.current;
     const currentCursor = data.nextCursor;
 
     setLoadingMore(true);
@@ -116,15 +153,11 @@ export default function ReceivedDashboardPage() {
     requestControllerRef.current = controller;
 
     try {
-      const payload = await fetchIncoming(
-        currentHandle,
-        currentCursor,
-        controller.signal,
-      );
+      const payload = await fetchReceived(currentCursor, controller.signal);
 
       if (
         loadMoreRequestIdRef.current !== loadMoreRequestId ||
-        lookupRequestIdRef.current !== currentLookupRequestId
+        fetchRequestIdRef.current !== currentFetchRequestId
       ) {
         return;
       }
@@ -132,8 +165,9 @@ export default function ReceivedDashboardPage() {
       setData((previous) =>
         previous
           ? {
-              ...payload,
+              ...previous,
               items: [...previous.items, ...payload.items],
+              nextCursor: payload.nextCursor,
             }
           : payload,
       );
@@ -141,7 +175,7 @@ export default function ReceivedDashboardPage() {
       if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
       if (
         loadMoreRequestIdRef.current !== loadMoreRequestId ||
-        lookupRequestIdRef.current !== currentLookupRequestId
+        fetchRequestIdRef.current !== currentFetchRequestId
       ) {
         return;
       }
@@ -156,6 +190,8 @@ export default function ReceivedDashboardPage() {
     }
   }
 
+  const showLoading = loading && !data;
+
   return (
     <div className="app-shell">
       <Navbar />
@@ -164,48 +200,76 @@ export default function ReceivedDashboardPage() {
         <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="section-eyebrow">Recipient dashboard</p>
-            <h1 className="hero-heading mt-3 max-w-2xl">See what has arrived for an X identity before it is claimed.</h1>
+            <h1 className="hero-heading mt-3 max-w-2xl">Your received payments</h1>
             <p className="mt-4 max-w-2xl text-sm text-muted-foreground sm:text-base">
-              Search any handle to inspect vault status, pending balances, and every confirmed incoming transfer.
+              Sign in with X to view your vault status, pending balances, and every confirmed incoming transfer.
             </p>
           </div>
-          <Badge variant="outline" className="w-fit rounded-full border-border/70 px-4 py-1.5 text-xs text-muted-foreground dark:border-white/10">
-            Public pre-claim view
-          </Badge>
+          {authenticated && twitterUsername ? (
+            <div className="flex items-center gap-3">
+              {trustedTwitterProfilePicture ? (
+                <img
+                  alt={`@${twitterUsername}`}
+                  className="size-10 rounded-full"
+                  src={trustedTwitterProfilePicture}
+                />
+              ) : null}
+              <Badge variant="outline" className="rounded-full border-border/70 px-4 py-1.5 text-sm text-foreground dark:border-white/10">
+                @{twitterUsername}
+              </Badge>
+            </div>
+          ) : null}
         </section>
 
         <DashboardTabs />
 
-        <section className="mt-8">
-          <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">
-            <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
-              <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
-                    @
-                  </span>
-                  <Input
-                    className="h-16 rounded-[22px] border-border/70 bg-background/80 pl-12 text-lg font-medium dark:border-white/10 dark:bg-white/5"
-                    maxLength={MAX_X_HANDLE_LENGTH + 1}
-                    placeholder="username"
-                    value={handle}
-                    onChange={(event) => setHandle(normalizeHandle(event.target.value))}
-                  />
-                </div>
-                <Button className="h-16 rounded-[22px] px-5" disabled={loading} type="submit">
-                  <Search className="size-4" />
-                  {loading ? 'Loading…' : 'Load dashboard'}
-                </Button>
-              </form>
+        {showLoading ? (
+          <section className="mt-8">
+            <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">
+              <CardContent className="flex items-center justify-center px-5 py-12 sm:px-6">
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
 
-              {error ? (
-                <div className="mt-4 rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                  {error}
+        {ready && authenticated && !activeTwitterSubject && !showLoading && !error && !data ? (
+          <section className="mt-8">
+            <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">
+              <CardContent className="flex flex-col items-start gap-4 px-5 py-6 sm:px-6">
+                <div>
+                  <p className="text-lg font-semibold tracking-[-0.03em]">Link X to load your vault</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your dashboard needs a linked X account before Levo can load pending balances and incoming payments.
+                  </p>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </section>
+                <Button
+                  className="rounded-full"
+                  onClick={() => {
+                    void initOAuth({ provider: 'twitter' }).catch(() => {});
+                  }}
+                >
+                  Link X account
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
+
+        {error ? (
+          <section className="mt-8">
+            <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+              {error}
+              <Button
+                className="ml-3 h-8 rounded-full px-3 text-xs"
+                variant="outline"
+                onClick={handleFetch}
+              >
+                Retry
+              </Button>
+            </div>
+          </section>
+        ) : null}
 
         {data ? (
           <>
@@ -215,9 +279,9 @@ export default function ReceivedDashboardPage() {
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                   {formatPendingBalances(data.pendingBalances)}
                 </p>
-                {untrackedBalanceNote(data.pendingBalances, data.recordedTotals, data.claimStatus) ? (
+                {pendingBalanceNote ? (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {untrackedBalanceNote(data.pendingBalances, data.recordedTotals, data.claimStatus)}
+                    {pendingBalanceNote}
                   </p>
                 ) : null}
               </div>
@@ -250,7 +314,7 @@ export default function ReceivedDashboardPage() {
                 <div>
                   <p className="text-lg font-semibold tracking-[-0.03em]">Incoming payments</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Confirmed deposits routed to the vault before wallet claim.
+                    Confirmed deposits routed to your vault.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

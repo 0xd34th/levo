@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useCurrentAccount } from '@mysten/dapp-kit-react';
+import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { ClaimStepper, type ClaimStep } from '@/components/claim-stepper';
 import { Navbar } from '@/components/navbar';
@@ -17,24 +17,54 @@ import {
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+
+type ClaimOutcome = { type: 'claimed'; txDigest: string };
 
 export default function ClaimPage() {
-  const account = useCurrentAccount();
+  const {
+    suiAddress: embeddedWalletAddress,
+    loading: walletLoading,
+    error: embeddedWalletError,
+    refetch: refetchEmbeddedWallet,
+  } = useEmbeddedWallet();
+  const { ready: privyReady, authenticated: privyAuthenticated, user: privyUser } = usePrivy();
+  const { initOAuth } = useLoginWithOAuth();
   const [handle, setHandle] = useState('');
   const [loadingLookup, setLoadingLookup] = useState(false);
   const [loadingStepId, setLoadingStepId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [hasSignedInWithX, setHasSignedInWithX] = useState(false);
-  const [claimPreviewComplete, setClaimPreviewComplete] = useState(false);
+  const [claimOutcome, setClaimOutcome] = useState<ClaimOutcome | null>(null);
   const [lookup, setLookup] = useState<PublicLookupResponse | null>(null);
   const lookupRequestIdRef = useRef(0);
   const lookupAbortRef = useRef<AbortController | null>(null);
   const stepDelayAbortRef = useRef<AbortController | null>(null);
   const stepActionRequestIdRef = useRef(0);
+  const claimInFlightRef = useRef(false);
 
-  const walletReady = Boolean(account);
-  const effectiveClaimed = lookup?.claimStatus !== 'UNCLAIMED';
+  const walletReady = Boolean(embeddedWalletAddress);
+  const previouslyClaimed =
+    lookup !== null && lookup.claimStatus === 'PREVIOUSLY_CLAIMED';
+  const effectiveClaimed =
+    claimOutcome?.type === 'claimed' ||
+    (lookup !== null && lookup.claimStatus === 'CLAIMED');
+  const privyTwitter = privyUser?.twitter;
+  const privyXLinked = privyReady && privyAuthenticated && Boolean(privyTwitter);
+  const effectiveSignedIn =
+    Boolean(lookup?.xUserId) && privyTwitter?.subject === lookup?.xUserId;
+  const signedInHandleMismatch =
+    privyXLinked && Boolean(lookup?.xUserId) && !effectiveSignedIn;
+
+  useEffect(() => {
+    if (!effectiveSignedIn) {
+      stepDelayAbortRef.current?.abort();
+      stepDelayAbortRef.current = null;
+      stepActionRequestIdRef.current += 1;
+      setLoadingStepId(null);
+      setClaimOutcome(null);
+    }
+  }, [effectiveSignedIn]);
 
   useEffect(() => {
     return () => {
@@ -42,28 +72,6 @@ export default function ClaimPage() {
       stepDelayAbortRef.current?.abort();
     };
   }, []);
-
-  function waitForStepDelay(delayMs: number, signal: AbortSignal) {
-    return new Promise<void>((resolve, reject) => {
-      if (signal.aborted) {
-        reject(new DOMException('Aborted', 'AbortError'));
-        return;
-      }
-
-      const timeoutId = window.setTimeout(() => {
-        signal.removeEventListener('abort', handleAbort);
-        resolve();
-      }, delayMs);
-
-      const handleAbort = () => {
-        window.clearTimeout(timeoutId);
-        signal.removeEventListener('abort', handleAbort);
-        reject(new DOMException('Aborted', 'AbortError'));
-      };
-
-      signal.addEventListener('abort', handleAbort, { once: true });
-    });
-  }
 
   async function handleLookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,8 +85,7 @@ export default function ClaimPage() {
     stepDelayAbortRef.current = null;
     stepActionRequestIdRef.current += 1;
     setLookup(null);
-    setHasSignedInWithX(false);
-    setClaimPreviewComplete(false);
+    setClaimOutcome(null);
     setLoadingStepId(null);
     setNotice(null);
 
@@ -112,8 +119,7 @@ export default function ClaimPage() {
       if (lookupRequestIdRef.current !== lookupRequestId) return;
 
       setLookup(payload);
-      setHasSignedInWithX(false);
-      setClaimPreviewComplete(false);
+      setClaimOutcome(null);
     } catch (lookupError) {
       if (controller.signal.aborted) return;
       if (lookupRequestIdRef.current !== lookupRequestId) return;
@@ -134,15 +140,31 @@ export default function ClaimPage() {
       id: 'signin',
       title: 'Sign in with X',
       description: 'Verify ownership of the handle before connecting a wallet.',
-      actionLabel: 'Coming soon',
-      status: hasSignedInWithX ? 'complete' : 'current',
+      actionLabel: effectiveSignedIn
+        ? 'Signed in'
+        : signedInHandleMismatch
+          ? 'Use matching X'
+          : 'Sign in with X',
+      status: effectiveSignedIn ? 'complete' : 'current',
     },
     {
       id: 'connect',
-      title: 'Connect wallet',
-      description: 'Choose the wallet that should control the claimed funds.',
-      actionLabel: walletReady ? 'Connected' : 'Use navbar',
-      status: hasSignedInWithX
+      title: walletReady ? 'Wallet ready' : 'Wallet setup',
+      description: walletReady
+        ? 'Your embedded Sui wallet is ready to receive claimed funds.'
+        : embeddedWalletError
+          ? embeddedWalletError
+          : walletLoading
+            ? 'Setting up your embedded wallet.'
+            : 'Sign in with X to auto-create your embedded wallet.',
+      actionLabel: walletReady
+        ? 'Embedded wallet'
+        : embeddedWalletError
+          ? 'Retry wallet'
+          : walletLoading
+            ? 'Setting up'
+            : 'Sign in first',
+      status: effectiveSignedIn
         ? walletReady
           ? 'complete'
           : 'current'
@@ -151,9 +173,13 @@ export default function ClaimPage() {
     {
       id: 'claim',
       title: 'Claim funds',
-      description: 'Finalize the transfer from the vault into the connected wallet.',
-      actionLabel: effectiveClaimed ? 'Claimed' : 'Preview claim',
-      status: hasSignedInWithX && walletReady
+      description: 'Finalize the transfer from the vault into your embedded wallet.',
+      actionLabel: effectiveClaimed
+        ? 'Claimed'
+        : previouslyClaimed
+          ? 'Previously claimed'
+          : 'Claim now',
+      status: effectiveSignedIn && walletReady
         ? effectiveClaimed
           ? 'complete'
           : 'current'
@@ -165,57 +191,52 @@ export default function ClaimPage() {
     setNotice(null);
 
     if (id === 'signin') {
-      const stepRequestId = stepActionRequestIdRef.current + 1;
-      stepActionRequestIdRef.current = stepRequestId;
-      stepDelayAbortRef.current?.abort();
-      const controller = new AbortController();
-      stepDelayAbortRef.current = controller;
-      setLoadingStepId(id);
-      try {
-        await waitForStepDelay(700, controller.signal);
-
-        if (
-          controller.signal.aborted ||
-          stepActionRequestIdRef.current !== stepRequestId
-        ) {
-          return;
-        }
-
-        setNotice('Sign in with X is coming soon. Claim flow is not available yet.');
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
-
-        throw error;
-      } finally {
-        if (stepDelayAbortRef.current === controller) {
-          stepDelayAbortRef.current = null;
-        }
-
-        if (stepActionRequestIdRef.current === stepRequestId) {
-          setLoadingStepId(null);
-        }
+      if (effectiveSignedIn) return;
+      if (signedInHandleMismatch) {
+        setNotice(
+          privyTwitter?.username
+            ? `You are signed in as @${privyTwitter.username}. Sign out and continue as @${lookup?.username} to preview this claim.`
+            : 'The connected X account does not match this handle. Sign out and continue with the matching account.',
+        );
+        return;
       }
-
+      try {
+        setLoadingStepId(id);
+        await initOAuth({ provider: 'twitter' });
+      } catch {
+        setNotice('X sign-in was cancelled or failed. Please try again.');
+      } finally {
+        setLoadingStepId(null);
+      }
       return;
     }
 
     if (id === 'connect') {
       if (!walletReady) {
-        setNotice('Use the wallet button in the navbar to connect, then continue.');
+        if (embeddedWalletError) {
+          refetchEmbeddedWallet();
+          setNotice('Retrying embedded wallet setup…');
+        } else if (walletLoading) {
+          setNotice('Wallet setup is still running. Please wait a moment.');
+        } else {
+          setNotice('Sign in with X first — your embedded wallet will be created automatically.');
+        }
       }
       return;
     }
 
     if (id === 'claim') {
-      if (!hasSignedInWithX) {
-        setNotice('Sign in with X before previewing the claim.');
+      if (claimInFlightRef.current) {
+        return;
+      }
+
+      if (!effectiveSignedIn) {
+        setNotice('Sign in with X before claiming.');
         return;
       }
 
       if (!walletReady) {
-        setNotice('Connect a wallet before previewing the claim.');
+        setNotice('Wallet not ready yet. Please wait a moment.');
         return;
       }
 
@@ -224,8 +245,18 @@ export default function ClaimPage() {
         return;
       }
 
+      if (previouslyClaimed) {
+        setNotice('This vault was already claimed previously.');
+        return;
+      }
+
       if (lookup.pendingBalances.length === 0) {
         setNotice('There is no claimable balance in the vault yet.');
+        return;
+      }
+
+      if (effectiveClaimed) {
+        setNotice('This vault has already been claimed.');
         return;
       }
 
@@ -234,9 +265,14 @@ export default function ClaimPage() {
       stepDelayAbortRef.current?.abort();
       const controller = new AbortController();
       stepDelayAbortRef.current = controller;
+      claimInFlightRef.current = true;
       setLoadingStepId(id);
+
       try {
-        await waitForStepDelay(900, controller.signal);
+        const res = await fetch('/api/v1/payments/claim', {
+          method: 'POST',
+          signal: controller.signal,
+        });
 
         if (
           controller.signal.aborted ||
@@ -245,15 +281,39 @@ export default function ClaimPage() {
           return;
         }
 
-        setClaimPreviewComplete(true);
-        setNotice('Claim execution is not wired yet. This preview does not move funds.');
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({ error: 'Claim failed' }));
+          setNotice(payload.error ?? 'Claim failed. Please try again.');
           return;
         }
 
-        throw error;
+        const result = (await res.json()) as { txDigest?: string };
+        setLookup((currentLookup) => (
+          currentLookup
+            ? {
+                ...currentLookup,
+                claimStatus: 'CLAIMED',
+                vaultExists: true,
+                pendingBalances: [],
+              }
+            : currentLookup
+        ));
+        setClaimOutcome({
+          type: 'claimed',
+          txDigest: result.txDigest ?? '',
+        });
+        setNotice(
+          result.txDigest
+            ? `Claim successful! Transaction: ${result.txDigest.slice(0, 10)}...`
+            : 'Claim successful!',
+        );
+      } catch (claimError) {
+        if (claimError instanceof DOMException && claimError.name === 'AbortError') {
+          return;
+        }
+        setNotice('Claim failed. Please try again.');
       } finally {
+        claimInFlightRef.current = false;
         if (stepDelayAbortRef.current === controller) {
           stepDelayAbortRef.current = null;
         }
@@ -373,16 +433,36 @@ export default function ClaimPage() {
                   </div>
                 ) : null}
 
-                {claimPreviewComplete ? (
+                {embeddedWalletError && !walletReady ? (
+                  <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3">
+                    <p className="text-sm text-destructive">{embeddedWalletError}</p>
+                    <Button
+                      className="mt-3 rounded-full"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        refetchEmbeddedWallet();
+                      }}
+                    >
+                      Retry wallet setup
+                    </Button>
+                  </div>
+                ) : null}
+
+                {claimOutcome?.type === 'claimed' ? (
                   <div className="rounded-[24px] border border-primary/20 bg-primary/8 p-4">
                     <div className="flex items-start gap-3">
                       <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                         <Sparkles className="size-5" />
                       </span>
                       <div>
-                        <p className="font-semibold">Preview only</p>
+                        <p className="font-semibold">Claim complete</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          This page shows the intended sequence, but the actual claim transaction still needs to be wired before funds can move.
+                          Funds have been moved into the connected embedded wallet.
+                          {claimOutcome.txDigest
+                            ? ` Transaction: ${claimOutcome.txDigest.slice(0, 10)}...`
+                            : ''}
                         </p>
                       </div>
                     </div>
