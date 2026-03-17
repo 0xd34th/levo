@@ -14,7 +14,13 @@ const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
 const navigation = [
   { href: '/', label: 'Send', icon: CreditCard, matchPrefix: '/' },
-  { href: '/dashboard/sent', label: 'Dashboard', icon: ArrowUpRight, matchPrefix: '/dashboard' },
+  {
+    href: '/dashboard/sent',
+    label: 'Dashboard',
+    icon: ArrowUpRight,
+    matchPrefix: '/dashboard',
+    requiresAuth: true,
+  },
   { href: '/lookup', label: 'Lookup', icon: Search, matchPrefix: '/lookup' },
   { href: '/claim', label: 'Claim', icon: Sparkles, matchPrefix: '/claim' },
 ];
@@ -23,6 +29,9 @@ export function Navbar() {
   const pathname = usePathname();
   const { ready, authenticated, user, logout } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
+  const visibleNavigation = navigation.filter(
+    (item) => !item.requiresAuth || (ready && authenticated),
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -46,7 +55,7 @@ export function Navbar() {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-border/80 bg-background/90 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.06)] md:flex dark:border-white/8 dark:bg-white/4 dark:shadow-none">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const active =
                 item.matchPrefix === '/' ? pathname === '/' : pathname.startsWith(item.matchPrefix);
 
@@ -109,7 +118,7 @@ export function Navbar() {
         </div>
 
         <nav className="scrollbar-subtle mt-3 flex gap-1 overflow-x-auto pb-1 md:hidden">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const active =
               item.matchPrefix === '/' ? pathname === '/' : pathname.startsWith(item.matchPrefix);
 
