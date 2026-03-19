@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getTestUsdcCoinType, SUI_COIN_TYPE } from '@/lib/coins';
 import {
   MAX_X_HANDLE_LENGTH,
@@ -6,6 +6,10 @@ import {
   sanitizeAmountForCoinType,
   usesDollarAmountPrefix,
 } from '@/lib/send-form';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('send-form helpers', () => {
   it('normalizes pasted handles before enforcing the max X length', () => {
@@ -15,7 +19,8 @@ describe('send-form helpers', () => {
   });
 
   it('clears amounts that become invalid for the selected asset', () => {
-    const testUsdcCoinType = getTestUsdcCoinType('0x123')!;
+    vi.stubEnv('NEXT_PUBLIC_PACKAGE_ID', '0x123');
+    const testUsdcCoinType = getTestUsdcCoinType()!;
 
     expect(sanitizeAmountForCoinType('1.123456789', SUI_COIN_TYPE)).toBe('1.123456789');
     expect(sanitizeAmountForCoinType('1.123456789', testUsdcCoinType)).toBe('');
@@ -23,7 +28,9 @@ describe('send-form helpers', () => {
   });
 
   it('only uses a dollar prefix for dollar-denominated assets', () => {
+    vi.stubEnv('NEXT_PUBLIC_PACKAGE_ID', '0x123');
+
     expect(usesDollarAmountPrefix(SUI_COIN_TYPE)).toBe(false);
-    expect(usesDollarAmountPrefix(getTestUsdcCoinType('0x123')!)).toBe(true);
+    expect(usesDollarAmountPrefix(getTestUsdcCoinType()!)).toBe(true);
   });
 });

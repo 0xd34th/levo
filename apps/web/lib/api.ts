@@ -2,6 +2,7 @@ import { isIP } from 'node:net';
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidSuiAddress, normalizeSuiAddress } from '@mysten/sui/utils';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
+import { hasValidHmacSecret } from './env';
 import {
   buildWalletAuthMessage,
   clearWalletAuthChallengeCookie,
@@ -74,9 +75,7 @@ export function parseSuiAddress(value: string): string | null {
   }
 }
 
-export function hasValidHmacSecret(secret: string | undefined): secret is string {
-  return typeof secret === 'string' && secret.trim().length >= 32;
-}
+export { hasValidHmacSecret } from './env';
 
 function normalizeOrigin(origin: string): string | null {
   try {

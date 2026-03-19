@@ -1,8 +1,85 @@
 import { messageWithIntent, toSerializedSignature } from '@mysten/sui/cryptography';
-import { fromBase58, isValidSuiAddress, normalizeSuiAddress } from '@mysten/sui/utils';
-import { publicKeyFromRawBytes } from '@mysten/sui/verify';
+import { fromBase58, fromHex, isValidSuiAddress, normalizeSuiAddress } from '@mysten/sui/utils';
+import { publicKeyFromRawBytes, publicKeyFromSuiBytes } from '@mysten/sui/verify';
 import type { PrivyClient, Wallet } from '@privy-io/node';
+import type { PrivyAuthorizationRequest } from '@/lib/privy-authorization';
 import { prisma } from '@/lib/prisma';
+
+export function decodeStoredSuiPublicKey(publicKey: string, address?: string) {
+  const normalizedHex = publicKey.startsWith('0x') ? publicKey.slice(2) : publicKey;
+
+  if (normalizedHex.length > 0 && /^[0-9a-fA-F]+$/.test(normalizedHex)) {
+    const bytes = fromHex(normalizedHex);
+
+    if (bytes.length === 33) {
+      return publicKeyFromSuiBytes(bytes, address ? { address } : {});
+    }
+
+    if (bytes.length === 32) {
+      return publicKeyFromRawBytes('ED25519', bytes, address ? { address } : {});
+    }
+  }
+
+  const rawBytes = fromBase58(publicKey);
+  return publicKeyFromRawBytes('ED25519', rawBytes, address ? { address } : {});
+}
+
+interface PrivyRawSignParams {
+  bytes: string;
+  encoding: 'hex';
+  hash_function: 'blake2b256';
+}
+
+interface PrivySigningAuthorization {
+  signatures?: string | string[];
+  userJwts?: string | string[];
+}
+
+function buildRawSignParams(txBytes: Uint8Array): PrivyRawSignParams {
+  const intentMessage = messageWithIntent('TransactionData', txBytes);
+
+  return {
+    bytes: Buffer.from(intentMessage).toString('hex'),
+    encoding: 'hex',
+    hash_function: 'blake2b256',
+  };
+}
+
+function normalizeAuthorizationValues(values?: string | string[]): string[] {
+  if (!values) {
+    return [];
+  }
+
+  const candidates = Array.isArray(values) ? values : [values];
+  return [...new Set(candidates.filter((value) => value.length > 0))];
+}
+
+function getPrivyRawSignUrl(walletId: string): string {
+  const baseUrl = process.env.PRIVY_API_BASE_URL ?? 'https://api.privy.io';
+  return new URL(`/v1/wallets/${walletId}/raw_sign`, baseUrl).toString();
+}
+
+export function buildPrivyRawSignAuthorizationRequest(
+  walletId: string,
+  txBytes: Uint8Array,
+): PrivyAuthorizationRequest {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (!appId) {
+    throw new Error('Missing Privy configuration');
+  }
+
+  return {
+    version: 1,
+    method: 'POST',
+    url: getPrivyRawSignUrl(walletId),
+    body: {
+      params: buildRawSignParams(txBytes),
+    } as unknown as PrivyAuthorizationRequest['body'],
+    headers: {
+      'privy-app-id': appId,
+    },
+  };
+}
 
 /**
  * Get or create a Sui embedded wallet for the given X user.
@@ -59,14 +136,10 @@ export async function getOrCreateSuiWallet(
     throw new Error('Privy wallet created with an invalid Sui address');
   }
 
-  const publicKeyBytes = fromBase58(wallet.public_key);
-  if (publicKeyBytes.length !== 32) {
+  try {
+    decodeStoredSuiPublicKey(wallet.public_key, walletAddress);
+  } catch {
     throw new Error('Privy wallet created with an invalid Sui public key');
-  }
-
-  const derivedPublicKey = publicKeyFromRawBytes('ED25519', publicKeyBytes);
-  if (normalizeSuiAddress(derivedPublicKey.toSuiAddress()) !== walletAddress) {
-    throw new Error('Privy wallet public key does not match wallet address');
   }
 
   // 3. Persist wallet details to XUser
@@ -100,30 +173,60 @@ export async function getOrCreateSuiWallet(
  *
  * @param privy - Privy client instance
  * @param walletId - Privy wallet ID
- * @param publicKeyBase58 - Base58-encoded public key
+ * @param storedPublicKey - Stored Sui public key from Privy
  * @param txBytes - Raw transaction bytes from Transaction.build()
  * @returns Serialized signature string ready for executeTransactionBlock
  */
 export async function signSuiTransaction(
   privy: PrivyClient,
   walletId: string,
-  publicKeyBase58: string,
+  storedPublicKey: string,
   txBytes: Uint8Array,
+  authorization?: PrivySigningAuthorization,
 ): Promise<string> {
-  // 1. Create intent message (Sui requirement)
-  const intentMessage = messageWithIntent('TransactionData', txBytes);
+  const rawSignParams = buildRawSignParams(txBytes);
+  const authorizationJwts = normalizeAuthorizationValues(authorization?.userJwts);
+  const authorizationSignatures = normalizeAuthorizationValues(authorization?.signatures);
 
-  // 2. Convert to hex for Privy rawSign
-  const hexBytes = Buffer.from(intentMessage).toString('hex');
+  let signResult: Awaited<ReturnType<ReturnType<PrivyClient['wallets']>['rawSign']>> | null = null;
+  let lastError: unknown = null;
 
-  // 3. Sign via Privy (blake2b256 hash + Ed25519 sign)
-  const signResult = await privy.wallets().rawSign(walletId, {
-    params: {
-      bytes: hexBytes,
-      encoding: 'hex',
-      hash_function: 'blake2b256',
-    },
-  });
+  const buildAuthorizationContext = (userJwt?: string) => {
+    if (!userJwt && authorizationSignatures.length === 0) {
+      return undefined;
+    }
+
+    return {
+      ...(userJwt ? { user_jwts: [userJwt] } : {}),
+      ...(authorizationSignatures.length > 0 ? { signatures: authorizationSignatures } : {}),
+    };
+  };
+
+  if (authorizationJwts.length === 0) {
+    const authorizationContext = buildAuthorizationContext();
+    signResult = await privy.wallets().rawSign(walletId, {
+      params: rawSignParams,
+      ...(authorizationContext ? { authorization_context: authorizationContext } : {}),
+    });
+  } else {
+    for (const jwt of authorizationJwts) {
+      try {
+        const authorizationContext = buildAuthorizationContext(jwt);
+        signResult = await privy.wallets().rawSign(walletId, {
+          params: rawSignParams,
+          ...(authorizationContext ? { authorization_context: authorizationContext } : {}),
+        });
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!signResult) {
+      throw lastError instanceof Error ? lastError : new Error('Privy transaction signing failed');
+    }
+  }
 
   // 4. Convert hex signature to Uint8Array
   const sigHex = signResult.signature.startsWith('0x')
@@ -132,7 +235,7 @@ export async function signSuiTransaction(
   const rawSignature = new Uint8Array(Buffer.from(sigHex, 'hex'));
 
   // 5. Reconstruct public key object
-  const publicKey = publicKeyFromRawBytes('ED25519', fromBase58(publicKeyBase58));
+  const publicKey = decodeStoredSuiPublicKey(storedPublicKey);
 
   // 6. Create serialized signature (scheme flag + signature + public key)
   const serializedSignature = toSerializedSignature({

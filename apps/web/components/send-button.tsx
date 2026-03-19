@@ -1,6 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import {
+  useAuthorizationSignature,
+  useIdentityToken,
+  usePrivy,
+} from '@privy-io/react-auth';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import {
@@ -10,6 +15,10 @@ import {
 import { Button } from '@/components/ui/button';
 import type { TransactionResultData } from '@/components/transaction-result';
 import { getCoinDecimals, isValidAmountInput } from '@/lib/coins';
+import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
+import {
+  privyAuthenticatedFetch,
+} from '@/lib/privy-fetch';
 import type { ResolvedUserPreview } from '@/lib/resolved-user';
 import { normalizeUsernameInput } from '@/lib/send-form';
 
@@ -49,7 +58,7 @@ type SendResponse = {
   txDigest: string;
 };
 
-type SendStage = 'idle' | 'resolving' | 'reviewing' | 'confirming';
+type SendStage = 'idle' | 'resolving' | 'reviewing' | 'authorizing' | 'confirming';
 
 async function getResponseError(response: Response, fallback: string) {
   try {
@@ -190,6 +199,9 @@ export function SendButton({
   onConfirm,
   onSendingChange,
 }: SendButtonProps) {
+  const { getAccessToken } = usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const { identityToken } = useIdentityToken();
   const [sending, setSending] = useState(false);
   const [sendStage, setSendStage] = useState<SendStage>('idle');
   const [confirmationData, setConfirmationData] = useState<RecipientConfirmationData | null>(null);
@@ -275,7 +287,7 @@ export function SendButton({
 
     try {
       // 1. Request a payment quote, resolving the recipient server-side.
-      const quoteRes = await fetch('/api/v1/payments/quote', {
+      const quoteRes = await privyAuthenticatedFetch(getAccessToken, '/api/v1/payments/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -285,6 +297,8 @@ export function SendButton({
           senderAddress,
         }),
         signal: controller.signal,
+      }, {
+        identityToken,
       });
 
       if (isAborted()) return;
@@ -320,12 +334,21 @@ export function SendButton({
       // 2. Server builds, signs, and executes the transaction
       setSendStage('confirming');
 
-      const sendRes = await fetch('/api/v1/payments/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quoteToken }),
-        signal: controller.signal,
-      });
+      const requestSend = (authorizationSignature?: string) => (
+        privyAuthenticatedFetch(getAccessToken, '/api/v1/payments/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quoteToken,
+            ...(authorizationSignature ? { authorizationSignature } : {}),
+          }),
+          signal: controller.signal,
+        }, {
+          identityToken,
+        })
+      );
+
+      let sendRes = await requestSend();
 
       if (isAborted()) return;
 
@@ -336,8 +359,50 @@ export function SendButton({
         return;
       }
 
-      const sendPayload = await sendRes.json().catch(() => null);
+      let sendPayload = await sendRes.json().catch(() => null);
       if (isAborted()) return;
+
+      const authorizationRequired = parsePrivyAuthorizationRequiredResponse(sendPayload);
+      if (authorizationRequired) {
+        setSendStage('authorizing');
+
+        let authorizationSignature: string;
+        try {
+          const result = await generateAuthorizationSignature(
+            authorizationRequired.authorizationRequest,
+          );
+          authorizationSignature = result.signature;
+        } catch (error) {
+          const message = error instanceof Error
+            ? error.message
+            : 'Payment authorization failed';
+          onError(message);
+          return;
+        }
+
+        if (isAborted()) return;
+
+        setSendStage('confirming');
+        sendRes = await requestSend(authorizationSignature);
+
+        if (isAborted()) return;
+
+        if (!sendRes.ok) {
+          const error = await getResponseError(sendRes, 'Send failed');
+          if (isAborted()) return;
+          onError(error);
+          return;
+        }
+
+        sendPayload = await sendRes.json().catch(() => null);
+        if (isAborted()) return;
+      }
+
+      if (parsePrivyAuthorizationRequiredResponse(sendPayload)) {
+        onError('Payment authorization did not complete. Please try again.');
+        return;
+      }
+
       const sendResult = parseSendResponse(sendPayload);
       if (!sendResult) {
         onError('Invalid send response');
@@ -396,6 +461,8 @@ export function SendButton({
     buttonLabel = 'Resolving recipient';
   } else if (sendStage === 'reviewing') {
     buttonLabel = 'Review recipient';
+  } else if (sendStage === 'authorizing') {
+    buttonLabel = 'Authorizing payment';
   } else if (sendStage === 'confirming') {
     buttonLabel = 'Processing payment';
   }

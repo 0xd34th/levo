@@ -18,12 +18,13 @@ import {
   untrackedBalanceNote,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
 export default function ReceivedDashboardPage() {
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -93,10 +94,14 @@ export default function ReceivedDashboardPage() {
     const params = new URLSearchParams();
     if (cursor) params.set('cursor', cursor);
 
-    const response = await fetch(`/api/v1/payments/received?${params}`, {
+    const response = await privyAuthenticatedFetch(
+      getAccessToken,
+      `/api/v1/payments/received?${params}`,
+      {
       cache: 'no-store',
       signal,
-    });
+      },
+    );
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({ error: 'Unable to load received payments' }));

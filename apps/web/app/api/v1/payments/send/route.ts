@@ -15,14 +15,21 @@ import {
 import { getGasStationKeypair } from '@/lib/gas-station';
 import { verifyQuoteToken } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
-import { getPrivyClient, verifyPrivyXAuth } from '@/lib/privy-auth';
-import { signSuiTransaction } from '@/lib/privy-wallet';
+import {
+  getPrivyClient,
+  verifyPrivyXAuth,
+} from '@/lib/privy-auth';
+import {
+  buildPrivyRawSignAuthorizationRequest,
+  signSuiTransaction,
+} from '@/lib/privy-wallet';
 import { getRedis, rateLimit } from '@/lib/rate-limit';
 import { getSuiClient } from '@/lib/sui';
 import { parseXUserId } from '@/lib/twitter';
 
 const RequestSchema = z.object({
   quoteToken: z.string().min(1),
+  authorizationSignature: z.string().min(1).optional(),
 });
 
 const SEND_USER_RATE_LIMIT_PER_MINUTE = 5;
@@ -42,10 +49,21 @@ const PendingSendBundleSchema = z.object({
   signatures: z.array(z.string().min(1)).min(1),
 });
 
+const PendingSendAuthorizationBundleSchema = z.object({
+  txBytesBase64: z.string().min(1),
+  walletId: z.string().min(1),
+  storedPublicKey: z.string().min(1),
+});
+
 type PendingSendBundle = z.infer<typeof PendingSendBundleSchema>;
+type PendingSendAuthorizationBundle = z.infer<typeof PendingSendAuthorizationBundleSchema>;
 
 function getPendingSendKey(txDigest: string) {
   return `pending-send:${txDigest}`;
+}
+
+function getPendingSendAuthorizationKey(quoteToken: string) {
+  return `pending-send-auth:${quoteToken}`;
 }
 
 function buildConfirmRequest(req: NextRequest, quoteToken: string, txDigest: string) {
@@ -117,6 +135,32 @@ async function stagePendingSend(
   );
 }
 
+async function stagePendingSendAuthorization(
+  quoteToken: string,
+  txBytes: Uint8Array,
+  walletId: string,
+  storedPublicKey: string,
+  ttlSec: number,
+) {
+  const redis = getRedis();
+  if (redis.status !== 'ready') {
+    throw new Error('Pending send store unavailable');
+  }
+
+  const payload: PendingSendAuthorizationBundle = {
+    txBytesBase64: Buffer.from(txBytes).toString('base64'),
+    walletId,
+    storedPublicKey,
+  };
+
+  await redis.set(
+    getPendingSendAuthorizationKey(quoteToken),
+    JSON.stringify(payload),
+    'EX',
+    ttlSec,
+  );
+}
+
 async function loadPendingSend(txDigest: string): Promise<PendingSendBundle | null> {
   const redis = getRedis();
   if (redis.status !== 'ready') {
@@ -137,6 +181,28 @@ async function loadPendingSend(txDigest: string): Promise<PendingSendBundle | nu
   }
 }
 
+async function loadPendingSendAuthorization(
+  quoteToken: string,
+): Promise<PendingSendAuthorizationBundle | null> {
+  const redis = getRedis();
+  if (redis.status !== 'ready') {
+    return null;
+  }
+
+  try {
+    const raw = await redis.get(getPendingSendAuthorizationKey(quoteToken));
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = PendingSendAuthorizationBundleSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch (error) {
+    console.warn('Failed to load pending send authorization bundle', { quoteToken, error });
+    return null;
+  }
+}
+
 async function clearPendingSend(txDigest: string) {
   const redis = getRedis();
   if (redis.status !== 'ready') {
@@ -147,6 +213,19 @@ async function clearPendingSend(txDigest: string) {
     await redis.del(getPendingSendKey(txDigest));
   } catch (error) {
     console.warn('Failed to clear pending send bundle', { txDigest, error });
+  }
+}
+
+async function clearPendingSendAuthorization(quoteToken: string) {
+  const redis = getRedis();
+  if (redis.status !== 'ready') {
+    return;
+  }
+
+  try {
+    await redis.del(getPendingSendAuthorizationKey(quoteToken));
+  } catch (error) {
+    console.warn('Failed to clear pending send authorization bundle', { quoteToken, error });
   }
 }
 
@@ -242,7 +321,7 @@ export async function POST(req: NextRequest) {
   if (!sameOrigin.ok) return sameOrigin.response;
 
   // 2. Verify Privy auth
-  const auth = await verifyPrivyXAuth();
+  const auth = await verifyPrivyXAuth(req);
   if (!auth.ok) return auth.response;
   const xUserId = parseXUserId(auth.identity.xUserId);
   if (!xUserId) {
@@ -268,7 +347,7 @@ export async function POST(req: NextRequest) {
     return noStoreJson({ error: 'Invalid input' }, { status: 400 });
   }
 
-  const { quoteToken } = parsed.data;
+  const { authorizationSignature, quoteToken } = parsed.data;
 
   // 4. Get user's embedded wallet from DB
   const xUser = await prisma.xUser.findUnique({
@@ -358,12 +437,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 8. Build Sui transaction
+  // 8. Build or load the Sui transaction
   const client = getSuiClient();
   const amount = BigInt(quotePayload.amount);
-
-  const tx = new Transaction();
-  tx.setSender(xUser.suiAddress);
 
   let gasKeypair: ReturnType<typeof getGasStationKeypair>;
   try {
@@ -372,27 +448,83 @@ export async function POST(req: NextRequest) {
     console.error('Failed to initialize gas station keypair', error);
     return noStoreJson({ error: 'Gas sponsorship is misconfigured' }, { status: 500 });
   }
-  if (gasKeypair) {
-    tx.setGasOwner(gasKeypair.toSuiAddress());
-  }
-
-  const coin = tx.add(
-    coinWithBalance({
-      type: quotePayload.coinType,
-      balance: amount,
-    }),
-  );
-  tx.transferObjects([coin], quotePayload.vaultAddress);
 
   let txBytes: Uint8Array;
-  try {
-    txBytes = await tx.build({ client });
-  } catch (error) {
-    console.error('Failed to build transaction', error);
-    return noStoreJson(
-      { error: 'Insufficient balance or invalid transaction parameters' },
-      { status: 400 },
+  let privyWalletId = xUser.privyWalletId;
+  let suiPublicKey = xUser.suiPublicKey;
+
+  if (authorizationSignature) {
+    const authorizationBundle = await loadPendingSendAuthorization(quoteToken);
+    if (!authorizationBundle) {
+      return noStoreJson(
+        { error: 'Authorization expired. Please confirm the payment again.' },
+        { status: 409 },
+      );
+    }
+
+    await clearPendingSendAuthorization(quoteToken);
+
+    txBytes = Uint8Array.from(Buffer.from(authorizationBundle.txBytesBase64, 'base64'));
+    privyWalletId = authorizationBundle.walletId;
+    suiPublicKey = authorizationBundle.storedPublicKey;
+  } else {
+    const tx = new Transaction();
+    tx.setSender(xUser.suiAddress);
+
+    if (gasKeypair) {
+      tx.setGasOwner(gasKeypair.toSuiAddress());
+    }
+
+    const coin = tx.add(
+      coinWithBalance({
+        type: quotePayload.coinType,
+        balance: amount,
+      }),
     );
+    tx.transferObjects([coin], quotePayload.vaultAddress);
+
+    try {
+      txBytes = await tx.build({ client });
+    } catch (error) {
+      console.error('Failed to build transaction', error);
+      return noStoreJson(
+        { error: 'Insufficient balance or invalid transaction parameters' },
+        { status: 400 },
+      );
+    }
+
+    try {
+      await stagePendingSendAuthorization(
+        quoteToken,
+        txBytes,
+        xUser.privyWalletId,
+        xUser.suiPublicKey,
+        Math.max(
+          30,
+          Math.min(120, quotePayload.expiresAt - Math.floor(Date.now() / 1000)),
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to stage send authorization request', error);
+      return noStoreJson(
+        { error: 'Payment is temporarily unavailable. Please retry.' },
+        { status: 503 },
+      );
+    }
+
+    try {
+      const authorizationRequest = buildPrivyRawSignAuthorizationRequest(
+        xUser.privyWalletId,
+        txBytes,
+      );
+      return noStoreJson({
+        status: 'authorization_required',
+        authorizationRequest,
+      });
+    } catch (error) {
+      console.error('Failed to build Privy authorization request', error);
+      return noStoreJson({ error: 'Server configuration error' }, { status: 500 });
+    }
   }
 
   // 9. Sign with Privy embedded wallet
@@ -401,9 +533,10 @@ export async function POST(req: NextRequest) {
     const privy = getPrivyClient();
     const senderSig = await signSuiTransaction(
       privy,
-      xUser.privyWalletId,
-      xUser.suiPublicKey,
+      privyWalletId,
+      suiPublicKey,
       txBytes,
+      { signatures: [authorizationSignature] },
     );
     signatures.push(senderSig);
   } catch (error) {

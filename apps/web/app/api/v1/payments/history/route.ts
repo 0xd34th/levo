@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       return walletAuth.response;
     }
   } else {
-    const auth = await verifyPrivyXAuth();
+    const auth = await verifyPrivyXAuth(req);
     if (!auth.ok) return auth.response;
 
     const viewerWallet = await prisma.xUser.findUnique({

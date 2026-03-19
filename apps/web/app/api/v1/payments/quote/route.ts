@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const sameOrigin = verifySameOrigin(req);
   if (!sameOrigin.ok) return sameOrigin.response;
 
-  const auth = await verifyPrivyXAuth();
+  const auth = await verifyPrivyXAuth(req);
   if (!auth.ok) return auth.response;
 
   // Parse input first so we can validate the authenticated sender address

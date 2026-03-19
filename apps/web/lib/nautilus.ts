@@ -20,6 +20,8 @@ export interface AttestationResponse {
   signature: Uint8Array;
 }
 
+const MIN_SIGNER_SECRET_LENGTH = 32;
+
 const UintLikeStringSchema = z.union([z.string(), z.number()]).transform((value, ctx) => {
   const normalized = String(value).trim();
   if (!/^\d+$/.test(normalized)) {
@@ -71,18 +73,31 @@ function getAttestationEndpoint(): string {
   return baseUrl.toString();
 }
 
+function getSignerSecret(): string {
+  const secret = process.env.NAUTILUS_SIGNER_SECRET?.trim();
+  if (!secret || secret.length < MIN_SIGNER_SECRET_LENGTH) {
+    throw new Error('Nautilus signer secret not configured');
+  }
+
+  return secret;
+}
+
 /**
  * Request an attestation from the Nautilus enclave service.
- * The enclave verifies the user's X identity and produces a signed
- * AttestationMessage { x_user_id, sui_address, nonce, expires_at, registry_id }.
+ * The web app verifies the caller's X identity first, then the signer produces
+ * a signed AttestationMessage { x_user_id, sui_address, nonce, expires_at, registry_id }.
  */
 export async function requestAttestation(
   req: AttestationRequest,
 ): Promise<AttestationResponse> {
+  const signerSecret = getSignerSecret();
   const response = await fetch(getAttestationEndpoint(), {
     method: 'POST',
     signal: AbortSignal.timeout(10_000),
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${signerSecret}`,
+    },
     body: JSON.stringify({
       x_user_id: req.xUserId,
       sui_address: req.suiAddress,
@@ -106,7 +121,7 @@ export async function requestAttestation(
   }
 
   const expiresAt = BigInt(payload.expires_at);
-  const minAcceptedExpiry = BigInt(Math.floor(Date.now() / 1000) + 30);
+  const minAcceptedExpiry = BigInt(Date.now()) + 30_000n;
   if (expiresAt <= minAcceptedExpiry) {
     throw new Error('Attestation already expired or expiring too soon');
   }

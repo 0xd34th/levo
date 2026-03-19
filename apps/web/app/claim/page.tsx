@@ -1,7 +1,11 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import {
+  useAuthorizationSignature,
+  useLoginWithOAuth,
+  usePrivy,
+} from '@privy-io/react-auth';
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { ClaimStepper, type ClaimStep } from '@/components/claim-stepper';
 import { Navbar } from '@/components/navbar';
@@ -9,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   claimStatusLabel,
   formatPendingBalances,
@@ -16,6 +21,7 @@ import {
   truncateAddress,
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
@@ -28,7 +34,13 @@ export default function ClaimPage() {
     error: embeddedWalletError,
     refetch: refetchEmbeddedWallet,
   } = useEmbeddedWallet();
-  const { ready: privyReady, authenticated: privyAuthenticated, user: privyUser } = usePrivy();
+  const {
+    ready: privyReady,
+    authenticated: privyAuthenticated,
+    user: privyUser,
+    getAccessToken,
+  } = usePrivy();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
   const { initOAuth } = useLoginWithOAuth();
   const [handle, setHandle] = useState('');
   const [loadingLookup, setLoadingLookup] = useState(false);
@@ -269,10 +281,20 @@ export default function ClaimPage() {
       setLoadingStepId(id);
 
       try {
-        const res = await fetch('/api/v1/payments/claim', {
-          method: 'POST',
-          signal: controller.signal,
-        });
+        const requestClaim = (authorizationSignature?: string) => (
+          privyAuthenticatedFetch(getAccessToken, '/api/v1/payments/claim', {
+            method: 'POST',
+            signal: controller.signal,
+            ...(authorizationSignature
+              ? {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ authorizationSignature }),
+                }
+              : {}),
+          })
+        );
+
+        let res = await requestClaim();
 
         if (
           controller.signal.aborted ||
@@ -287,7 +309,54 @@ export default function ClaimPage() {
           return;
         }
 
-        const result = (await res.json()) as { txDigest?: string };
+        let payload = await res.json().catch(() => null);
+        const authorizationRequired = parsePrivyAuthorizationRequiredResponse(payload);
+        if (authorizationRequired) {
+          let authorizationSignature: string;
+          try {
+            const result = await generateAuthorizationSignature(
+              authorizationRequired.authorizationRequest,
+            );
+            authorizationSignature = result.signature;
+          } catch (error) {
+            const message = error instanceof Error
+              ? error.message
+              : 'Claim authorization failed';
+            setNotice(message);
+            return;
+          }
+
+          if (
+            controller.signal.aborted ||
+            stepActionRequestIdRef.current !== stepRequestId
+          ) {
+            return;
+          }
+
+          res = await requestClaim(authorizationSignature);
+
+          if (
+            controller.signal.aborted ||
+            stepActionRequestIdRef.current !== stepRequestId
+          ) {
+            return;
+          }
+
+          if (!res.ok) {
+            const errorPayload = await res.json().catch(() => ({ error: 'Claim failed' }));
+            setNotice(errorPayload.error ?? 'Claim failed. Please try again.');
+            return;
+          }
+
+          payload = await res.json().catch(() => null);
+        }
+
+        if (parsePrivyAuthorizationRequiredResponse(payload)) {
+          setNotice('Claim authorization did not complete. Please try again.');
+          return;
+        }
+
+        const result = (payload ?? {}) as { txDigest?: string };
         setLookup((currentLookup) => (
           currentLookup
             ? {

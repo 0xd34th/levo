@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { ArrowUpRight, RefreshCcw } from 'lucide-react';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { Navbar } from '@/components/navbar';
@@ -14,6 +15,7 @@ import {
   getExplorerTransactionUrl,
   isDisplaySupportedCoinType,
 } from '@/lib/coins';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import type { TransactionHistoryResponse, TransactionItem } from '@/lib/transaction-history';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
@@ -64,6 +66,7 @@ function summarizeAmount(items: TransactionItem[]) {
 }
 
 export default function SentDashboardPage() {
+  const { getAccessToken } = usePrivy();
   const {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
@@ -114,10 +117,14 @@ export default function SentDashboardPage() {
         const params = new URLSearchParams({ senderAddress: address });
         if (cursor) params.set('cursor', cursor);
 
-        const response = await fetch(`/api/v1/payments/history?${params}`, {
+        const response = await privyAuthenticatedFetch(
+          getAccessToken,
+          `/api/v1/payments/history?${params}`,
+          {
           cache: 'no-store',
           signal,
-        });
+          },
+        );
 
         if (isStaleRequest()) return;
 
@@ -161,7 +168,7 @@ export default function SentDashboardPage() {
         }
       }
     },
-    [embeddedWalletAddress],
+    [embeddedWalletAddress, getAccessToken],
   );
 
   useEffect(() => {

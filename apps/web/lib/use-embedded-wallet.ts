@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 
 interface EmbeddedWalletState {
   suiAddress: string | null;
@@ -13,14 +14,47 @@ interface InternalEmbeddedWalletState extends EmbeddedWalletState {
   identityKey: string | null;
 }
 
+const STORAGE_KEY_PREFIX = 'levo:wallet:';
+
 const embeddedWalletAddressCache = new Map<string, string>();
+
+function loadCachedAddress(identityKey: string): string | null {
+  try {
+    const value = window.sessionStorage.getItem(`${STORAGE_KEY_PREFIX}${identityKey}`);
+    if (value) {
+      embeddedWalletAddressCache.set(identityKey, value);
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedAddress(identityKey: string, address: string) {
+  embeddedWalletAddressCache.set(identityKey, address);
+  try {
+    window.sessionStorage.setItem(`${STORAGE_KEY_PREFIX}${identityKey}`, address);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearCachedAddress(identityKey: string) {
+  embeddedWalletAddressCache.delete(identityKey);
+  try {
+    window.sessionStorage.removeItem(`${STORAGE_KEY_PREFIX}${identityKey}`);
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 /**
  * Hook that auto-provisions a Privy embedded Sui wallet after X login.
  * Calls POST /api/v1/wallet/setup and caches the result.
  */
 export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void } {
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated, user, getAccessToken } = usePrivy();
+  const { identityToken } = useIdentityToken();
   const [state, setState] = useState<InternalEmbeddedWalletState>({
     identityKey: null,
     suiAddress: null,
@@ -45,7 +79,7 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
       return;
     }
 
-    const cachedAddress = embeddedWalletAddressCache.get(authIdentityKey);
+    const cachedAddress = embeddedWalletAddressCache.get(authIdentityKey) ?? loadCachedAddress(authIdentityKey);
     if (cachedAddress) {
       fetchedRef.current = true;
       setState({
@@ -69,9 +103,11 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
     });
 
     try {
-      const res = await fetch('/api/v1/wallet/setup', {
+      const res = await privyAuthenticatedFetch(getAccessToken, '/api/v1/wallet/setup', {
         method: 'POST',
         signal: controller.signal,
+      }, {
+        identityToken,
       });
 
       if (controller.signal.aborted) return;
@@ -91,7 +127,7 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
       if (controller.signal.aborted) return;
 
       if (payload.suiAddress) {
-        embeddedWalletAddressCache.set(authIdentityKey, payload.suiAddress);
+        saveCachedAddress(authIdentityKey, payload.suiAddress);
       }
       setState({
         identityKey: authIdentityKey,
@@ -109,7 +145,7 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
         error: 'Failed to set up wallet',
       });
     }
-  }, [authIdentityKey]);
+  }, [authIdentityKey, getAccessToken, identityToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,14 +153,14 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
     if (ready && !authenticated) {
       const previousIdentityKey = authIdentityRef.current;
       if (previousIdentityKey) {
-        embeddedWalletAddressCache.delete(previousIdentityKey);
+        clearCachedAddress(previousIdentityKey);
       }
       authIdentityRef.current = null;
       fetchedRef.current = false;
     } else if (ready && authIdentityRef.current !== authIdentityKey) {
       authIdentityRef.current = authIdentityKey;
       fetchedRef.current = Boolean(
-        authIdentityKey && embeddedWalletAddressCache.has(authIdentityKey),
+        authIdentityKey && (embeddedWalletAddressCache.has(authIdentityKey) || loadCachedAddress(authIdentityKey)),
       );
     }
 
@@ -147,13 +183,13 @@ export function useEmbeddedWallet(): EmbeddedWalletState & { refetch: () => void
   const refetch = useCallback(() => {
     fetchedRef.current = false;
     if (authIdentityKey) {
-      embeddedWalletAddressCache.delete(authIdentityKey);
+      clearCachedAddress(authIdentityKey);
     }
     void setupWallet();
   }, [authIdentityKey, setupWallet]);
 
   const cachedSuiAddress =
-    authIdentityKey ? embeddedWalletAddressCache.get(authIdentityKey) ?? null : null;
+    authIdentityKey ? (embeddedWalletAddressCache.get(authIdentityKey) ?? loadCachedAddress(authIdentityKey)) : null;
 
   const effectiveState: EmbeddedWalletState =
     ready && !authenticated

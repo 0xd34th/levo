@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
-  const auth = await verifyPrivyXAuth();
+  const auth = await verifyPrivyXAuth(req);
   if (!auth.ok) {
     return auth.response;
   }
