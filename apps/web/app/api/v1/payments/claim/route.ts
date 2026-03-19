@@ -298,6 +298,16 @@ export async function POST(req: NextRequest) {
         tx.setGasOwner(gasKeypair.toSuiAddress());
       }
 
+      console.log('[claim] attestation params:', {
+        xUserId: attestation.xUserId.toString(),
+        suiAddress: attestation.suiAddress,
+        nonce: attestation.nonce.toString(),
+        expiresAt: attestation.expiresAt.toString(),
+        signatureHex: Buffer.from(attestation.signature).toString('hex'),
+        signatureLen: attestation.signature.length,
+        registryId: ENCLAVE_REGISTRY_ID,
+      });
+
       const [vault] = tx.moveCall({
         target: `${PACKAGE_ID}::x_vault::claim_vault`,
         arguments: [
@@ -344,7 +354,6 @@ export async function POST(req: NextRequest) {
           target: `${PACKAGE_ID}::x_vault::sweep_coin_to_vault`,
           typeArguments: [claimableCoin.coinType],
           arguments: [
-            tx.object(VAULT_REGISTRY_ID),
             vault,
             tx.receivingRef({
               objectId: claimableCoin.objectId,
@@ -360,17 +369,14 @@ export async function POST(req: NextRequest) {
           target: `${PACKAGE_ID}::x_vault::withdraw_all`,
           typeArguments: [innerCoinType],
           arguments: [
-            tx.object(VAULT_REGISTRY_ID),
             vault,
           ],
         });
         tx.transferObjects([withdrawn], xUser.suiAddress);
       }
 
-      tx.moveCall({
-        target: `${PACKAGE_ID}::x_vault::transfer_vault`,
-        arguments: [vault],
-      });
+      // XVault has no `drop` — must transfer to the owner
+      tx.transferObjects([vault], xUser.suiAddress);
 
       try {
         txBytes = await tx.build({ client });

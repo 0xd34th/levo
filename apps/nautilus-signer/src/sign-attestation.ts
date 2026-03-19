@@ -54,12 +54,13 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
 }
 
 export function buildAttestationBytes(input: BuildAttestationBytesInput): Uint8Array {
+  // Must match the deployed on-chain AttestationMessage struct (4 fields, no registry_id).
+  // The source code was updated to add registry_id but the deployed contract predates that change.
   return concatBytes([
     u64ToBytes(input.xUserId),
     hexToBytes(normalizeSuiAddress(input.suiAddress), 'sui_address'),
     u64ToBytes(input.nonce),
     u64ToBytes(input.expiresAt),
-    hexToBytes(normalizeSuiAddress(input.registryId), 'registry_id'),
   ]);
 }
 
