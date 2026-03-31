@@ -27,7 +27,7 @@ const {
 } = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_PACKAGE_ID = 'package-id';
   process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID = 'registry-id';
-  process.env.ENCLAVE_REGISTRY_ID = 'enclave-id';
+  process.env.ENCLAVE_OBJECT_ID = 'enclave-id';
 
   return {
     acquireRedisLockMock: vi.fn(),
@@ -173,6 +173,9 @@ describe('POST /api/v1/payments/claim', () => {
       nonce: 1n,
       expiresAt: 1_800_000_000_000n,
       signature: Uint8Array.from([1, 2, 3, 4]),
+      intentScope: 0,
+      timestampMs: 1_700_000_000_000n,
+      registryId: '0x0000000000000000000000000000000000000000000000000000000000000001',
     });
     txMoveCallMock.mockReturnValue(['move-call-result']);
     txObjectMock.mockImplementation((value: string) => value);

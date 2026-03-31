@@ -1,13 +1,23 @@
 {
   "network": "testnet",
-  "packageId": "0x319aae1ca6c9b3f618403ee073be01c411791871bc392b80930dc14e9be6fcfe",
-  "xVaultRegistryId": "0xc256e6c7972fe17b1ec41152b4a4b9eec52b796ff5aeca221da15f74be0402cb",
-  "enclaveRegistryId": "0x11cddaae036a2faabc315226ae031d10cd1c488f91dd436fd0aac2157b25715a",
-  "enclavePubkeyNote": "TEST ONLY — the registered enclave public key is deterministically derived from packages/contracts/scripts/generate-test-vectors.ts and is publicly known. Rotate and revoke it before any production deployment.",
-  "testUsdcTreasuryCapId": "0x0eaef593797422aec7327a24a874261121cefa88f2612798ae97342659a8a67d",
-  "testUsdcCoinMetadataId": "0x844d219bfdb9d9ea95b5fa1f14e968e5dbb3cfe7ff176483b64486c6ceef344a",
-  "testUsdcType": "0x319aae1ca6c9b3f618403ee073be01c411791871bc392b80930dc14e9be6fcfe::test_usdc::TEST_USDC",
-  "upgradeCapId": "0xdd93a6658eac583eaf3f91d7ad4ab90a0ab0a4b49b16d572d3659d6751105a80",
-  "deployedAt": "2026-03-12",
-  "deployTxDigest": "Bfj1jqjxbDoSXhMtUzRo71C5nWRVEFcDCdkBtuGCteqf"
+  "packageId": "0x4be2da04862afcfe4ccc4db22776869ec5e61c54241697f1c3f5b75d4e0376f7",
+  "enclavePackageId": "0x8ecf22e78c90c3e32833d76d82415d7e4227ea370bec4efdad4c4830cbda9e49",
+  "xVaultRegistryId": "0x2f5db01aea7e4bc0aff844068b3f75ba62285f275af70ea110c0d3530cb49890",
+  "enclaveConfigId": "0x4d3bbf1b667b8f805b092f8ca126c52b3ce2b1fb55676fd85163440a056fb77f",
+  "enclaveObjectId": "0x8691f70f1a8d582333e1e021e13561c9ee2f7a5107eddba46e7de6322e8f5ef4",
+  "capObjectId": "0xee6e64fead1928c728f10186c94f26ccaac82127fa03f68e42c291b29812a3d3",
+  "testUsdcTreasuryCapId": "0x340d8c7f407930263987a55e0ee1ea0b1dfb01b98416d9f006e60ac3ef77932f",
+  "testUsdcCoinMetadataId": "0x741e72a416ef7787de785eac82ff91ef99306839a16523c787dae550aa043741",
+  "testUsdcType": "0x4be2da04862afcfe4ccc4db22776869ec5e61c54241697f1c3f5b75d4e0376f7::test_usdc::TEST_USDC",
+  "upgradeCapId": "0x7ca573b49913dfc6b4ac3ba58da21079b1b6523a9b70745e634dcdf42c19d70f",
+  "enclaveUrl": "http://52.91.2.217:3000",
+  "enclavePk": "d7c11c8a8b435b9bec10d38eab04ce0204ed2192d94d55560940ca49ab7930d0",
+  "deployedAt": "2026-03-31",
+  "deployTxDigest": "3LpAmdWVPG66R6FVDiPJuNN2L7xLAbVjLYTBnNhXErqX",
+  "enclaveRegisterTxDigest": "8JpsQgG8b2p6DcwRu55Y66kbDvsCW8N4VXLNyQ6aJnJW",
+  "pcrValues": {
+    "PCR0": "b7d50a43204917bd26d9942239ba587b7e43af6bc3cb8dedd2d53cc03d3664500075ec6e19f362824c742409a617d314",
+    "PCR1": "b7d50a43204917bd26d9942239ba587b7e43af6bc3cb8dedd2d53cc03d3664500075ec6e19f362824c742409a617d314",
+    "PCR2": "21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a"
+  }
 }

@@ -25,17 +25,17 @@ describe('register', () => {
     vi.unstubAllEnvs();
   });
 
-  it('warns instead of crashing startup when the Nautilus signer secret is missing', async () => {
-    vi.stubEnv('NAUTILUS_SIGNER_SECRET', '');
+  it('warns when Nautilus enclave URL is missing', async () => {
+    vi.stubEnv('NAUTILUS_ENCLAVE_URL', '');
 
     await expect(register()).resolves.toBeUndefined();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      '[nautilus] Claim signing disabled (NAUTILUS_SIGNER_SECRET missing or too short)',
+      '[nautilus] Enclave not configured (NAUTILUS_ENCLAVE_URL missing)',
     );
   });
 
-  it('accepts a valid Nautilus signer secret', async () => {
-    vi.stubEnv('NAUTILUS_SIGNER_SECRET', 'y'.repeat(32));
+  it('accepts a configured Nautilus enclave URL', async () => {
+    vi.stubEnv('NAUTILUS_ENCLAVE_URL', 'http://localhost:3000');
 
     await expect(register()).resolves.toBeUndefined();
   });

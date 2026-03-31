@@ -1,6 +1,7 @@
 /**
  * Client for the Nautilus enclave attestation service.
- * The enclave signs attestation messages that the on-chain verifier checks.
+ * The enclave signs IntentMessage<AttestationMessage> payloads that the
+ * on-chain enclave::verify_signature checks.
  */
 
 import { normalizeSuiAddress } from '@mysten/sui/utils';
@@ -18,9 +19,10 @@ export interface AttestationResponse {
   nonce: bigint;
   expiresAt: bigint;
   signature: Uint8Array;
+  intentScope: number;
+  timestampMs: bigint;
+  registryId: string;
 }
-
-const MIN_SIGNER_SECRET_LENGTH = 32;
 
 const UintLikeStringSchema = z.union([z.string(), z.number()]).transform((value, ctx) => {
   const normalized = String(value).trim();
@@ -47,9 +49,12 @@ const AttestationPayloadSchema = z.object({
   sui_address: z.string().min(1),
   nonce: UintLikeStringSchema,
   expires_at: UintLikeStringSchema,
+  intent_scope: z.number(),
+  timestamp_ms: z.number(),
+  registry_id: z.string().min(1),
 });
 
-function getAttestationEndpoint(): string {
+function getEnclaveEndpoint(): string {
   const enclaveUrl = process.env.NAUTILUS_ENCLAVE_URL?.trim();
   if (!enclaveUrl) {
     throw new Error('Nautilus enclave service not configured');
@@ -66,41 +71,35 @@ function getAttestationEndpoint(): string {
     throw new Error('Nautilus enclave URL must use HTTPS in production');
   }
 
-  baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/attestation`;
+  baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/process_data`;
   baseUrl.search = '';
   baseUrl.hash = '';
 
   return baseUrl.toString();
 }
 
-function getSignerSecret(): string {
-  const secret = process.env.NAUTILUS_SIGNER_SECRET?.trim();
-  if (!secret || secret.length < MIN_SIGNER_SECRET_LENGTH) {
-    throw new Error('Nautilus signer secret not configured');
-  }
-
-  return secret;
-}
-
 /**
  * Request an attestation from the Nautilus enclave service.
- * The web app verifies the caller's X identity first, then the signer produces
- * a signed AttestationMessage { x_user_id, sui_address, nonce, expires_at, registry_id }.
+ * The web app verifies the caller's X identity first, then the enclave produces
+ * a signed IntentMessage<AttestationMessage>.
  */
 export async function requestAttestation(
   req: AttestationRequest,
 ): Promise<AttestationResponse> {
-  const signerSecret = getSignerSecret();
-  const response = await fetch(getAttestationEndpoint(), {
+  const registryId = process.env.ENCLAVE_REGISTRY_ID?.trim();
+
+  const response = await fetch(getEnclaveEndpoint(), {
     method: 'POST',
     signal: AbortSignal.timeout(10_000),
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${signerSecret}`,
     },
     body: JSON.stringify({
-      x_user_id: req.xUserId,
-      sui_address: req.suiAddress,
+      payload: {
+        x_user_id: req.xUserId,
+        sui_address: req.suiAddress,
+        ...(registryId ? { registry_id: registryId } : {}),
+      },
     }),
   });
 
@@ -126,7 +125,6 @@ export async function requestAttestation(
     throw new Error('Attestation already expired or expiring too soon');
   }
 
-  // The signature comes as hex from the enclave
   const sigHex = payload.signature;
   const sigBytes = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
   const signature = new Uint8Array(Buffer.from(sigBytes, 'hex'));
@@ -137,5 +135,8 @@ export async function requestAttestation(
     nonce: BigInt(payload.nonce),
     expiresAt,
     signature,
+    intentScope: payload.intent_scope,
+    timestampMs: BigInt(payload.timestamp_ms),
+    registryId: normalizeSuiAddress(payload.registry_id),
   };
 }

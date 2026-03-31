@@ -6,7 +6,8 @@ module levo::x_vault {
     use sui::clock::Clock;
     use std::type_name;
     use std::ascii::{Self, String};
-    use levo::nautilus_verifier::{Self, EnclaveRegistry};
+    use enclave::enclave::Enclave;
+    use levo::nautilus_verifier;
 
     // ===== Error Codes =====
     const ENotVaultOwner: u64 = 0;
@@ -116,13 +117,15 @@ module levo::x_vault {
 
     /// Claim a vault after verifying a Nautilus enclave attestation.
     /// The vault UID is deterministically derived from (registry, x_user_id).
-    public fun claim_vault(
+    public fun claim_vault<T>(
         registry: &mut XVaultRegistry,
-        enclave_registry: &EnclaveRegistry,
+        enclave: &Enclave<T>,
         x_user_id: u64,
         sui_address: address,
         nonce: u64,
         expires_at: u64,
+        registry_id: address,
+        timestamp_ms: u64,
         signature: vector<u8>,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -131,7 +134,8 @@ module levo::x_vault {
         assert!(ctx.sender() == sui_address, ENotAuthorized);
 
         nautilus_verifier::verify_attestation(
-            enclave_registry, x_user_id, sui_address, nonce, expires_at, signature, clock,
+            enclave, x_user_id, sui_address, nonce, expires_at,
+            registry_id, timestamp_ms, signature, clock,
         );
 
         let uid = derived_object::claim(&mut registry.id, x_user_id);
@@ -262,12 +266,14 @@ module levo::x_vault {
     /// must still submit the transaction. Consumes the address-owned vault
     /// and transfers it to the new owner so the object owner and embedded
     /// owner field stay aligned.
-    public fun update_owner(
+    public fun update_owner<T>(
         registry: &XVaultRegistry,
-        enclave_registry: &EnclaveRegistry,
+        enclave: &Enclave<T>,
         vault: XVault,
         new_owner: address,
         expires_at: u64,
+        registry_id: address,
+        timestamp_ms: u64,
         signature: vector<u8>,
         clock: &Clock,
         ctx: &TxContext,
@@ -281,13 +287,15 @@ module levo::x_vault {
         let vault_id = vault.id.to_address();
         let recovery_counter = vault.recovery_counter;
         nautilus_verifier::verify_owner_recovery_attestation(
-            enclave_registry,
+            enclave,
             vault.x_user_id,
             vault_id,
             current_owner,
             new_owner,
             recovery_counter,
             expires_at,
+            registry_id,
+            timestamp_ms,
             signature,
             clock,
         );

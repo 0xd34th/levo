@@ -20,7 +20,7 @@ import { parseXUserId } from '@/lib/twitter';
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID ?? '';
 const VAULT_REGISTRY_ID = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID ?? '';
-const ENCLAVE_REGISTRY_ID = process.env.ENCLAVE_REGISTRY_ID ?? '';
+const ENCLAVE_OBJECT_ID = process.env.ENCLAVE_OBJECT_ID ?? '';
 const MAX_CLAIM_COIN_OBJECTS = 200;
 const MAX_CLAIM_COIN_PAGES = 20;
 const AUTHORIZATION_BUNDLE_TTL_SEC = 120;
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Check config
-  if (!PACKAGE_ID || !VAULT_REGISTRY_ID || !ENCLAVE_REGISTRY_ID) {
+  if (!PACKAGE_ID || !VAULT_REGISTRY_ID || !ENCLAVE_OBJECT_ID) {
     return noStoreJson({ error: 'Server configuration error' }, { status: 500 });
   }
 
@@ -305,18 +305,23 @@ export async function POST(req: NextRequest) {
         expiresAt: attestation.expiresAt.toString(),
         signatureHex: Buffer.from(attestation.signature).toString('hex'),
         signatureLen: attestation.signature.length,
-        registryId: ENCLAVE_REGISTRY_ID,
+        intentScope: attestation.intentScope,
+        timestampMs: attestation.timestampMs.toString(),
+        registryId: attestation.registryId,
       });
 
       const [vault] = tx.moveCall({
         target: `${PACKAGE_ID}::x_vault::claim_vault`,
+        typeArguments: [`${process.env.NEXT_PUBLIC_PACKAGE_ID}::nautilus_verifier::NAUTILUS_VERIFIER`],
         arguments: [
           tx.object(VAULT_REGISTRY_ID),
-          tx.object(ENCLAVE_REGISTRY_ID),
+          tx.object(ENCLAVE_OBJECT_ID),
           tx.pure.u64(attestation.xUserId),
           tx.pure.address(attestation.suiAddress),
           tx.pure.u64(attestation.nonce),
           tx.pure.u64(attestation.expiresAt),
+          tx.pure.address(attestation.registryId),
+          tx.pure.u64(attestation.timestampMs),
           tx.pure.vector('u8', Array.from(attestation.signature)),
           tx.object('0x6'),
         ],
@@ -354,6 +359,7 @@ export async function POST(req: NextRequest) {
           target: `${PACKAGE_ID}::x_vault::sweep_coin_to_vault`,
           typeArguments: [claimableCoin.coinType],
           arguments: [
+            tx.object(VAULT_REGISTRY_ID),
             vault,
             tx.receivingRef({
               objectId: claimableCoin.objectId,
@@ -369,14 +375,18 @@ export async function POST(req: NextRequest) {
           target: `${PACKAGE_ID}::x_vault::withdraw_all`,
           typeArguments: [innerCoinType],
           arguments: [
+            tx.object(VAULT_REGISTRY_ID),
             vault,
           ],
         });
         tx.transferObjects([withdrawn], xUser.suiAddress);
       }
 
-      // XVault has no `drop` — must transfer to the owner
-      tx.transferObjects([vault], xUser.suiAddress);
+      // XVault has `key` only (no `store`) — must use transfer_vault
+      tx.moveCall({
+        target: `${PACKAGE_ID}::x_vault::transfer_vault`,
+        arguments: [vault],
+      });
 
       try {
         txBytes = await tx.build({ client });
