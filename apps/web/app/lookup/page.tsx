@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Search, ShieldCheck, Wallet } from 'lucide-react';
-import { Navbar } from '@/components/navbar';
+import { MobileTopBar } from '@/components/mobile-top-bar';
 import { PaymentTable } from '@/components/payment-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -93,17 +93,10 @@ export default function LookupPage() {
   }
 
   return (
-    <div className="app-shell">
-      <Navbar />
+    <div className="min-h-screen">
+      <MobileTopBar title="Vault Lookup" backHref="/tools" />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8">
-        <section className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
-          <p className="section-eyebrow">Public lookup</p>
-          <h1 className="hero-heading mt-3 max-w-2xl">Check whether an X handle already has money waiting.</h1>
-          <p className="mt-4 max-w-xl text-base text-muted-foreground">
-            Search a handle to see vault status, pending balance, and whether the funds are still waiting to be claimed.
-          </p>
-        </section>
+      <main className="mx-auto flex w-full max-w-lg flex-col px-4 pb-16 pt-6 md:max-w-4xl">
 
         <section className="mx-auto mt-8 w-full max-w-3xl">
           <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">

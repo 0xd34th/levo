@@ -8,7 +8,7 @@ import {
 } from '@privy-io/react-auth';
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { ClaimStepper, type ClaimStep } from '@/components/claim-stepper';
-import { Navbar } from '@/components/navbar';
+import { MobileTopBar } from '@/components/mobile-top-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -395,17 +395,10 @@ export default function ClaimPage() {
   }
 
   return (
-    <div className="app-shell">
-      <Navbar />
+    <div className="min-h-screen">
+      <MobileTopBar title="Claim Funds" backHref="/" />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8">
-        <section className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
-          <p className="section-eyebrow">Claim flow</p>
-          <h1 className="hero-heading mt-3 max-w-2xl">You received money.</h1>
-          <p className="mt-4 max-w-xl text-base text-muted-foreground">
-            Sign in with X, connect a wallet, and move funds out of the deterministic vault with the least possible Web3 friction.
-          </p>
-        </section>
+      <main className="mx-auto flex w-full max-w-lg flex-col px-4 pb-16 pt-6 md:max-w-3xl">
 
         <section className="mx-auto mt-8 w-full max-w-3xl">
           <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">

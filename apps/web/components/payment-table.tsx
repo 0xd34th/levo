@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -46,7 +45,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 const VIRTUALIZATION_THRESHOLD = 40;
 const VIRTUAL_OVERSCAN = 6;
 const MOBILE_VIEWPORT_HEIGHT = 440;
-const MOBILE_ROW_HEIGHT = 132;
+const MOBILE_ROW_HEIGHT = 64;
 const DESKTOP_VIEWPORT_HEIGHT = 560;
 const DESKTOP_ROW_HEIGHT = 74;
 
@@ -131,54 +130,49 @@ export function PaymentTable({
   const visibleDesktopRows = desktopWindow
     ? rows.slice(desktopWindow.startIndex, desktopWindow.endIndex)
     : rows;
-  const desktopColSpan = 4 + (showClaimStatus ? 1 : 0) + (showTxLink ? 1 : 0);
+  const desktopColSpan = 4 + (showClaimStatus ? 1 : 0);
+
+  const renderStatusBadge = (row: PaymentTableRow) => {
+    const badge = (
+      <Badge
+        variant={badgeVariant(row.status)}
+        className={cn('rounded-full', row.status === 'Confirmed' ? 'bg-accent text-accent-foreground' : '')}
+      >
+        {row.status}
+      </Badge>
+    );
+
+    if (row.txUrl) {
+      return (
+        <Link href={row.txUrl} rel="noreferrer" target="_blank">
+          {badge}
+        </Link>
+      );
+    }
+
+    return badge;
+  };
 
   const renderMobileRow = (row: PaymentTableRow) => (
     <div
       key={row.id}
-      className="rounded-[24px] border border-border/70 bg-background/80 p-4 dark:border-white/10 dark:bg-white/5"
+      className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/80 px-3.5 py-3 dark:border-white/8 dark:bg-white/4"
     >
-      <div className="flex items-center gap-3">
-        <Avatar className="size-11 border-border/60 dark:border-white/8">
-          {row.counterpartyAvatarUrl && isTrustedProfilePictureUrl(row.counterpartyAvatarUrl) ? (
-            <AvatarImage alt={row.counterpartyLabel} src={row.counterpartyAvatarUrl} />
-          ) : null}
-          <AvatarFallback>{row.counterpartyLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{row.counterpartyLabel}</p>
-          {row.counterpartySubLabel ? (
-            <p className="truncate text-xs text-muted-foreground">
-              {row.counterpartySubLabel}
-            </p>
-          ) : null}
-        </div>
-        <p className="text-sm font-semibold">{row.amount}</p>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Badge variant={badgeVariant(row.status)} className="rounded-full">
-          {row.status}
-        </Badge>
-        {row.claimStatus ? (
-          <Badge variant={badgeVariant(row.claimStatus)} className="rounded-full">
-            {row.claimStatus}
-          </Badge>
+      <Avatar className="size-9 border-border/60 text-xs dark:border-white/8">
+        {row.counterpartyAvatarUrl && isTrustedProfilePictureUrl(row.counterpartyAvatarUrl) ? (
+          <AvatarImage alt={row.counterpartyLabel} src={row.counterpartyAvatarUrl} />
         ) : null}
-        <span className="text-xs text-muted-foreground">
+        <AvatarFallback className="text-[10px]">{row.counterpartyLabel.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{row.counterpartyLabel}</p>
+        <p className="text-xs text-muted-foreground">
           {dateFormatter.format(new Date(row.date))}
-        </span>
-        {row.txUrl ? (
-          <Link
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary"
-            href={row.txUrl}
-            rel="noreferrer"
-            target="_blank"
-          >
-            View tx
-            <ExternalLink className="size-3.5" />
-          </Link>
-        ) : null}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {renderStatusBadge(row)}
+        <p className="text-sm font-semibold">{row.amount}</p>
       </div>
     </div>
   );
@@ -207,12 +201,7 @@ export function PaymentTable({
       </TableCell>
       <TableCell className="font-medium">{row.amount}</TableCell>
       <TableCell>
-        <Badge
-          variant={badgeVariant(row.status)}
-          className={cn('rounded-full', row.status === 'Confirmed' ? 'bg-accent text-accent-foreground' : '')}
-        >
-          {row.status}
-        </Badge>
+        {renderStatusBadge(row)}
       </TableCell>
       {showClaimStatus ? (
         <TableCell>
@@ -228,23 +217,6 @@ export function PaymentTable({
       <TableCell className="text-muted-foreground">
         {dateFormatter.format(new Date(row.date))}
       </TableCell>
-      {showTxLink ? (
-        <TableCell className="text-right">
-          {row.txUrl ? (
-            <Link
-              className="inline-flex items-center gap-1 text-primary"
-              href={row.txUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Open
-              <ExternalLink className="size-3.5" />
-            </Link>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </TableCell>
-      ) : null}
     </TableRow>
   );
 
@@ -290,7 +262,6 @@ export function PaymentTable({
                 <TableHead>Status</TableHead>
                 {showClaimStatus ? <TableHead>Claim Status</TableHead> : null}
                 <TableHead>Date</TableHead>
-                {showTxLink ? <TableHead className="text-right">Tx</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
