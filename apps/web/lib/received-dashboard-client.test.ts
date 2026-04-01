@@ -8,11 +8,11 @@ describe('truncateAddress', () => {
   });
 
   it('returns short addresses unchanged', () => {
-    expect(truncateAddress('0x123456789abc')).toBe('0x123456789abc');
+    expect(truncateAddress('0x12345678')).toBe('0x12345678');
   });
 
   it('truncates long addresses to the expected prefix and suffix', () => {
-    expect(truncateAddress('0x1234567890abcdef1234567890abcdef')).toBe('0x123456...abcdef');
+    expect(truncateAddress('0x1234567890abcdef1234567890abcdef')).toBe('0x1234...cdef');
   });
 });
 

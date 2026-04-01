@@ -25,11 +25,11 @@ export function truncateAddress(address: string | null | undefined) {
     return '';
   }
 
-  if (address.length <= 14) {
+  if (address.length <= 10) {
     return address;
   }
 
-  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 export function claimStatusLabel(status: ReceivedClaimStatus) {

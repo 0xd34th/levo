@@ -91,19 +91,6 @@
 
   body {
     @apply min-h-screen bg-background text-foreground;
-    background-image:
-      radial-gradient(circle at top left, rgba(74, 108, 247, 0.06), transparent 28%),
-      radial-gradient(circle at top right, rgba(0, 179, 134, 0.05), transparent 24%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 24%),
-      linear-gradient(135deg, #f8f9fc, #f0f2f8 46%, #eef0f6);
-  }
-
-  .dark body {
-    background-image:
-      radial-gradient(circle at top left, rgba(91, 127, 255, 0.2), transparent 28%),
-      radial-gradient(circle at top right, rgba(0, 200, 150, 0.16), transparent 24%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-      linear-gradient(135deg, #0f1115, #10131a 46%, #0b0d12);
   }
 
   ::selection {
@@ -126,30 +113,11 @@
 
 @layer components {
   .app-shell {
-    @apply relative min-h-screen overflow-hidden;
-  }
-
-  .app-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-    background-size: 120px 120px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 85%);
-    opacity: 0.45;
-  }
-
-  .dark .app-shell::before {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    @apply relative min-h-screen;
   }
 
   .glass-card {
-    @apply rounded-[28px] border border-border bg-card shadow-[0_32px_80px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:shadow-[0_32px_80px_rgba(0,0,0,0.32)];
+    @apply rounded-2xl border border-border bg-card;
   }
 
   .section-eyebrow {
