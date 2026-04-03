@@ -46,3 +46,6 @@ jobs:
           NEXT_PUBLIC_PACKAGE_ID: ${{ secrets.NEXT_PUBLIC_PACKAGE_ID || '0x0' }}
           NEXT_PUBLIC_VAULT_REGISTRY_ID: ${{ secrets.NEXT_PUBLIC_VAULT_REGISTRY_ID || '0x0' }}
           NEXT_PUBLIC_TREASURY_CAP_ID: ${{ secrets.NEXT_PUBLIC_TREASURY_CAP_ID || '0x0' }}
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          HMAC_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          PRIVY_APP_SECRET: ci-placeholder
