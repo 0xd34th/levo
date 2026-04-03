@@ -1,0 +1,84 @@
+name: Deploy
+
+on:
+  push:
+    branches: [local-ux-testing]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to OVH
+        uses: appleboy/ssh-action@v1
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          HMAC_SECRET: ${{ secrets.HMAC_SECRET }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET }}
+          GAS_STATION_SECRET_KEY: ${{ secrets.GAS_STATION_SECRET_KEY }}
+          NEXT_PUBLIC_PACKAGE_ID: ${{ secrets.NEXT_PUBLIC_PACKAGE_ID }}
+          NEXT_PUBLIC_VAULT_REGISTRY_ID: ${{ secrets.NEXT_PUBLIC_VAULT_REGISTRY_ID }}
+          NEXT_PUBLIC_TREASURY_CAP_ID: ${{ secrets.NEXT_PUBLIC_TREASURY_CAP_ID }}
+          ENCLAVE_REGISTRY_ID: ${{ secrets.ENCLAVE_REGISTRY_ID }}
+          NAUTILUS_SIGNER_SECRET: ${{ secrets.NAUTILUS_SIGNER_SECRET }}
+          NAUTILUS_SIGNER_SEED_BASE64: ${{ secrets.NAUTILUS_SIGNER_SEED_BASE64 }}
+          NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY: ${{ secrets.NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DATABASE_URL,TWITTER_API_KEY,HMAC_SECRET,NEXT_PUBLIC_PRIVY_APP_ID,PRIVY_APP_SECRET,GAS_STATION_SECRET_KEY,NEXT_PUBLIC_PACKAGE_ID,NEXT_PUBLIC_VAULT_REGISTRY_ID,NEXT_PUBLIC_TREASURY_CAP_ID,ENCLAVE_REGISTRY_ID,NAUTILUS_SIGNER_SECRET,NAUTILUS_SIGNER_SEED_BASE64,NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY
+          script: |
+            set -euo pipefail
+            cd /opt/levo
+
+            git fetch origin local-ux-testing
+            git reset --hard origin/local-ux-testing
+
+            pnpm install --frozen-lockfile
+
+            # Write web .env
+            cat > apps/web/.env << EOF
+            DATABASE_URL=${DATABASE_URL}
+            REDIS_URL=redis://127.0.0.1:6379
+            TWITTER_API_KEY=${TWITTER_API_KEY}
+            HMAC_SECRET=${HMAC_SECRET}
+            NEXT_PUBLIC_PRIVY_APP_ID=${NEXT_PUBLIC_PRIVY_APP_ID}
+            PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
+            GAS_STATION_SECRET_KEY=${GAS_STATION_SECRET_KEY}
+            NEXT_PUBLIC_SUI_NETWORK=testnet
+            NEXT_PUBLIC_PACKAGE_ID=${NEXT_PUBLIC_PACKAGE_ID}
+            NEXT_PUBLIC_VAULT_REGISTRY_ID=${NEXT_PUBLIC_VAULT_REGISTRY_ID}
+            NEXT_PUBLIC_TREASURY_CAP_ID=${NEXT_PUBLIC_TREASURY_CAP_ID}
+            ENCLAVE_REGISTRY_ID=${ENCLAVE_REGISTRY_ID}
+            NAUTILUS_SIGNER_SECRET=${NAUTILUS_SIGNER_SECRET}
+            NAUTILUS_ENCLAVE_URL=http://127.0.0.1:8787
+            EOF
+            sed -i 's/^            //' apps/web/.env
+
+            # Write signer .env
+            cat > apps/nautilus-signer/.env << EOF
+            HOST=127.0.0.1
+            PORT=8787
+            ENCLAVE_REGISTRY_ID=${ENCLAVE_REGISTRY_ID}
+            NAUTILUS_SIGNER_SECRET=${NAUTILUS_SIGNER_SECRET}
+            NAUTILUS_SIGNER_SEED_BASE64=${NAUTILUS_SIGNER_SEED_BASE64}
+            NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY=${NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY}
+            EOF
+            sed -i 's/^            //' apps/nautilus-signer/.env
+
+            # Build
+            pnpm --filter web build
+
+            # Migrate
+            cd apps/web && npx prisma migrate deploy && cd ../..
+
+            # Restart services
+            supervisorctl restart levo-signer levo-web

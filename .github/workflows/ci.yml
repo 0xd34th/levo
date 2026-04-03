@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [local-ux-testing]
+  pull_request:
+    branches: [local-ux-testing]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter web lint
+
+      - name: Test web
+        run: pnpm --filter web test
+        env:
+          NEXT_PUBLIC_PRIVY_APP_ID: test
+          PRIVY_APP_SECRET: test
+          HMAC_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Test signer
+        run: pnpm --filter nautilus-signer test
+
+      - name: Build
+        run: pnpm --filter web build
+        env:
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || 'cmjtfgkl700dqlb0dd87x5duw' }}
+          NEXT_PUBLIC_SUI_NETWORK: testnet
+          NEXT_PUBLIC_PACKAGE_ID: ${{ secrets.NEXT_PUBLIC_PACKAGE_ID || '0x0' }}
+          NEXT_PUBLIC_VAULT_REGISTRY_ID: ${{ secrets.NEXT_PUBLIC_VAULT_REGISTRY_ID || '0x0' }}
+          NEXT_PUBLIC_TREASURY_CAP_ID: ${{ secrets.NEXT_PUBLIC_TREASURY_CAP_ID || '0x0' }}
