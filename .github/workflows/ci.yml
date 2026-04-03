@@ -5,6 +5,7 @@ on:
     branches: [local-ux-testing]
   pull_request:
     branches: [local-ux-testing]
+  workflow_call:
 
 jobs:
   ci:
