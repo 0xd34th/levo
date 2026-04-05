@@ -432,4 +432,50 @@ describe('POST /api/v1/payments/claim', () => {
       status: 'authorization_required',
     });
   });
+
+  it('returns a temporary unavailable error when StableLayer burn composition fails before tx.build', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({
+        getOwnedObjects: vi.fn().mockResolvedValue({
+          data: [
+            {
+              data: {
+                objectId: 'coin-1',
+                version: '1',
+                digest: 'digest-1',
+                type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              },
+            },
+          ],
+          nextCursor: null,
+          hasNextPage: false,
+        }),
+      });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    txMoveCallMock
+      .mockReturnValueOnce(['vault-object'])
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(['withdrawn-levo-coin']);
+    buildBurnFromStableCoinTxMock.mockRejectedValueOnce(new Error('rpc timeout'));
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txBuildMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Claims are temporarily unavailable. Please retry shortly.',
+    });
+  });
 });

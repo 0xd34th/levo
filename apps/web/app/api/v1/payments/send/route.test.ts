@@ -361,6 +361,42 @@ describe('POST /api/v1/payments/send', () => {
     });
   });
 
+  it('returns a temporary unavailable error when StableLayer mint composition fails before tx.build', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    verifyQuoteTokenMock.mockReturnValueOnce({
+      xUserId: '99999',
+      derivationVersion: 1,
+      vaultAddress: '0xvault',
+      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+      amount: '1000000',
+      senderAddress: '0xwallet',
+      nonce: 'nonce',
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+    buildMintIntoVaultTxMock.mockRejectedValueOnce(new Error('rpc timeout'));
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txBuildMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Payment service temporarily unavailable. Please retry.',
+    });
+  });
+
   it('returns a StableLayer configuration error when mainnet mint fails with a factory type mismatch', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
 
