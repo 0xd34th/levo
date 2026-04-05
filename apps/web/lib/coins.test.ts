@@ -68,6 +68,19 @@ describe('coin helpers', () => {
     );
   });
 
+  it('does not fall back to the bundled contracts coin type on mainnet', () => {
+    expect(getConfiguredLevoUsdCoinType(configuredPackageId, undefined, 'mainnet')).toBeNull();
+    expect(isStableLayerEnabled('mainnet', configuredPackageId, undefined)).toBe(false);
+    expect(getSettlementCoinType(MAINNET_USDC_TYPE, 'mainnet', configuredPackageId, undefined)).toBe(
+      MAINNET_USDC_TYPE,
+    );
+  });
+
+  it('still falls back to the bundled coin type on testnet', () => {
+    const expectedFallback = `${configuredPackageId}::levo_usd::LEVO_USD`;
+    expect(getConfiguredLevoUsdCoinType(configuredPackageId, undefined, 'testnet')).toBe(expectedFallback);
+  });
+
   it('treats LevoUSD as a displayable USDC balance on mainnet', () => {
     const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
 
