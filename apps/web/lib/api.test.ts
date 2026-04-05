@@ -15,6 +15,16 @@ describe('getExpectedOrigin', () => {
     expect(getExpectedOrigin(req)).toBe('http://localhost:3000');
   });
 
+  it('prefers the request origin in non-production even when APP_ORIGIN is configured', () => {
+    vi.stubEnv('APP_ORIGIN', 'http://localhost:3000');
+    vi.stubEnv('NODE_ENV', 'development');
+
+    const req = new NextRequest('http://127.0.0.1:3000/api/v1/payments/history', {
+      headers: { origin: 'http://127.0.0.1:3000' },
+    });
+    expect(getExpectedOrigin(req)).toBe('http://127.0.0.1:3000');
+  });
+
   it('requires APP_ORIGIN in production', () => {
     vi.stubEnv('APP_ORIGIN', '');
     vi.stubEnv('NODE_ENV', 'production');

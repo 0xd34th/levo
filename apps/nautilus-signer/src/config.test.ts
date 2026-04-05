@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  REGISTERED_TESTNET_SIGNER_PUBLIC_KEY,
-  loadConfig,
-} from './config';
+import { loadConfig } from './config';
 
 describe('loadConfig', () => {
   const env = {
@@ -14,13 +11,11 @@ describe('loadConfig', () => {
     NAUTILUS_SIGNER_SEED_BASE64: 'G535YBKX0pkKt4fWrlYAijgdw/R840hgdxPLX5R0WSA=',
   } as const;
 
-  it('defaults to the registered testnet public key and rejects a mismatched fixture seed', () => {
-    expect(() => loadConfig(env)).toThrow(
-      `Nautilus signer public key mismatch: expected ${REGISTERED_TESTNET_SIGNER_PUBLIC_KEY}`,
-    );
+  it('requires an explicit expected public key instead of falling back to a testnet fixture', () => {
+    expect(() => loadConfig(env)).toThrow('Missing NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY');
   });
 
-  it('accepts a fixture override for unit tests without changing the runtime default', () => {
+  it('accepts an explicit expected public key when it matches the derived signer key', () => {
     const config = loadConfig({
       ...env,
       NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY:

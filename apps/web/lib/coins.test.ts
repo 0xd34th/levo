@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getConfiguredLevoUsdCoinType,
   getCoinDecimals,
   getCoinLabel,
   getExplorerTransactionUrl,
   getTestUsdcCoinType,
+  getSettlementCoinType,
+  getUserFacingUsdcCoinType,
+  MAINNET_USDC_TYPE,
+  normalizeCoinTypeForDisplay,
   isDisplaySupportedCoinType,
+  isStableLayerEnabled,
   SUI_COIN_TYPE,
 } from './coins';
 
@@ -49,5 +55,27 @@ describe('coin helpers', () => {
   it('trims the configured package id before building the TEST_USDC coin type', () => {
     expect(getTestUsdcCoinType(' 0xabc ')).toBe('0xabc::test_usdc::TEST_USDC');
     expect(getTestUsdcCoinType('   ')).toBeNull();
+  });
+
+  it('maps mainnet USDC display semantics to LevoUSD settlement semantics', () => {
+    const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
+
+    expect(isStableLayerEnabled('mainnet', configuredPackageId, levoUsdCoinType)).toBe(true);
+    expect(getUserFacingUsdcCoinType('mainnet', configuredPackageId)).toBe(MAINNET_USDC_TYPE);
+    expect(getConfiguredLevoUsdCoinType(configuredPackageId, levoUsdCoinType)).toBe(levoUsdCoinType);
+    expect(getSettlementCoinType(MAINNET_USDC_TYPE, 'mainnet', configuredPackageId, levoUsdCoinType)).toBe(
+      levoUsdCoinType,
+    );
+  });
+
+  it('treats LevoUSD as a displayable USDC balance on mainnet', () => {
+    const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
+
+    expect(isDisplaySupportedCoinType(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe(true);
+    expect(getCoinLabel(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe('USDC');
+    expect(getCoinDecimals(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe(6);
+    expect(normalizeCoinTypeForDisplay(levoUsdCoinType, 'mainnet', configuredPackageId, levoUsdCoinType)).toBe(
+      MAINNET_USDC_TYPE,
+    );
   });
 });

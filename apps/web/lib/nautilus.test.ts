@@ -76,6 +76,48 @@ describe('requestAttestation', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('allows loopback http attestation requests in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NAUTILUS_ENCLAVE_URL', 'http://127.0.0.1:8787');
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          signature: '0x1234',
+          x_user_id: '12345',
+          sui_address: '0x2',
+          nonce: '1',
+          expires_at: String(Date.now() + 60_000),
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    await requestAttestation({
+      xUserId: '12345',
+      suiAddress: '0x2',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:8787/attestation');
+  });
+
+  it('rejects non-loopback http attestation requests in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NAUTILUS_ENCLAVE_URL', 'http://enclave.example');
+
+    await expect(
+      requestAttestation({
+        xUserId: '12345',
+        suiAddress: '0x2',
+      }),
+    ).rejects.toThrow('Nautilus enclave URL must use HTTPS in production');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('rejects expired or nearly expired attestations before claim execution', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

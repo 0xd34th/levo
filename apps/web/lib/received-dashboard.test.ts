@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const MAINNET_USDC_TYPE =
+  '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
+
 const {
   deriveVaultAddress,
   getAllBalances,
@@ -51,6 +54,7 @@ import {
 describe('getReceivedVaultSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('derives claimed status from the vault object and maps on-chain balances', async () => {
@@ -118,6 +122,29 @@ describe('getReceivedVaultSummary', () => {
       'Invalid X user id',
     );
     expect(deriveVaultAddress).not.toHaveBeenCalled();
+  });
+
+  it('normalizes mainnet LevoUSD balances to a user-facing USDC display payload', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUI_NETWORK', 'mainnet');
+    vi.stubEnv('LEVO_USD_COIN_TYPE', '0xlevo::levo_usd::LEVO_USD');
+
+    getObject.mockResolvedValueOnce({
+      data: { objectId: '0xvault' },
+    });
+    getAllBalances.mockResolvedValueOnce([
+      { coinType: '0xlevo::levo_usd::LEVO_USD', totalBalance: '1250000' },
+    ]);
+
+    const result = await getReceivedVaultSummary('123', '0xregistry', 7);
+
+    expect(result.pendingBalances).toEqual([
+      {
+        coinType: MAINNET_USDC_TYPE,
+        symbol: 'USDC',
+        decimals: 6,
+        amount: '1250000',
+      },
+    ]);
   });
 });
 

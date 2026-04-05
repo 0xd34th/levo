@@ -33,10 +33,9 @@ describe('sign-attestation', () => {
       registryId: config.registryId,
     });
 
-    // 4 fields only: xUserId(8) + suiAddress(32) + nonce(8) + expiresAt(8) = 56 bytes
-    // registry_id is NOT included (deployed contract predates that field)
+    // 5 fields: xUserId(8) + suiAddress(32) + nonce(8) + expiresAt(8) + registryId(32) = 88 bytes
     expect(Buffer.from(message).toString('hex')).toBe(
-      '39300000000000000000000000000000000000000000000000000000000000000000000000000002010000000000000080a050ff9c010000',
+      '39300000000000000000000000000000000000000000000000000000000000000000000000000002010000000000000080a050ff9c01000011cddaae036a2faabc315226ae031d10cd1c488f91dd436fd0aac2157b25715a',
     );
 
     const first = signAttestation(config, {
@@ -55,7 +54,7 @@ describe('sign-attestation', () => {
     expect(first).toEqual(second);
     expect(first).toEqual({
       signature:
-        '0x717fd6b8781b308c111325e06728161f194fccd164cc0ff08d49b6d9c56e1889343ec949c31c91abc332148ae0ca05e1e82d7bf83790dee3d13d514a8c3a0807',
+        '0x5e9ce927b160617c744e7cbff30713c3e9223f2941d750f04a56d5b4268a771459b73025f9884069a21fa40a3a8dd2cb629d164e604c38d8e8733c528bb09a01',
       x_user_id: '12345',
       sui_address: '0x0000000000000000000000000000000000000000000000000000000000000002',
       nonce: '1',

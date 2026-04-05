@@ -24,7 +24,7 @@ describe('nautilus signer HTTP server', () => {
     server = await createSignerServer({
       config: loadConfig(env),
     });
-    const address = await server.listen();
+    const address = await server.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${address.port}`;
   });
 

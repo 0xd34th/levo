@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 const {
   acquireRedisLockMock,
   buildPrivyRawSignAuthorizationRequestMock,
+  buildBurnFromStableCoinTxMock,
   deriveVaultAddressMock,
   findUniqueMock,
   getGasStationKeypairMock,
@@ -22,6 +23,7 @@ const {
   txPureU64Mock,
   txPureVectorMock,
   txReceivingRefMock,
+  txTransferObjectsMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => {
@@ -32,6 +34,7 @@ const {
   return {
     acquireRedisLockMock: vi.fn(),
     buildPrivyRawSignAuthorizationRequestMock: vi.fn(),
+    buildBurnFromStableCoinTxMock: vi.fn(),
     deriveVaultAddressMock: vi.fn(),
     findUniqueMock: vi.fn(),
     getGasStationKeypairMock: vi.fn(),
@@ -50,6 +53,7 @@ const {
     txPureU64Mock: vi.fn(),
     txPureVectorMock: vi.fn(),
     txReceivingRefMock: vi.fn(),
+    txTransferObjectsMock: vi.fn(),
     verifyPrivyXAuthMock: vi.fn(),
     verifySameOriginMock: vi.fn(),
   };
@@ -68,7 +72,7 @@ vi.mock('@mysten/sui/transactions', () => ({
         vector: txPureVectorMock,
       },
       receivingRef: txReceivingRefMock,
-      transferObjects: vi.fn(),
+      transferObjects: txTransferObjectsMock,
       build: txBuildMock,
     };
   }),
@@ -129,11 +133,17 @@ vi.mock('@/lib/sui', () => ({
   getSuiClient: getSuiClientMock,
 }));
 
+vi.mock('@/lib/stable-layer', () => ({
+  buildBurnFromStableCoinTx: buildBurnFromStableCoinTxMock,
+}));
+
 import { POST } from './route';
 
 describe('POST /api/v1/payments/claim', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'testnet';
+    process.env.LEVO_USD_COIN_TYPE = '0xlevo::levo_usd::LEVO_USD';
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
     verifyPrivyXAuthMock.mockResolvedValue({
@@ -201,6 +211,7 @@ describe('POST /api/v1/payments/claim', () => {
       status: 'acquired',
       release: vi.fn().mockResolvedValue(undefined),
     });
+    buildBurnFromStableCoinTxMock.mockResolvedValue('burned-usdc-coin');
   });
 
   it('rejects claims when the embedded wallet has not been provisioned', async () => {
@@ -337,6 +348,88 @@ describe('POST /api/v1/payments/claim', () => {
           'privy-app-id': 'privy-app-id',
         },
       },
+    });
+  });
+
+  it('uses StableLayer burn composition for mainnet LevoUSD claims and passes the current registry ABI args', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock
+      .mockReturnValueOnce({})
+      .mockReturnValueOnce({
+        getOwnedObjects: vi.fn().mockResolvedValue({
+          data: [
+            {
+              data: {
+                objectId: 'coin-1',
+                version: '1',
+                digest: 'digest-1',
+                type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              },
+            },
+          ],
+          nextCursor: null,
+          hasNextPage: false,
+        }),
+      });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    txMoveCallMock
+      .mockReturnValueOnce(['vault-object'])
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(['withdrawn-levo-coin']);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txMoveCallMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        target: 'package-id::x_vault::sweep_coin_to_vault',
+        typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
+        arguments: [
+          'registry-id',
+          'vault-object',
+          expect.objectContaining({
+            objectId: 'coin-1',
+            version: '1',
+            digest: 'digest-1',
+          }),
+        ],
+      }),
+    );
+    expect(txMoveCallMock).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        target: 'package-id::x_vault::withdraw_all',
+        typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
+        arguments: ['registry-id', 'vault-object'],
+      }),
+    );
+    expect(buildBurnFromStableCoinTxMock).toHaveBeenCalledWith({
+      tx: expect.any(Object),
+      senderAddress: '0xwallet',
+      stableCoinType: '0xlevo::levo_usd::LEVO_USD',
+      stableCoin: 'withdrawn-levo-coin',
+    });
+    expect(txTransferObjectsMock).toHaveBeenCalledWith(['burned-usdc-coin'], '0xwallet');
+    expect(txMoveCallMock).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        target: 'package-id::x_vault::transfer_vault',
+        arguments: ['vault-object'],
+      }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
     });
   });
 });
