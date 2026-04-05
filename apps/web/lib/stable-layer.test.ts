@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   aggregatePricesMock,
@@ -44,7 +44,10 @@ vi.mock('stable-layer-sdk', () => ({
 
 describe('stable-layer helpers', () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-05T00:00:00Z'));
 
     aggregatePricesMock.mockResolvedValue(['u-price']);
     getBucketPSMPoolMock.mockResolvedValue('psm-pool');
@@ -67,6 +70,41 @@ describe('stable-layer helpers', () => {
 
     objectMock.mockImplementation((value: string) => value);
     moveCallMock.mockReturnValueOnce('burn-request').mockReturnValueOnce('withdraw-response').mockReturnValueOnce('usdc-coin');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reuses cached clients until the TTL expires', async () => {
+    const { getStableLayerClient } = await import('./stable-layer');
+
+    await getStableLayerClient(' 0xSender ');
+    await getStableLayerClient('0xsender');
+
+    expect(initializeMock).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(5 * 60_000 + 1);
+
+    await getStableLayerClient('0xsender');
+
+    expect(initializeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('evicts the oldest cached client when the cache exceeds its size cap', async () => {
+    const { getStableLayerClient } = await import('./stable-layer');
+    const firstAddress = `0x${'0'.repeat(64)}`;
+
+    for (let index = 0; index < 201; index += 1) {
+      const senderAddress = `0x${index.toString(16).padStart(64, '0')}`;
+      await getStableLayerClient(senderAddress);
+    }
+
+    expect(initializeMock).toHaveBeenCalledTimes(201);
+
+    await getStableLayerClient(firstAddress);
+
+    expect(initializeMock).toHaveBeenCalledTimes(202);
   });
 
   it('passes the Sui clock object to stable_vault_farm::pay during burn composition', async () => {
@@ -106,5 +144,22 @@ describe('stable-layer helpers', () => {
       withdrawResponse: 'withdraw-response',
     });
     expect(result).toBe('usdc-coin');
+  });
+
+  it('throws a clear error when stable-layer-sdk internals are unavailable', async () => {
+    initializeMock.mockResolvedValueOnce({
+      buildMintTx: buildMintTxMock,
+    });
+
+    const { buildBurnFromStableCoinTx } = await import('./stable-layer');
+
+    await expect(buildBurnFromStableCoinTx({
+      tx: {} as never,
+      senderAddress: '0xsender',
+      stableCoinType: '0xbrand::levo_usd::LEVO_USD',
+      stableCoin: 'withdrawn-stable-coin' as never,
+    })).rejects.toThrow(
+      'stable-layer-sdk internals changed; apps/web/lib/stable-layer.ts currently supports 3.1.0',
+    );
   });
 });
