@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
 import { getClientIp, noStoreJson, verifySameOrigin } from '@/lib/api';
 import { getPrivyClient, verifyPrivyXAuth } from '@/lib/privy-auth';
-import { getOrCreateSuiWallet } from '@/lib/privy-wallet';
+import {
+  getOrCreateSuiWallet,
+  isWalletBindingConflictError,
+} from '@/lib/privy-wallet';
 import { prisma } from '@/lib/prisma';
 import { acquireRedisLock } from '@/lib/redis-lock';
 import { rateLimit } from '@/lib/rate-limit';
@@ -42,8 +45,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let existingUser: { privyUserId: string | null } | null = null;
+
   try {
-    const existingUser = await prisma.xUser.findUnique({
+    existingUser = await prisma.xUser.findUnique({
       where: { xUserId },
       select: { privyUserId: true },
     });
@@ -77,6 +82,30 @@ export async function POST(req: NextRequest) {
       walletReady: true,
     });
   } catch (error) {
+    if (isWalletBindingConflictError(error)) {
+      const previousPrivyUserId = existingUser?.privyUserId ?? null;
+
+      if (previousPrivyUserId !== privyUserId) {
+        try {
+          await prisma.xUser.update({
+            where: { xUserId },
+            data: { privyUserId: previousPrivyUserId },
+          });
+        } catch (rollbackError) {
+          console.error('Failed to rollback wallet owner binding after conflict', rollbackError);
+          return noStoreJson(
+            { error: 'Failed to restore wallet owner binding. Please retry.' },
+            { status: 500 },
+          );
+        }
+      }
+
+      return noStoreJson(
+        { error: error.message },
+        { status: 409 },
+      );
+    }
+
     console.error('Failed to setup Sui wallet', error);
     return noStoreJson(
       { error: 'Failed to create wallet. Please try again.' },

@@ -1,9 +1,13 @@
 'use client';
 
 import { Droplets, Waves } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { SUI_COIN_TYPE, getCoinLabel, getTestUsdcCoinType } from '@/lib/coins';
+import {
+  MAINNET_USDC_TYPE,
+  SUI_COIN_TYPE,
+  getCoinLabel,
+  getUserFacingUsdcCoinType,
+} from '@/lib/coins';
 import { cn } from '@/lib/utils';
 
 interface CoinSelectorProps {
@@ -13,16 +17,17 @@ interface CoinSelectorProps {
 }
 
 function getCoinOptions() {
-  const testUsdc = getTestUsdcCoinType();
+  const userFacingUsdcCoinType = getUserFacingUsdcCoinType();
+  const stablecoinLabel = userFacingUsdcCoinType === MAINNET_USDC_TYPE ? 'USDC' : 'TEST USDC';
 
   return [
     {
-      value: testUsdc ?? SUI_COIN_TYPE,
-      label: testUsdc ? 'TEST USDC' : 'SUI',
-      caption: testUsdc ? 'Stablecoin' : 'Native',
+      value: userFacingUsdcCoinType ?? SUI_COIN_TYPE,
+      label: userFacingUsdcCoinType ? stablecoinLabel : 'SUI',
+      caption: userFacingUsdcCoinType ? 'Stablecoin' : 'Native',
       icon: Droplets,
     },
-    ...(testUsdc
+    ...(userFacingUsdcCoinType
       ? [
           {
             value: SUI_COIN_TYPE,

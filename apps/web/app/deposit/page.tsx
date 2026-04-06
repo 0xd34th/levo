@@ -1,9 +1,13 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Check, Copy } from 'lucide-react';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+
+const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
+const STABLECOIN_LABEL = NETWORK === 'mainnet' ? 'USDC' : 'TEST_USDC';
 
 export default function DepositPage() {
   const { suiAddress, loading, error } = useEmbeddedWallet();
@@ -42,7 +46,9 @@ export default function DepositPage() {
           <div className="flex flex-col items-center gap-6">
             {/* QR Code */}
             <div className="rounded-2xl border border-border/60 bg-card p-4 dark:border-white/8">
-              <img
+              <Image
+                loader={({ src }) => src}
+                unoptimized
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(suiAddress)}`}
                 alt="Wallet QR code"
                 className="size-48 rounded-lg"
@@ -79,7 +85,7 @@ export default function DepositPage() {
 
             <p className="text-center text-sm text-muted-foreground">
               Send <span className="font-medium text-foreground">SUI</span> or{' '}
-              <span className="font-medium text-foreground">TEST_USDC</span> to
+              <span className="font-medium text-foreground">{STABLECOIN_LABEL}</span> to
               this address to fund your wallet.
             </p>
           </div>

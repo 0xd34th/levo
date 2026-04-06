@@ -1,8 +1,8 @@
-import type { SuiObjectResponse } from '@mysten/sui/jsonRpc';
 import {
   getCoinDecimals,
   getCoinLabel,
   isDisplaySupportedCoinType,
+  normalizeCoinTypeForDisplay,
 } from '@/lib/coins';
 import { prisma } from '@/lib/prisma';
 import {
@@ -14,10 +14,12 @@ import {
   ReceivedDashboardUser,
   ReceivedVaultSummary,
 } from '@/lib/received-dashboard-types';
+import { getPrivyClient } from '@/lib/privy-auth';
 import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { encodeTransactionHistoryCursor } from '@/lib/transaction-history-cursor';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { parseXUserId, type XUserInfo } from '@/lib/twitter';
+import { getVaultOwnershipState } from '@/lib/vault-ownership';
 import { FRESH_X_USER_TTL_MS } from '@/lib/x-user-lookup';
 
 const DEFAULT_DERIVATION_VERSION = 1;
@@ -55,15 +57,25 @@ async function getRecordedTotals(xUserId: string): Promise<ReceivedBalance[]> {
     _sum: { amount: true },
   });
 
-  return rows
-    .filter((row) => row._sum.amount != null && row._sum.amount > 0n)
-    .filter((row) => isDisplaySupportedCoinType(row.coinType))
-    .map((row) => ({
-      coinType: row.coinType,
-      symbol: getCoinLabel(row.coinType),
-      decimals: getCoinDecimals(row.coinType),
-      amount: row._sum.amount!.toString(),
-    }));
+  const totalsByDisplayCoinType = new Map<string, bigint>();
+
+  for (const row of rows) {
+    if (row._sum.amount == null || row._sum.amount <= 0n) continue;
+    const displayCoinType = normalizeCoinTypeForDisplay(row.coinType);
+    if (!isDisplaySupportedCoinType(displayCoinType)) continue;
+
+    totalsByDisplayCoinType.set(
+      displayCoinType,
+      (totalsByDisplayCoinType.get(displayCoinType) ?? 0n) + row._sum.amount,
+    );
+  }
+
+  return Array.from(totalsByDisplayCoinType.entries()).map(([coinType, amount]) => ({
+    coinType,
+    symbol: getCoinLabel(coinType),
+    decimals: getCoinDecimals(coinType),
+    amount: amount.toString(),
+  }));
 }
 
 function sanitizeProfilePictureUrl(url: string | null): string | null {
@@ -71,7 +83,9 @@ function sanitizeProfilePictureUrl(url: string | null): string | null {
 }
 
 function mapIncomingPayment(row: IncomingPaymentRow): IncomingPaymentItem | null {
-  if (!isDisplaySupportedCoinType(row.coinType)) {
+  const displayCoinType = normalizeCoinTypeForDisplay(row.coinType);
+
+  if (!isDisplaySupportedCoinType(displayCoinType)) {
     console.warn('Ignoring unsupported coin type in received dashboard payment', {
       coinType: row.coinType,
       paymentId: row.id,
@@ -84,9 +98,9 @@ function mapIncomingPayment(row: IncomingPaymentRow): IncomingPaymentItem | null
     id: row.id,
     txDigest: row.txDigest,
     senderAddress: row.senderAddress,
-    coinType: row.coinType,
-    symbol: getCoinLabel(row.coinType),
-    decimals: getCoinDecimals(row.coinType),
+    coinType: displayCoinType,
+    symbol: getCoinLabel(displayCoinType),
+    decimals: getCoinDecimals(displayCoinType),
     amount: row.amount.toString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -239,11 +253,6 @@ async function findIncomingPaymentRows(
   });
 }
 
-/**
- * There is no persisted claim record yet, so claim status is derived directly
- * from chain state: if the deterministic XVault object exists at the derived
- * vault address, the vault is treated as claimed; otherwise it is unclaimed.
- */
 export async function getReceivedVaultSummary(
   xUserId: string,
   registryId: string,
@@ -257,53 +266,83 @@ export async function getReceivedVaultSummary(
   const vaultAddress = deriveVaultAddress(registryId, BigInt(normalizedXUserId));
   const client = getSuiClient();
 
-  const [objectResponse, balances, recordedTotals] = await Promise.all([
-    client.getObject({
-      id: vaultAddress,
-      options: { showType: true },
+  const [xUser, balances, recordedTotals] = await Promise.all([
+    prisma.xUser.findUnique({
+      where: { xUserId: normalizedXUserId },
+      select: {
+        privyUserId: true,
+        suiAddress: true,
+      },
     }),
     client.getAllBalances({ owner: vaultAddress }),
     getRecordedTotals(normalizedXUserId),
   ]);
 
-  const typedObjectResponse: SuiObjectResponse = objectResponse;
-  const vaultExists = typedObjectResponse.data != null;
-  const objectErrorCode = typedObjectResponse.error?.code ?? null;
+  const pendingBalances = balances
+    .filter((balance) => BigInt(balance.totalBalance) > 0n)
+    .map((balance) => ({
+      ...balance,
+      displayCoinType: normalizeCoinTypeForDisplay(balance.coinType),
+    }))
+    .filter((balance) => {
+      if (isDisplaySupportedCoinType(balance.displayCoinType)) {
+        return true;
+      }
 
-  if (!vaultExists && objectErrorCode && objectErrorCode !== 'notExists' && objectErrorCode !== 'deleted') {
-    throw new Error(`Unexpected vault lookup error: ${objectErrorCode}`);
+      console.warn('Ignoring unsupported coin type in received dashboard balance', {
+        coinType: balance.coinType,
+        vaultAddress,
+      });
+      return false;
+    })
+    .sort((a, b) => a.displayCoinType.localeCompare(b.displayCoinType))
+    .map((balance) => ({
+      coinType: balance.displayCoinType,
+      symbol: getCoinLabel(balance.displayCoinType),
+      decimals: getCoinDecimals(balance.displayCoinType),
+      amount: balance.totalBalance,
+    }));
+
+  const ownership = await getVaultOwnershipState({
+    client,
+    vaultAddress,
+    canonicalAddress: xUser?.suiAddress ?? null,
+    privy: xUser?.privyUserId ? getPrivyClient() : null,
+    privyUserId: xUser?.privyUserId ?? null,
+  });
+
+  let claimStatus: ReceivedVaultSummary['claimStatus'];
+  let claimAction: ReceivedVaultSummary['claimAction'];
+  const hasIncompleteWalletBinding = Boolean(
+    xUser?.privyUserId && !xUser.suiAddress && ownership.vaultExists,
+  );
+
+  if (ownership.kind === 'PREVIOUSLY_CLAIMED') {
+    claimStatus = 'PREVIOUSLY_CLAIMED';
+    claimAction = 'NONE';
+  } else if (hasIncompleteWalletBinding) {
+    claimStatus = 'REPAIR_REQUIRED';
+    claimAction = 'NONE';
+  } else if (ownership.kind === 'UNCLAIMED') {
+    claimStatus = 'UNCLAIMED';
+    claimAction = pendingBalances.length > 0 ? 'CLAIM' : 'NONE';
+  } else if (ownership.kind === 'OWNED_BY_OTHER') {
+    claimStatus = 'REPAIR_REQUIRED';
+    claimAction =
+      ownership.repairWallet && pendingBalances.length > 0 ? 'REPAIR_AND_WITHDRAW' : 'NONE';
+  } else {
+    claimStatus = 'CLAIMED';
+    claimAction = pendingBalances.length > 0 ? 'WITHDRAW' : 'NONE';
   }
 
   return {
     derivationVersion,
     vaultAddress,
-    vaultExists,
-    claimStatus: vaultExists
-      ? 'CLAIMED'
-      : objectErrorCode === 'deleted'
-        ? 'PREVIOUSLY_CLAIMED'
-        : 'UNCLAIMED',
+    vaultExists: ownership.vaultExists,
+    claimStatus,
+    claimAction,
     claimStatusModel: RECEIVED_CLAIM_STATUS_MODEL,
-    pendingBalances: balances
-      .filter((balance) => BigInt(balance.totalBalance) > 0n)
-      .filter((balance) => {
-        if (isDisplaySupportedCoinType(balance.coinType)) {
-          return true;
-        }
-
-        console.warn('Ignoring unsupported coin type in received dashboard balance', {
-          coinType: balance.coinType,
-          vaultAddress,
-        });
-        return false;
-      })
-      .sort((a, b) => a.coinType.localeCompare(b.coinType))
-      .map((balance) => ({
-        coinType: balance.coinType,
-        symbol: getCoinLabel(balance.coinType),
-        decimals: getCoinDecimals(balance.coinType),
-        amount: balance.totalBalance,
-      })),
+    pendingBalances,
     recordedTotals,
   };
 }

@@ -5,16 +5,20 @@ const MAINNET_USDC_TYPE =
 
 const {
   deriveVaultAddress,
+  findSuiWalletForPrivyUserByAddress,
   getAllBalances,
   getObject,
+  getPrivyClient,
   paymentLedgerFindMany,
   paymentLedgerGroupBy,
   xUserFindUnique,
   xUserUpsert,
 } = vi.hoisted(() => ({
   deriveVaultAddress: vi.fn(() => '0xvault'),
+  findSuiWalletForPrivyUserByAddress: vi.fn(),
   getObject: vi.fn(),
   getAllBalances: vi.fn(),
+  getPrivyClient: vi.fn(),
   xUserUpsert: vi.fn(),
   xUserFindUnique: vi.fn(),
   paymentLedgerFindMany: vi.fn(),
@@ -42,6 +46,14 @@ vi.mock('@/lib/sui', () => ({
   }),
 }));
 
+vi.mock('@/lib/privy-auth', () => ({
+  getPrivyClient,
+}));
+
+vi.mock('@/lib/privy-wallet', () => ({
+  findSuiWalletForPrivyUserByAddress,
+}));
+
 import { decodeTransactionHistoryCursor } from './transaction-history-cursor';
 import { RECEIVED_CLAIM_STATUS_MODEL } from './received-dashboard-types';
 import {
@@ -58,8 +70,21 @@ describe('getReceivedVaultSummary', () => {
   });
 
   it('derives claimed status from the vault object and maps on-chain balances', async () => {
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: '0xvault-owner',
+      privyUserId: 'privy-user',
+    });
     getObject.mockResolvedValueOnce({
-      data: { objectId: '0xvault' },
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xvault-owner',
+            recovery_counter: '0',
+          },
+        },
+      },
     });
     getAllBalances.mockResolvedValueOnce([
       { coinType: '0x2::sui::SUI', totalBalance: '4200000000' },
@@ -71,7 +96,7 @@ describe('getReceivedVaultSummary', () => {
     expect(deriveVaultAddress).toHaveBeenCalledWith('0xregistry', 123n);
     expect(getObject).toHaveBeenCalledWith({
       id: '0xvault',
-      options: { showType: true },
+      options: { showType: true, showContent: true },
     });
     expect(getAllBalances).toHaveBeenCalledWith({ owner: '0xvault' });
     expect(result).toEqual({
@@ -79,6 +104,7 @@ describe('getReceivedVaultSummary', () => {
       vaultAddress: '0xvault',
       vaultExists: true,
       claimStatus: 'CLAIMED',
+      claimAction: 'WITHDRAW',
       claimStatusModel: RECEIVED_CLAIM_STATUS_MODEL,
       pendingBalances: [
         {
@@ -93,6 +119,10 @@ describe('getReceivedVaultSummary', () => {
   });
 
   it('treats a missing vault object as unclaimed', async () => {
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: '0xwallet',
+      privyUserId: 'privy-user',
+    });
     getObject.mockResolvedValueOnce({
       error: { code: 'notExists' },
     });
@@ -102,10 +132,15 @@ describe('getReceivedVaultSummary', () => {
 
     expect(result.vaultExists).toBe(false);
     expect(result.claimStatus).toBe('UNCLAIMED');
+    expect(result.claimAction).toBe('NONE');
     expect(result.pendingBalances).toEqual([]);
   });
 
   it('treats a deleted vault object as previously claimed', async () => {
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: '0xwallet',
+      privyUserId: 'privy-user',
+    });
     getObject.mockResolvedValueOnce({
       error: { code: 'deleted' },
     });
@@ -115,6 +150,7 @@ describe('getReceivedVaultSummary', () => {
 
     expect(result.vaultExists).toBe(false);
     expect(result.claimStatus).toBe('PREVIOUSLY_CLAIMED');
+    expect(result.claimAction).toBe('NONE');
   });
 
   it('rejects malformed x user ids before deriving the vault address', async () => {
@@ -128,8 +164,21 @@ describe('getReceivedVaultSummary', () => {
     vi.stubEnv('NEXT_PUBLIC_SUI_NETWORK', 'mainnet');
     vi.stubEnv('LEVO_USD_COIN_TYPE', '0xlevo::levo_usd::LEVO_USD');
 
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: '0xvault-owner',
+      privyUserId: 'privy-user',
+    });
     getObject.mockResolvedValueOnce({
-      data: { objectId: '0xvault' },
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xvault-owner',
+            recovery_counter: '0',
+          },
+        },
+      },
     });
     getAllBalances.mockResolvedValueOnce([
       { coinType: '0xlevo::levo_usd::LEVO_USD', totalBalance: '1250000' },
@@ -145,6 +194,66 @@ describe('getReceivedVaultSummary', () => {
         amount: '1250000',
       },
     ]);
+  });
+
+  it('marks owner mismatches as repair-and-withdraw when the legacy owner wallet is still owned by the same Privy user', async () => {
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: '0xcanonical',
+      privyUserId: 'privy-user',
+    });
+    getPrivyClient.mockReturnValue({});
+    findSuiWalletForPrivyUserByAddress.mockResolvedValueOnce({
+      privyWalletId: 'wallet-old',
+      suiAddress: '0xlegacy',
+      suiPublicKey: 'old-public-key',
+    });
+    getObject.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xlegacy',
+            recovery_counter: '2',
+          },
+        },
+      },
+    });
+    getAllBalances.mockResolvedValueOnce([
+      { coinType: '0x2::sui::SUI', totalBalance: '42' },
+    ]);
+
+    const result = await getReceivedVaultSummary('456', '0xregistry');
+
+    expect(result.claimStatus).toBe('REPAIR_REQUIRED');
+    expect(result.claimAction).toBe('REPAIR_AND_WITHDRAW');
+  });
+
+  it('treats a claimed vault with missing canonical wallet binding as repair-required', async () => {
+    xUserFindUnique.mockResolvedValueOnce({
+      suiAddress: null,
+      privyUserId: 'privy-user',
+    });
+    getObject.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xlegacy',
+            recovery_counter: '2',
+          },
+        },
+      },
+    });
+    getAllBalances.mockResolvedValueOnce([
+      { coinType: '0x2::sui::SUI', totalBalance: '42' },
+    ]);
+
+    const result = await getReceivedVaultSummary('456', '0xregistry');
+
+    expect(result.claimStatus).toBe('REPAIR_REQUIRED');
+    expect(result.claimAction).toBe('NONE');
   });
 });
 

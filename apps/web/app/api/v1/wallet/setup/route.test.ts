@@ -6,6 +6,7 @@ const {
   findUniqueMock,
   getOrCreateSuiWalletMock,
   rateLimitMock,
+  updateMock,
   upsertMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
@@ -14,6 +15,7 @@ const {
   findUniqueMock: vi.fn(),
   getOrCreateSuiWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
+  updateMock: vi.fn(),
   upsertMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -36,12 +38,15 @@ vi.mock('@/lib/privy-auth', () => ({
 
 vi.mock('@/lib/privy-wallet', () => ({
   getOrCreateSuiWallet: getOrCreateSuiWalletMock,
+  isWalletBindingConflictError: (error: unknown) =>
+    error instanceof Error && error.name === 'WalletBindingConflictError',
 }));
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     xUser: {
       findUnique: findUniqueMock,
+      update: updateMock,
       upsert: upsertMock,
     },
   },
@@ -76,6 +81,7 @@ describe('POST /api/v1/wallet/setup', () => {
       release: vi.fn().mockResolvedValue(undefined),
     });
     findUniqueMock.mockResolvedValue(null);
+    updateMock.mockResolvedValue({});
     upsertMock.mockResolvedValue({});
     getOrCreateSuiWalletMock.mockResolvedValue({
       privyWalletId: 'wallet-id',
@@ -136,6 +142,33 @@ describe('POST /api/v1/wallet/setup', () => {
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
       error: 'This X account is already linked to a different embedded wallet owner.',
+    });
+  });
+
+  it('surfaces canonical wallet binding conflicts instead of silently overwriting them', async () => {
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: null,
+    });
+    getOrCreateSuiWalletMock.mockRejectedValueOnce(
+      Object.assign(new Error('Stored wallet binding conflicts with Privy wallet data.'), {
+        name: 'WalletBindingConflictError',
+      }),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/wallet/setup', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect(updateMock).toHaveBeenCalledWith({
+      where: { xUserId: '12345' },
+      data: { privyUserId: null },
+    });
+    await expect(res.json()).resolves.toEqual({
+      error: 'Stored wallet binding conflicts with Privy wallet data.',
     });
   });
 });

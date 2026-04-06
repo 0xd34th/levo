@@ -11,35 +11,33 @@ import { PaymentTable } from '@/components/payment-table';
 import { PromoCard } from '@/components/promo-card';
 import { Button } from '@/components/ui/button';
 import {
-  formatAmount,
-  getCoinLabel,
   getExplorerTransactionUrl,
-  isDisplaySupportedCoinType,
 } from '@/lib/coins';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
+import type { IncomingPaymentsResponse } from '@/lib/received-dashboard-client';
+import {
+  buildRecentActivityItems,
+  type RecentActivityItem,
+} from '@/lib/recent-activity';
 import { truncateAddress } from '@/lib/received-dashboard-client';
-import type { TransactionHistoryResponse, TransactionItem } from '@/lib/transaction-history';
+import type { TransactionHistoryResponse } from '@/lib/transaction-history';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const RECENT_LIMIT = 5;
 
-function formatSentAmount(amount: string, coinType: string) {
-  if (!isDisplaySupportedCoinType(coinType)) return `${amount} raw`;
-  return `${formatAmount(amount, coinType)} ${getCoinLabel(coinType)}`;
-}
-
 export default function AccountPage() {
-  const { ready, authenticated, getAccessToken } = usePrivy();
+  const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
   const {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
   } = useEmbeddedWallet();
   const [hasPending, setHasPending] = useState(false);
+  const twitterSubject = user?.twitter?.subject ?? null;
 
   // Recent transactions
-  const [recentItems, setRecentItems] = useState<TransactionItem[]>([]);
+  const [recentItems, setRecentItems] = useState<RecentActivityItem[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -52,29 +50,60 @@ export default function AccountPage() {
     setRecentLoading(true);
 
     try {
-      const params = new URLSearchParams({
+      const sentParams = new URLSearchParams({
         senderAddress: embeddedWalletAddress,
         limit: String(RECENT_LIMIT),
       });
-      const res = await privyAuthenticatedFetch(
+      const receivedParams = new URLSearchParams({
+        limit: String(RECENT_LIMIT),
+      });
+
+      const sentRequest = privyAuthenticatedFetch(
         getAccessToken,
-        `/api/v1/payments/history?${params}`,
+        `/api/v1/payments/history?${sentParams}`,
         { cache: 'no-store', signal: controller.signal },
-      );
+      ).then(async (res) => {
+        if (!res.ok) {
+          throw new Error('Failed to load sent payments');
+        }
+
+        return res.json() as Promise<TransactionHistoryResponse>;
+      });
+
+      const receivedRequest = twitterSubject
+        ? privyAuthenticatedFetch(
+            getAccessToken,
+            `/api/v1/payments/received?${receivedParams}`,
+            { cache: 'no-store', signal: controller.signal },
+          ).then(async (res) => {
+            if (!res.ok) {
+              throw new Error('Failed to load received payments');
+            }
+
+            return res.json() as Promise<IncomingPaymentsResponse>;
+          })
+        : null;
+
+      const [sentResult, receivedResult] = await Promise.all([
+        sentRequest.catch(() => null),
+        receivedRequest?.catch(() => null) ?? Promise.resolve(null),
+      ]);
 
       if (controller.signal.aborted) return;
-      if (!res.ok) throw new Error('fetch failed');
 
-      const payload = (await res.json()) as TransactionHistoryResponse;
-      if (!controller.signal.aborted) {
-        setRecentItems(payload.items.slice(0, RECENT_LIMIT));
-      }
+      setRecentItems(
+        buildRecentActivityItems(
+          sentResult?.items ?? [],
+          receivedResult?.items ?? [],
+          RECENT_LIMIT,
+        ),
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
     } finally {
       if (!controller.signal.aborted) setRecentLoading(false);
     }
-  }, [embeddedWalletAddress, getAccessToken]);
+  }, [embeddedWalletAddress, getAccessToken, twitterSubject]);
 
   useEffect(() => {
     if (ready && authenticated && embeddedWalletAddress) {
@@ -162,15 +191,16 @@ export default function AccountPage() {
             <p className="py-6 text-center text-xs text-muted-foreground">Loading...</p>
           ) : (
             <PaymentTable
-              counterpartyColumnLabel="Recipient"
+              counterpartyColumnLabel="Counterparty"
               emptyTitle="No transactions yet"
-              emptyDescription="Send your first payment to see it here."
+              emptyDescription="Your recent sent and received payments will show here."
               rows={recentItems.map((item) => ({
                 id: item.id,
-                counterpartyAvatarUrl: item.recipient.profilePicture,
-                counterpartyLabel: `@${item.recipient.username}`,
-                amount: formatSentAmount(item.amount, item.coinType),
-                status: 'Confirmed',
+                counterpartyAvatarUrl: item.counterpartyAvatarUrl,
+                counterpartyLabel: item.counterpartyLabel,
+                counterpartySubLabel: item.counterpartySubLabel,
+                amount: item.amount,
+                status: item.direction,
                 date: item.createdAt,
                 txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
               }))}

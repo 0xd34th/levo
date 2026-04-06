@@ -6,6 +6,7 @@ import {
   invalidInputResponse,
   verifySameOrigin,
 } from '@/lib/api';
+import { getSettlementCoinType } from '@/lib/coins';
 import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
@@ -267,6 +268,7 @@ export async function POST(req: NextRequest) {
   }
 
   const quotedAmount = BigInt(quoteData.amount);
+  const settlementCoinType = getSettlementCoinType(quoteData.coinType);
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -335,7 +337,7 @@ export async function POST(req: NextRequest) {
     if (!('AddressOwner' in ownerField)) return false;
     if (ownerField.AddressOwner !== quoteData.vaultAddress) return false;
 
-    return extractTransferredCoinType(change.objectType) === quoteData.coinType;
+    return extractTransferredCoinType(change.objectType) === settlementCoinType;
   });
 
   if (!transferChange) {
@@ -352,7 +354,7 @@ export async function POST(req: NextRequest) {
     if (typeof owner !== 'object' || owner === null) return false;
     if (!('AddressOwner' in owner)) return false;
     if (owner.AddressOwner !== quoteData.vaultAddress) return false;
-    if (bc.coinType !== quoteData.coinType) return false;
+    if (bc.coinType !== settlementCoinType) return false;
     return true;
   });
 

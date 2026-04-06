@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
+  claimActionLabel,
   claimStatusLabel,
   formatPendingBalances,
   normalizeHandle,
@@ -58,9 +59,18 @@ export default function ClaimPage() {
   const walletReady = Boolean(embeddedWalletAddress);
   const previouslyClaimed =
     lookup !== null && lookup.claimStatus === 'PREVIOUSLY_CLAIMED';
+  const requiresRepair =
+    lookup !== null && lookup.claimStatus === 'REPAIR_REQUIRED';
   const effectiveClaimed =
     claimOutcome?.type === 'claimed' ||
-    (lookup !== null && lookup.claimStatus === 'CLAIMED');
+    (
+      lookup !== null &&
+      lookup.claimAction === 'NONE' &&
+      (
+        lookup.claimStatus === 'CLAIMED' ||
+        lookup.claimStatus === 'PREVIOUSLY_CLAIMED'
+      )
+    );
   const privyTwitter = privyUser?.twitter;
   const privyXLinked = privyReady && privyAuthenticated && Boolean(privyTwitter);
   const effectiveSignedIn =
@@ -190,7 +200,11 @@ export default function ClaimPage() {
         ? 'Claimed'
         : previouslyClaimed
           ? 'Previously claimed'
-          : 'Claim now',
+          : lookup
+            ? lookup.claimAction === 'NONE'
+              ? 'No funds pending'
+              : claimActionLabel(lookup.claimAction)
+            : 'Claim now',
       status: effectiveSignedIn && walletReady
         ? effectiveClaimed
           ? 'complete'
@@ -259,6 +273,15 @@ export default function ClaimPage() {
 
       if (previouslyClaimed) {
         setNotice('This vault was already claimed previously.');
+        return;
+      }
+
+      if (lookup.claimAction === 'NONE') {
+        setNotice(
+          requiresRepair
+            ? 'This vault still needs an ownership repair, but there is no pending balance to withdraw right now.'
+            : 'There is no claimable balance in the vault right now.',
+        );
         return;
       }
 
@@ -362,6 +385,7 @@ export default function ClaimPage() {
             ? {
                 ...currentLookup,
                 claimStatus: 'CLAIMED',
+                claimAction: 'NONE',
                 vaultExists: true,
                 pendingBalances: [],
               }
@@ -452,14 +476,18 @@ export default function ClaimPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Vault: {truncateAddress(lookup.vaultAddress)}
                   </p>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {lookup.vaultExists
-                        ? 'A claimed vault object already exists on-chain for this handle.'
-                        : lookup.claimStatus === 'PREVIOUSLY_CLAIMED'
-                          ? 'This vault was claimed previously and the vault object has already been consumed.'
-                          : 'No vault object yet. Funds remain in the deterministic address until claim.'}
-                    </p>
-                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {lookup.claimAction === 'WITHDRAW'
+                      ? 'A claimed vault object already exists on-chain for this handle. New funds are waiting inside it.'
+                      : lookup.claimAction === 'REPAIR_AND_WITHDRAW'
+                        ? 'This vault is still owned by an older wallet for the same X account. Claiming will repair ownership before withdrawing.'
+                        : lookup.vaultExists
+                          ? 'A claimed vault object already exists on-chain for this handle.'
+                          : lookup.claimStatus === 'PREVIOUSLY_CLAIMED'
+                            ? 'This vault was claimed previously and the vault object has already been consumed.'
+                            : 'No vault object yet. Funds remain in the deterministic address until claim.'}
+                  </p>
+                </div>
 
                 <div className="metric-card">
                   <p className="section-eyebrow">What changes after claim</p>

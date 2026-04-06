@@ -142,7 +142,7 @@ export function PaymentTable({
       </Badge>
     );
 
-    if (row.txUrl) {
+    if (showTxLink && row.txUrl) {
       return (
         <Link href={row.txUrl} rel="noreferrer" target="_blank">
           {badge}

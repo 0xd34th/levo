@@ -9,13 +9,13 @@ import { SendButton } from '@/components/send-button';
 import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
 import { UsernameInput } from '@/components/username-input';
 import { Button } from '@/components/ui/button';
-import { SUI_COIN_TYPE, getTestUsdcCoinType } from '@/lib/coins';
+import { SUI_COIN_TYPE, getUserFacingUsdcCoinType } from '@/lib/coins';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import { sanitizeAmountForCoinType } from '@/lib/send-form';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
-const defaultCoinType = getTestUsdcCoinType() ?? SUI_COIN_TYPE;
+const defaultCoinType = getUserFacingUsdcCoinType() ?? SUI_COIN_TYPE;
 
 export default function SendPage() {
   const {

@@ -5,7 +5,11 @@ const {
   countMock,
   createMock,
   deriveVaultAddressMock,
+  findSuiWalletForPrivyUserByAddressMock,
   findUniqueMock,
+  getObjectMock,
+  getPrivyClientMock,
+  getSuiClientMock,
   rateLimitMock,
   resolveFreshXUserMock,
   signQuoteTokenMock,
@@ -17,7 +21,11 @@ const {
   countMock: vi.fn(),
   createMock: vi.fn(),
   deriveVaultAddressMock: vi.fn(),
+  findSuiWalletForPrivyUserByAddressMock: vi.fn(),
   findUniqueMock: vi.fn(),
+  getObjectMock: vi.fn(),
+  getPrivyClientMock: vi.fn(),
+  getSuiClientMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveFreshXUserMock: vi.fn(),
   signQuoteTokenMock: vi.fn(),
@@ -47,6 +55,7 @@ vi.mock('@/lib/api', async () => {
 
 vi.mock('@/lib/sui', () => ({
   deriveVaultAddress: deriveVaultAddressMock,
+  getSuiClient: getSuiClientMock,
 }));
 
 vi.mock('@/lib/hmac', () => ({
@@ -72,7 +81,12 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
+  getPrivyClient: getPrivyClientMock,
   verifyPrivyXAuth: verifyPrivyXAuthMock,
+}));
+
+vi.mock('@/lib/privy-wallet', () => ({
+  findSuiWalletForPrivyUserByAddress: findSuiWalletForPrivyUserByAddressMock,
 }));
 
 vi.mock('@/lib/x-user-lookup', () => ({
@@ -92,6 +106,9 @@ describe('POST /api/v1/payments/quote', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    findUniqueMock.mockReset();
+    getObjectMock.mockReset();
+    findSuiWalletForPrivyUserByAddressMock.mockReset();
     vi.stubEnv('TWITTER_API_KEY', 'test-api-key');
     vi.stubEnv('NEXT_PUBLIC_VAULT_REGISTRY_ID', 'test-registry-id');
     vi.stubEnv('HMAC_SECRET', 'x'.repeat(32));
@@ -100,11 +117,16 @@ describe('POST /api/v1/payments/quote', () => {
     verifySameOriginMock.mockReturnValue({ ok: true });
     updateManyMock.mockResolvedValue({ count: 0 });
     countMock.mockResolvedValue(0);
-    findUniqueMock.mockResolvedValue({
-      privyUserId: 'privy-user',
-      suiAddress: `0x${'0'.repeat(63)}2`,
-      accountStatus: null,
-    });
+    findUniqueMock
+      .mockResolvedValueOnce({
+        privyUserId: 'privy-user',
+        suiAddress: `0x${'0'.repeat(63)}2`,
+      })
+      .mockResolvedValueOnce({
+        accountStatus: null,
+        privyUserId: 'recipient-privy-user',
+        suiAddress: `0x${'0'.repeat(63)}4`,
+      });
     resolveFreshXUserMock.mockResolvedValue({
       xUserId: '12345',
       username: 'alice',
@@ -121,6 +143,12 @@ describe('POST /api/v1/payments/quote', () => {
       },
     });
     deriveVaultAddressMock.mockReturnValue('0xvault');
+    getPrivyClientMock.mockReturnValue({});
+    getSuiClientMock.mockReturnValue({
+      getObject: getObjectMock,
+    });
+    getObjectMock.mockResolvedValue({ error: { code: 'notExists' } });
+    findSuiWalletForPrivyUserByAddressMock.mockResolvedValue(null);
     signQuoteTokenMock.mockReturnValue('signed-quote-token');
     upsertMock.mockResolvedValue({});
     createMock.mockResolvedValue({});
@@ -250,6 +278,7 @@ describe('POST /api/v1/payments/quote', () => {
   });
 
   it('rejects Privy sessions that do not own the stored embedded wallet', async () => {
+    findUniqueMock.mockReset();
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'different-privy-user',
       suiAddress: `0x${'0'.repeat(63)}2`,
@@ -273,6 +302,97 @@ describe('POST /api/v1/payments/quote', () => {
     expect(resolveFreshXUserMock).not.toHaveBeenCalled();
     await expect(res.json()).resolves.toEqual({
       error: 'Wallet ownership could not be verified. Please set up your wallet first.',
+    });
+  });
+
+  it('rejects recipient vaults with a non-recoverable owner mismatch before creating a quote', async () => {
+    findUniqueMock.mockReset();
+    findUniqueMock
+      .mockResolvedValueOnce({
+        privyUserId: 'privy-user',
+        suiAddress: `0x${'0'.repeat(63)}2`,
+      })
+      .mockResolvedValueOnce({
+        accountStatus: null,
+        privyUserId: 'recipient-privy-user',
+        suiAddress: `0x${'0'.repeat(63)}4`,
+      });
+    getObjectMock.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: `0x${'0'.repeat(63)}9`,
+            recovery_counter: '1',
+          },
+        },
+      },
+    });
+    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce(null);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'alice',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect(createMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({
+      error: 'Recipient vault is controlled by a different wallet and cannot safely receive new funds.',
+    });
+  });
+
+  it('rejects recipient vaults when the recipient has a Privy owner but no canonical wallet binding yet', async () => {
+    findUniqueMock.mockReset();
+    findUniqueMock
+      .mockResolvedValueOnce({
+        privyUserId: 'privy-user',
+        suiAddress: `0x${'0'.repeat(63)}2`,
+      })
+      .mockResolvedValueOnce({
+        accountStatus: null,
+        privyUserId: 'recipient-privy-user',
+        suiAddress: null,
+      });
+    getObjectMock.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: `0x${'0'.repeat(63)}9`,
+            recovery_counter: '1',
+          },
+        },
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'alice',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    expect(createMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({
+      error: 'Recipient wallet binding is incomplete and cannot safely receive new funds.',
     });
   });
 

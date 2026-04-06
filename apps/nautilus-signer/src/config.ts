@@ -2,9 +2,6 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { z } from 'zod';
 import { bytesToHex, hexToBytes, normalizeSuiAddress } from './schema';
 
-export const REGISTERED_TESTNET_SIGNER_PUBLIC_KEY =
-  '0x77ea384188b9f8a8f2886fa676d64ca11e2730a6af4e2c181f187b2dc815a704';
-
 const EnvSchema = z.object({
   HOST: z.string().trim().optional(),
   PORT: z.string().trim().optional(),
@@ -67,12 +64,15 @@ export interface SignerConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): SignerConfig {
   const parsed = EnvSchema.parse(env);
+  const expectedPublicKeyValue = parsed.NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY?.trim();
+  if (!expectedPublicKeyValue) {
+    throw new Error('Missing NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY');
+  }
+
   const seed = decodeSeed(parsed.NAUTILUS_SIGNER_SEED_BASE64.trim());
   const publicKeyBytes = ed25519.getPublicKey(seed);
   const publicKeyHex = `0x${bytesToHex(publicKeyBytes)}`;
-  const expectedPublicKeyHex = parsed.NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY
-    ? normalizePublicKeyHex(parsed.NAUTILUS_SIGNER_EXPECTED_PUBLIC_KEY.trim())
-    : REGISTERED_TESTNET_SIGNER_PUBLIC_KEY;
+  const expectedPublicKeyHex = normalizePublicKeyHex(expectedPublicKeyValue);
 
   if (expectedPublicKeyHex !== publicKeyHex) {
     throw new Error(

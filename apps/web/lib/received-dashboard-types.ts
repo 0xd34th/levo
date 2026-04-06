@@ -1,6 +1,12 @@
-export const RECEIVED_CLAIM_STATUS_MODEL = 'vault_object_exists';
+export const RECEIVED_CLAIM_STATUS_MODEL = 'vault_owner_balance_v2';
 
-export type ReceivedClaimStatus = 'UNCLAIMED' | 'CLAIMED' | 'PREVIOUSLY_CLAIMED';
+export type ReceivedClaimStatus =
+  | 'UNCLAIMED'
+  | 'CLAIMED'
+  | 'PREVIOUSLY_CLAIMED'
+  | 'REPAIR_REQUIRED';
+
+export type ReceivedClaimAction = 'NONE' | 'CLAIM' | 'WITHDRAW' | 'REPAIR_AND_WITHDRAW';
 
 export interface ReceivedBalance {
   coinType: string;
@@ -32,6 +38,7 @@ export interface ReceivedVaultSummary {
   vaultAddress: string;
   vaultExists: boolean;
   claimStatus: ReceivedClaimStatus;
+  claimAction: ReceivedClaimAction;
   claimStatusModel: typeof RECEIVED_CLAIM_STATUS_MODEL;
   pendingBalances: ReceivedBalance[];
   recordedTotals: ReceivedBalance[];

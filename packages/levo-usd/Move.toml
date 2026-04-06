@@ -1,0 +1,6 @@
+[package]
+name = "levo_usd"
+edition = "2024.beta"
+
+[addresses]
+levo = "0x0"

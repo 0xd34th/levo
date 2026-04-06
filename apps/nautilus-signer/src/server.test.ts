@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSignerServer } from './server';
 import { loadConfig } from './config';
-import { signAttestation } from './sign-attestation';
+import { signAttestation, signOwnerRecoveryAttestation } from './sign-attestation';
 
 const env = {
   HOST: '127.0.0.1',
@@ -53,6 +53,39 @@ describe('nautilus signer HTTP server', () => {
         {
           xUserId: '12345',
           suiAddress: '0x2',
+        },
+        { nowMs: Date.now() },
+      ),
+    );
+  });
+
+  it('returns a signed owner-recovery attestation for a valid request', async () => {
+    const response = await fetch(`${baseUrl}/attestation`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.NAUTILUS_SIGNER_SECRET}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'owner_recovery',
+        x_user_id: '12345',
+        vault_id: '0x4',
+        current_owner: '0x2',
+        new_owner: '0x3',
+        recovery_counter: '7',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(
+      signOwnerRecoveryAttestation(
+        loadConfig(env),
+        {
+          xUserId: '12345',
+          vaultId: '0x4',
+          currentOwner: '0x2',
+          newOwner: '0x3',
+          recoveryCounter: '7',
         },
         { nowMs: Date.now() },
       ),

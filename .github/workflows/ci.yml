@@ -42,10 +42,10 @@ jobs:
         run: pnpm --filter web build
         env:
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID || 'cmjtfgkl700dqlb0dd87x5duw' }}
-          NEXT_PUBLIC_SUI_NETWORK: testnet
+          NEXT_PUBLIC_SUI_NETWORK: mainnet
           NEXT_PUBLIC_PACKAGE_ID: ${{ secrets.NEXT_PUBLIC_PACKAGE_ID || '0x0' }}
           NEXT_PUBLIC_VAULT_REGISTRY_ID: ${{ secrets.NEXT_PUBLIC_VAULT_REGISTRY_ID || '0x0' }}
-          NEXT_PUBLIC_TREASURY_CAP_ID: ${{ secrets.NEXT_PUBLIC_TREASURY_CAP_ID || '0x0' }}
+          LEVO_USD_COIN_TYPE: ${{ secrets.LEVO_USD_COIN_TYPE || '0x0::levo_usd::LEVO_USD' }}
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           HMAC_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           PRIVY_APP_SECRET: ci-placeholder

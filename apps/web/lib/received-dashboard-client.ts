@@ -3,6 +3,7 @@ import { normalizeUsernameInput } from '@/lib/send-form';
 import type {
   IncomingPaymentItem,
   ReceivedBalance,
+  ReceivedClaimAction,
   ReceivedClaimStatus,
 } from '@/lib/received-dashboard-types';
 
@@ -11,6 +12,7 @@ export type {
   IncomingPaymentsResponse,
   PublicLookupResponse,
   ReceivedBalance,
+  ReceivedClaimAction,
   ReceivedClaimStatus,
   ReceivedDashboardUser,
   ReceivedVaultSummary,
@@ -41,7 +43,27 @@ export function claimStatusLabel(status: ReceivedClaimStatus) {
     return 'Previously claimed';
   }
 
+  if (status === 'REPAIR_REQUIRED') {
+    return 'Repair required';
+  }
+
   return 'Unclaimed';
+}
+
+export function claimActionLabel(action: ReceivedClaimAction) {
+  if (action === 'WITHDRAW') {
+    return 'Withdraw now';
+  }
+
+  if (action === 'REPAIR_AND_WITHDRAW') {
+    return 'Repair & withdraw';
+  }
+
+  if (action === 'CLAIM') {
+    return 'Claim now';
+  }
+
+  return 'No action';
 }
 
 export function formatPendingBalances(balances: ReceivedBalance[]) {

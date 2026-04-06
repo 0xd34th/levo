@@ -39,3 +39,10 @@ apps/web/out/
 
 # Prisma generated client
 apps/web/lib/generated/
+
+# Agent / automation artifacts
+.autoteam/
+docs/superpowers/
+queue/
+runs/
+state/

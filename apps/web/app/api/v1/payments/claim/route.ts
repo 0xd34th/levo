@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { Transaction } from '@mysten/sui/transactions';
+import { type TransactionArgument, Transaction } from '@mysten/sui/transactions';
 import { getClientIp, noStoreJson, verifySameOrigin } from '@/lib/api';
 import { getGasStationKeypair } from '@/lib/gas-station';
-import { requestAttestation } from '@/lib/nautilus';
+import {
+  requestAttestation,
+  requestOwnerRecoveryAttestation,
+} from '@/lib/nautilus';
 import { prisma } from '@/lib/prisma';
 import {
   getPrivyClient,
@@ -13,10 +16,16 @@ import {
   buildPrivyRawSignAuthorizationRequest,
   signSuiTransaction,
 } from '@/lib/privy-wallet';
+import {
+  getConfiguredLevoUsdCoinType,
+  isStableLayerEnabled,
+} from '@/lib/coins';
 import { getRedis, rateLimit } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
+import { buildBurnFromStableCoinTx } from '@/lib/stable-layer';
 import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { parseXUserId } from '@/lib/twitter';
+import { getVaultOwnershipState } from '@/lib/vault-ownership';
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID ?? '';
 const VAULT_REGISTRY_ID = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID ?? '';
@@ -24,6 +33,10 @@ const ENCLAVE_REGISTRY_ID = process.env.ENCLAVE_REGISTRY_ID ?? '';
 const MAX_CLAIM_COIN_OBJECTS = 200;
 const MAX_CLAIM_COIN_PAGES = 20;
 const AUTHORIZATION_BUNDLE_TTL_SEC = 120;
+const CLAIM_SPONSORED_GAS_BUDGET_MIST = 50_000_000;
+const STABLE_LAYER_DUST_RESERVE_RAW = 1n;
+const STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR =
+  'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.';
 
 const RequestSchema = z.object({
   authorizationSignature: z.string().min(1).optional(),
@@ -39,6 +52,70 @@ type PendingClaimAuthorizationBundle = z.infer<typeof PendingClaimAuthorizationB
 
 class VaultCoinLimitError extends Error {}
 class VaultCoinPageLimitError extends Error {}
+
+type ClaimableVaultCoin = {
+  objectId: string;
+  version: string;
+  digest: string;
+  coinType: string;
+  balance: bigint;
+};
+
+type ClaimFlow = 'CLAIM' | 'WITHDRAW' | 'REPAIR_AND_WITHDRAW';
+
+function buildStableLayerClaimFailureResponse(error: unknown) {
+  console.error('Failed to compose StableLayer burn transaction', error);
+  return noStoreJson(
+    { error: 'Claims are temporarily unavailable. Please retry shortly.' },
+    { status: 503 },
+  );
+}
+
+function buildStableLayerRedeemableMinimumResponse() {
+  return noStoreJson(
+    { error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR },
+    { status: 409 },
+  );
+}
+
+function extractCoinBalance(rawContent: unknown): bigint | null {
+  if (!rawContent || typeof rawContent !== 'object') {
+    return null;
+  }
+
+  const fields = (rawContent as { fields?: Record<string, unknown> }).fields;
+  const directBalance = fields?.balance;
+  if (
+    typeof directBalance === 'string' ||
+    typeof directBalance === 'number' ||
+    typeof directBalance === 'bigint'
+  ) {
+    return BigInt(directBalance);
+  }
+
+  const wrappedValue =
+    fields?.value as
+      | { balance?: string | number | bigint; fields?: { balance?: string | number | bigint } }
+      | undefined;
+  const wrappedBalance = wrappedValue?.fields?.balance ?? wrappedValue?.balance;
+  if (
+    typeof wrappedBalance === 'string' ||
+    typeof wrappedBalance === 'number' ||
+    typeof wrappedBalance === 'bigint'
+  ) {
+    return BigInt(wrappedBalance);
+  }
+
+  return null;
+}
+
+function isStableLayerBalanceSplitError(error: unknown) {
+  return (
+    typeof error === 'string' &&
+    error.includes('0x2::balance') &&
+    error.includes('split')
+  );
+}
 
 function getPendingClaimAuthorizationKey(xUserId: string) {
   return `pending-claim-auth:${xUserId}`;
@@ -104,9 +181,11 @@ async function clearPendingClaimAuthorization(xUserId: string) {
   }
 }
 
-async function getAllVaultCoins(vaultAddress: string) {
-  const client = getSuiClient();
-  const coins = [];
+async function getAllVaultCoins(
+  client: ReturnType<typeof getSuiClient>,
+  vaultAddress: string,
+): Promise<ClaimableVaultCoin[]> {
+  const coins: ClaimableVaultCoin[] = [];
   let cursor: string | null | undefined = null;
   let pageCount = 0;
 
@@ -121,20 +200,40 @@ async function getAllVaultCoins(vaultAddress: string) {
     const page = await client.getOwnedObjects({
       owner: vaultAddress,
       cursor,
-      options: { showType: true },
+      options: { showType: true, showContent: true },
     });
 
-    coins.push(
-      ...page.data.filter((obj) => {
-        const objectType = obj.data?.type;
-        return (
-          Boolean(obj.data?.objectId) &&
-          typeof objectType === 'string' &&
-          objectType.startsWith('0x2::coin::Coin<') &&
-          objectType.endsWith('>')
-        );
-      }),
-    );
+    for (const obj of page.data) {
+      const objectType = obj.data?.type;
+      const objectId = obj.data?.objectId;
+      const version = obj.data?.version;
+      const digest = obj.data?.digest;
+      const balance = extractCoinBalance(obj.data?.content);
+      if (
+        !objectId ||
+        !version ||
+        !digest ||
+        typeof objectType !== 'string' ||
+        !objectType.startsWith('0x2::coin::Coin<') ||
+        !objectType.endsWith('>') ||
+        balance === null
+      ) {
+        continue;
+      }
+
+      const coinTypeMatch = objectType.match(/^0x2::coin::Coin<(.+)>$/);
+      if (!coinTypeMatch?.[1]) {
+        continue;
+      }
+
+      coins.push({
+        objectId,
+        version: typeof version === 'string' ? version : String(version),
+        digest,
+        coinType: coinTypeMatch[1],
+        balance,
+      });
+    }
     if (coins.length > MAX_CLAIM_COIN_OBJECTS) {
       throw new VaultCoinLimitError(
         'Vault contains too many deposits to claim in one transaction right now.',
@@ -148,6 +247,46 @@ async function getAllVaultCoins(vaultAddress: string) {
   } while (cursor);
 
   return coins;
+}
+
+async function getStoredVaultCoinBalance(
+  client: ReturnType<typeof getSuiClient>,
+  vaultAddress: string,
+  coinType: string,
+): Promise<bigint> {
+  let cursor: string | null | undefined = null;
+  let pageCount = 0;
+  const expectedKeyType = `${PACKAGE_ID}::x_vault::BalanceKey<${coinType}>`;
+
+  do {
+    pageCount += 1;
+    if (pageCount > MAX_CLAIM_COIN_PAGES) {
+      throw new VaultCoinPageLimitError(
+        'Vault contains too many assets to scan in one claim right now.',
+      );
+    }
+
+    const page = await client.getDynamicFields({
+      parentId: vaultAddress,
+      cursor,
+    });
+
+    const field = page.data.find((entry) => entry.name?.type === expectedKeyType);
+    if (field?.objectId) {
+      const object = await client.getObject({
+        id: field.objectId,
+        options: { showContent: true },
+      });
+      return extractCoinBalance(object.data?.content) ?? 0n;
+    }
+
+    cursor = page.nextCursor;
+    if (!page.hasNextPage) {
+      break;
+    }
+  } while (cursor);
+
+  return 0n;
 }
 
 export async function POST(req: NextRequest) {
@@ -227,28 +366,102 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Request Nautilus attestation
-    let attestation;
+    const client = getSuiClient();
+    const vaultAddress = deriveVaultAddress(VAULT_REGISTRY_ID, BigInt(xUserId));
+    const privy = getPrivyClient();
+
+    let ownership;
     try {
-      attestation = await requestAttestation({
-        xUserId,
-        suiAddress: xUser.suiAddress,
+      ownership = await getVaultOwnershipState({
+        client,
+        vaultAddress,
+        canonicalAddress: xUser.suiAddress,
+        privy,
+        privyUserId: xUser.privyUserId,
       });
     } catch (error) {
-      console.error('Attestation request failed', error);
+      console.error('Failed to query vault ownership', error);
+      return noStoreJson({ error: 'Failed to query vault status' }, { status: 500 });
+    }
+
+    const legacyWallet = ownership.repairWallet;
+    if (ownership.kind === 'OWNED_BY_OTHER' && !legacyWallet) {
       return noStoreJson(
-        { error: 'Failed to obtain attestation. Please try again.' },
-        { status: 502 },
+        { error: 'This vault is currently controlled by a different wallet. Repair ownership before claiming again.' },
+        { status: 409 },
       );
     }
 
-    // 6. Fetch coin objects at the vault's derived address
-    const client = getSuiClient();
-    const vaultAddress = deriveVaultAddress(VAULT_REGISTRY_ID, BigInt(xUserId));
+    const claimFlow: ClaimFlow =
+      ownership.kind === 'OWNED_BY_CANONICAL'
+        ? 'WITHDRAW'
+        : legacyWallet
+          ? 'REPAIR_AND_WITHDRAW'
+          : 'CLAIM';
+    const repairWallet =
+      claimFlow === 'REPAIR_AND_WITHDRAW'
+        ? legacyWallet
+        : null;
+    const signingAddress =
+      claimFlow === 'REPAIR_AND_WITHDRAW'
+        ? repairWallet!.suiAddress
+        : xUser.suiAddress;
+    const signingWalletId =
+      claimFlow === 'REPAIR_AND_WITHDRAW'
+        ? repairWallet!.privyWalletId
+        : xUser.privyWalletId;
+    const signingPublicKey =
+      claimFlow === 'REPAIR_AND_WITHDRAW'
+        ? repairWallet!.suiPublicKey
+        : xUser.suiPublicKey;
+
+    if (!signingPublicKey) {
+      return noStoreJson(
+        { error: 'Wallet ownership could not be verified. Please set up your wallet first.' },
+        { status: 403 },
+      );
+    }
+
+    let attestation: Awaited<ReturnType<typeof requestAttestation>> | null = null;
+    if (claimFlow === 'CLAIM') {
+      try {
+        attestation = await requestAttestation({
+          xUserId,
+          suiAddress: xUser.suiAddress,
+        });
+      } catch (error) {
+        console.error('Attestation request failed', error);
+        return noStoreJson(
+          { error: 'Failed to obtain attestation. Please try again.' },
+          { status: 502 },
+        );
+      }
+    }
+
+    let ownerRecoveryAttestation: Awaited<
+      ReturnType<typeof requestOwnerRecoveryAttestation>
+    > | null = null;
+    if (claimFlow === 'REPAIR_AND_WITHDRAW') {
+      try {
+        ownerRecoveryAttestation = await requestOwnerRecoveryAttestation({
+          xUserId,
+          vaultId: vaultAddress,
+          currentOwner: repairWallet!.suiAddress,
+          newOwner: xUser.suiAddress,
+          recoveryCounter: ownership.recoveryCounter,
+        });
+      } catch (error) {
+        console.error('Owner recovery attestation request failed', error);
+        return noStoreJson(
+          { error: 'Failed to obtain attestation. Please try again.' },
+          { status: 502 },
+        );
+      }
+    }
 
     let coins;
     try {
-      coins = await getAllVaultCoins(vaultAddress);
+      coins = await getAllVaultCoins(client, vaultAddress);
     } catch (error) {
       if (error instanceof VaultCoinLimitError) {
         return noStoreJson({ error: error.message }, { status: 409 });
@@ -260,7 +473,29 @@ export async function POST(req: NextRequest) {
       return noStoreJson({ error: 'Failed to query vault status' }, { status: 500 });
     }
 
-    if (coins.length === 0) {
+    const configuredLevoUsdCoinType = getConfiguredLevoUsdCoinType();
+    let storedStableLayerBalance = 0n;
+    if (isStableLayerEnabled() && configuredLevoUsdCoinType) {
+      try {
+        storedStableLayerBalance = await getStoredVaultCoinBalance(
+          client,
+          vaultAddress,
+          configuredLevoUsdCoinType,
+        );
+      } catch (error) {
+        if (error instanceof VaultCoinPageLimitError) {
+          return noStoreJson({ error: error.message }, { status: 409 });
+        }
+        console.error('Failed to query stored vault balances', {
+          vaultAddress,
+          coinType: configuredLevoUsdCoinType,
+          error,
+        });
+        return noStoreJson({ error: 'Failed to query vault status' }, { status: 500 });
+      }
+    }
+
+    if (coins.length === 0 && storedStableLayerBalance === 0n) {
       return noStoreJson({ error: 'No funds to claim in the vault' }, { status: 400 });
     }
 
@@ -273,8 +508,8 @@ export async function POST(req: NextRequest) {
       return noStoreJson({ error: 'Gas sponsorship is misconfigured' }, { status: 500 });
     }
     let txBytes: Uint8Array;
-    let walletId = xUser.privyWalletId;
-    let storedPublicKey = xUser.suiPublicKey;
+    let walletId = signingWalletId;
+    let storedPublicKey = signingPublicKey;
 
     if (authorizationSignature) {
       const authorizationBundle = await loadPendingClaimAuthorization(auth.identity.xUserId);
@@ -292,60 +527,61 @@ export async function POST(req: NextRequest) {
       storedPublicKey = authorizationBundle.storedPublicKey;
     } else {
       const tx = new Transaction();
-      tx.setSender(xUser.suiAddress);
+      tx.setSender(signingAddress);
 
       if (gasKeypair) {
         tx.setGasOwner(gasKeypair.toSuiAddress());
+        tx.setGasBudget(CLAIM_SPONSORED_GAS_BUDGET_MIST);
       }
 
-      console.log('[claim] attestation params:', {
-        xUserId: attestation.xUserId.toString(),
-        suiAddress: attestation.suiAddress,
-        nonce: attestation.nonce.toString(),
-        expiresAt: attestation.expiresAt.toString(),
-        signatureHex: Buffer.from(attestation.signature).toString('hex'),
-        signatureLen: attestation.signature.length,
-        registryId: ENCLAVE_REGISTRY_ID,
-      });
+      let vault: TransactionArgument;
+      if (claimFlow === 'CLAIM') {
+        console.log('[claim] attestation params:', {
+          xUserId: attestation?.xUserId.toString(),
+          suiAddress: attestation?.suiAddress,
+          nonce: attestation?.nonce.toString(),
+          expiresAt: attestation?.expiresAt.toString(),
+          signatureHex: attestation
+            ? Buffer.from(attestation.signature).toString('hex')
+            : null,
+          signatureLen: attestation?.signature.length ?? 0,
+          registryId: ENCLAVE_REGISTRY_ID,
+        });
 
-      const [vault] = tx.moveCall({
-        target: `${PACKAGE_ID}::x_vault::claim_vault`,
-        arguments: [
-          tx.object(VAULT_REGISTRY_ID),
-          tx.object(ENCLAVE_REGISTRY_ID),
-          tx.pure.u64(attestation.xUserId),
-          tx.pure.address(attestation.suiAddress),
-          tx.pure.u64(attestation.nonce),
-          tx.pure.u64(attestation.expiresAt),
-          tx.pure.vector('u8', Array.from(attestation.signature)),
-          tx.object('0x6'),
-        ],
-      });
+        [vault] = tx.moveCall({
+          target: `${PACKAGE_ID}::x_vault::claim_vault`,
+          arguments: [
+            tx.object(VAULT_REGISTRY_ID),
+            tx.object(ENCLAVE_REGISTRY_ID),
+            tx.pure.u64(attestation!.xUserId),
+            tx.pure.address(attestation!.suiAddress),
+            tx.pure.u64(attestation!.nonce),
+            tx.pure.u64(attestation!.expiresAt),
+            tx.pure.vector('u8', Array.from(attestation!.signature)),
+            tx.object('0x6'),
+          ],
+        });
+      } else {
+        vault = tx.object(vaultAddress);
+      }
 
-      const claimableCoins = [];
+      const claimableCoins: ClaimableVaultCoin[] = [];
+      const incomingBalanceByType = new Map<string, bigint>();
       const coinTypes = new Set<string>();
       for (const coinObj of coins) {
-        const objectId = coinObj.data?.objectId;
-        const version = coinObj.data?.version;
-        const digest = coinObj.data?.digest;
-        const objectType = coinObj.data?.type;
-        if (!objectId || !version || !digest || !objectType) continue;
-
-        const coinTypeMatch = objectType.match(/^0x2::coin::Coin<(.+)>$/);
-        if (!coinTypeMatch) continue;
-        const innerCoinType = coinTypeMatch[1];
-        if (!innerCoinType) continue;
-
-        claimableCoins.push({
-          objectId,
-          version: typeof version === 'string' ? version : String(version),
-          digest,
-          coinType: innerCoinType,
-        });
-        coinTypes.add(innerCoinType);
+        claimableCoins.push(coinObj);
+        coinTypes.add(coinObj.coinType);
+        incomingBalanceByType.set(
+          coinObj.coinType,
+          (incomingBalanceByType.get(coinObj.coinType) ?? 0n) + coinObj.balance,
+        );
       }
 
-      if (claimableCoins.length === 0) {
+      if (storedStableLayerBalance > 0n && configuredLevoUsdCoinType) {
+        coinTypes.add(configuredLevoUsdCoinType);
+      }
+
+      if (claimableCoins.length === 0 && storedStableLayerBalance === 0n) {
         return noStoreJson({ error: 'No claimable funds found in the vault' }, { status: 400 });
       }
 
@@ -354,6 +590,7 @@ export async function POST(req: NextRequest) {
           target: `${PACKAGE_ID}::x_vault::sweep_coin_to_vault`,
           typeArguments: [claimableCoin.coinType],
           arguments: [
+            tx.object(VAULT_REGISTRY_ID),
             vault,
             tx.receivingRef({
               objectId: claimableCoin.objectId,
@@ -364,19 +601,91 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const totalStableLayerBalance =
+        configuredLevoUsdCoinType
+          ? (incomingBalanceByType.get(configuredLevoUsdCoinType) ?? 0n) + storedStableLayerBalance
+          : 0n;
+      const stableLayerWithdrawAmount =
+        totalStableLayerBalance > STABLE_LAYER_DUST_RESERVE_RAW
+          ? totalStableLayerBalance - STABLE_LAYER_DUST_RESERVE_RAW
+          : 0n;
+      let hasClaimableWithdrawal = false;
+
       for (const innerCoinType of coinTypes) {
-        const [withdrawn] = tx.moveCall({
-          target: `${PACKAGE_ID}::x_vault::withdraw_all`,
-          typeArguments: [innerCoinType],
-          arguments: [
-            vault,
-          ],
-        });
-        tx.transferObjects([withdrawn], xUser.suiAddress);
+        if (
+          isStableLayerEnabled() &&
+          configuredLevoUsdCoinType &&
+          innerCoinType === configuredLevoUsdCoinType
+        ) {
+          if (stableLayerWithdrawAmount === 0n) {
+            continue;
+          }
+
+          const [withdrawn] = tx.moveCall({
+            target: `${PACKAGE_ID}::x_vault::withdraw`,
+            typeArguments: [innerCoinType],
+            arguments: [
+              tx.object(VAULT_REGISTRY_ID),
+              vault,
+              tx.pure.u64(stableLayerWithdrawAmount),
+            ],
+          });
+
+          hasClaimableWithdrawal = true;
+          try {
+            const usdcCoin = await buildBurnFromStableCoinTx({
+              tx,
+              senderAddress: signingAddress,
+              stableCoinType: innerCoinType,
+              stableCoin: withdrawn,
+            });
+            tx.transferObjects([usdcCoin], xUser.suiAddress);
+          } catch (error) {
+            return buildStableLayerClaimFailureResponse(error);
+          }
+        } else {
+          const [withdrawn] = tx.moveCall({
+            target: `${PACKAGE_ID}::x_vault::withdraw_all`,
+            typeArguments: [innerCoinType],
+            arguments: [
+              tx.object(VAULT_REGISTRY_ID),
+              vault,
+            ],
+          });
+
+          hasClaimableWithdrawal = true;
+          tx.transferObjects([withdrawn], xUser.suiAddress);
+        }
       }
 
-      // XVault has no `drop` — must transfer to the owner
-      tx.transferObjects([vault], xUser.suiAddress);
+      if (!hasClaimableWithdrawal) {
+        if (totalStableLayerBalance > 0n) {
+          return buildStableLayerRedeemableMinimumResponse();
+        }
+
+        return noStoreJson({ error: 'No claimable funds found in the vault' }, { status: 400 });
+      }
+
+      if (claimFlow === 'CLAIM') {
+        // XVault has no `store`; use the module helper instead of PTB transferObjects.
+        tx.moveCall({
+          target: `${PACKAGE_ID}::x_vault::transfer_vault`,
+          arguments: [vault],
+        });
+      } else if (claimFlow === 'REPAIR_AND_WITHDRAW') {
+        tx.moveCall({
+          target: `${PACKAGE_ID}::x_vault::update_owner`,
+          arguments: [
+            tx.object(VAULT_REGISTRY_ID),
+            tx.object(ENCLAVE_REGISTRY_ID),
+            vault,
+            tx.pure.address(xUser.suiAddress),
+            tx.pure.u64(ownerRecoveryAttestation!.expiresAt),
+            tx.pure.vector('u8', Array.from(ownerRecoveryAttestation!.signature)),
+            tx.object('0x6'),
+          ],
+        });
+      }
 
       try {
         txBytes = await tx.build({ client });
@@ -389,11 +698,40 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        const preflight = await client.dryRunTransactionBlock({
+          transactionBlock: txBytes,
+        });
+
+        if (preflight.effects?.status.status !== 'success') {
+          console.error('Claim preflight dry-run failed', {
+            xUserId,
+            vaultAddress,
+            status: preflight.effects?.status,
+          });
+
+          if (isStableLayerBalanceSplitError(preflight.effects?.status.error)) {
+            return buildStableLayerRedeemableMinimumResponse();
+          }
+
+          return noStoreJson(
+            { error: 'Claims are temporarily unavailable. Please retry shortly.' },
+            { status: 503 },
+          );
+        }
+      } catch (error) {
+        console.error('Failed to preflight claim transaction', error);
+        return noStoreJson(
+          { error: 'Claims are temporarily unavailable. Please retry shortly.' },
+          { status: 503 },
+        );
+      }
+
+      try {
         await stagePendingClaimAuthorization(
           auth.identity.xUserId,
           txBytes,
-          xUser.privyWalletId,
-          xUser.suiPublicKey,
+          walletId,
+          storedPublicKey,
         );
       } catch (error) {
         console.error('Failed to stage claim authorization request', error);
@@ -405,7 +743,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const authorizationRequest = buildPrivyRawSignAuthorizationRequest(
-          xUser.privyWalletId,
+          walletId,
           txBytes,
         );
         return noStoreJson({
@@ -454,6 +792,17 @@ export async function POST(req: NextRequest) {
       });
 
       if (result.effects?.status.status !== 'success') {
+        console.error('Claim transaction failed on-chain', {
+          xUserId,
+          vaultAddress,
+          txDigest: result.digest,
+          status: result.effects?.status,
+        });
+
+        if (isStableLayerBalanceSplitError(result.effects?.status.error)) {
+          return buildStableLayerRedeemableMinimumResponse();
+        }
+
         return noStoreJson(
           { error: 'Claim transaction failed on-chain. Please try again.' },
           { status: 409 },

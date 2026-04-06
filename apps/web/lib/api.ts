@@ -86,18 +86,19 @@ function normalizeOrigin(origin: string): string | null {
 }
 
 export function getExpectedOrigin(req: NextRequest): string | null {
+  const requestOriginHeader = normalizeOrigin(req.headers.get('origin') ?? '');
+  const requestOrigin = normalizeOrigin(req.nextUrl.origin);
+  if (process.env.NODE_ENV !== 'production') {
+    return requestOriginHeader ?? requestOrigin;
+  }
+
   const configuredOrigin = process.env.APP_ORIGIN?.trim();
   if (configuredOrigin) {
     return normalizeOrigin(configuredOrigin);
   }
 
-  const requestOrigin = normalizeOrigin(req.nextUrl.origin);
   if (!requestOrigin) {
     return null;
-  }
-
-  if (process.env.NODE_ENV !== 'production') {
-    return requestOrigin;
   }
 
   return null;

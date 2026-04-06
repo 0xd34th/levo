@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
+  claimActionLabel,
   claimStatusLabel,
   explorerUrl,
   formatPendingBalances,
@@ -158,7 +159,10 @@ export default function LookupPage() {
                     {claimStatusLabel(result.claimStatus)}
                   </Badge>
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">Public status for @{result.username}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Next action: {claimActionLabel(result.claimAction)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">Public status for @{result.username}</p>
               </div>
             </section>
 
@@ -214,7 +218,15 @@ export default function LookupPage() {
               <div className="metric-card">
                 <p className="section-eyebrow">Next step</p>
                 <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
-                  The recipient signs in with X, connects a Sui wallet, and claims the balance.
+                  {result.claimAction === 'WITHDRAW'
+                    ? 'The recipient signs in with X and withdraws newly arrived funds from the claimed vault.'
+                    : result.claimAction === 'REPAIR_AND_WITHDRAW'
+                      ? 'The recipient signs in with X, repairs vault ownership, and withdraws the pending balance.'
+                      : result.claimStatus === 'CLAIMED'
+                        ? 'This vault is already owned on-chain and there is no pending balance to withdraw right now.'
+                        : result.claimStatus === 'PREVIOUSLY_CLAIMED'
+                          ? 'This vault was claimed previously and there is no active vault object to act on right now.'
+                      : 'The recipient signs in with X, connects a Sui wallet, and claims the balance.'}
                 </p>
                 <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
                   <Wallet className="size-4 text-primary" />

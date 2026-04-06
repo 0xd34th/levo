@@ -6,6 +6,7 @@ import { Check, LoaderCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
+  claimActionLabel,
   formatPendingBalances,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
@@ -33,6 +34,14 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
 
   const twitterSubject = user?.twitter?.subject;
   const isReady = ready && authenticated && Boolean(twitterSubject);
+  const claimButtonLabel =
+    data ? claimActionLabel(data.claimAction) : 'Claim now';
+  const claimDescription =
+    data?.claimAction === 'WITHDRAW'
+      ? 'New funds are waiting inside your claimed vault.'
+      : data?.claimAction === 'REPAIR_AND_WITHDRAW'
+        ? 'Claiming will repair vault ownership, then move funds to your current wallet.'
+        : 'Funds waiting in your vault';
 
   // Auto-fetch received data if not provided
   useEffect(() => {
@@ -126,7 +135,14 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
       setTxDigest(result.txDigest ?? null);
       setClaimState('claimed');
       setData((prev) =>
-        prev ? { ...prev, claimStatus: 'CLAIMED', pendingBalances: [] } : prev,
+        prev
+          ? {
+              ...prev,
+              claimStatus: 'CLAIMED',
+              claimAction: 'NONE',
+              pendingBalances: [],
+            }
+          : prev,
       );
     } catch (err) {
       setClaimState('error');
@@ -140,8 +156,7 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
     !loading &&
     isReady &&
     data !== null &&
-    data.claimStatus !== 'CLAIMED' &&
-    data.claimStatus !== 'PREVIOUSLY_CLAIMED' &&
+    data.claimAction !== 'NONE' &&
     data.pendingBalances.length > 0;
 
   useEffect(() => {
@@ -183,7 +198,7 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
             {formatPendingBalances(data.pendingBalances)} pending
           </p>
           <p className="text-xs text-muted-foreground">
-            Funds waiting in your vault
+            {claimDescription}
           </p>
         </div>
         <Button
@@ -195,10 +210,10 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
           {claimState === 'claiming' ? (
             <>
               <LoaderCircle className="size-3.5 animate-spin" />
-              Claiming
+              Processing
             </>
           ) : (
-            'Claim now'
+            claimButtonLabel
           )}
         </Button>
       </div>

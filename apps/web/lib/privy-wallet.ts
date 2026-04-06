@@ -35,6 +35,29 @@ interface PrivySigningAuthorization {
   userJwts?: string | string[];
 }
 
+export interface PrivySuiWallet {
+  privyWalletId: string;
+  suiAddress: string;
+  suiPublicKey: string | null;
+}
+
+export class WalletBindingConflictError extends Error {
+  constructor(message = 'Stored wallet binding conflicts with Privy wallet data.') {
+    super(message);
+    this.name = 'WalletBindingConflictError';
+  }
+}
+
+export function isWalletBindingConflictError(
+  error: unknown,
+): error is WalletBindingConflictError {
+  return error instanceof WalletBindingConflictError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      'name' in error &&
+      (error as { name?: string }).name === 'WalletBindingConflictError');
+}
+
 function buildRawSignParams(txBytes: Uint8Array): PrivyRawSignParams {
   const intentMessage = messageWithIntent('TransactionData', txBytes);
 
@@ -59,6 +82,106 @@ function getPrivyRawSignUrl(walletId: string): string {
   return new URL(`/v1/wallets/${walletId}/raw_sign`, baseUrl).toString();
 }
 
+function normalizeWalletAddress(address: string): string {
+  try {
+    return normalizeSuiAddress(address);
+  } catch {
+    throw new Error('Privy wallet created with an invalid Sui address');
+  }
+}
+
+function assertValidWalletAddress(address: string) {
+  if (!isValidSuiAddress(address)) {
+    throw new Error('Privy wallet created with an invalid Sui address');
+  }
+}
+
+function assertWalletMatchesStoredBinding(params: {
+  existingWalletId: string | null;
+  existingSuiAddress: string | null;
+  existingSuiPublicKey: string | null;
+  createdWalletId: string;
+  createdSuiAddress: string;
+  createdSuiPublicKey: string;
+}) {
+  const {
+    existingWalletId,
+    existingSuiAddress,
+    existingSuiPublicKey,
+    createdWalletId,
+    createdSuiAddress,
+    createdSuiPublicKey,
+  } = params;
+
+  if (existingWalletId && existingWalletId !== createdWalletId) {
+    throw new WalletBindingConflictError();
+  }
+
+  if (existingSuiAddress) {
+    const normalizedStoredAddress = normalizeWalletAddress(existingSuiAddress);
+    if (normalizedStoredAddress !== createdSuiAddress) {
+      throw new WalletBindingConflictError();
+    }
+  }
+
+  if (existingSuiPublicKey && existingSuiPublicKey !== createdSuiPublicKey) {
+    throw new WalletBindingConflictError();
+  }
+}
+
+function isCompleteStoredWalletBinding(existing: {
+  privyWalletId: string | null;
+  suiAddress: string | null;
+  suiPublicKey: string | null;
+} | null | undefined): existing is {
+  privyWalletId: string;
+  suiAddress: string;
+  suiPublicKey: string;
+} {
+  return Boolean(
+    existing?.privyWalletId &&
+      existing.suiAddress &&
+      existing.suiPublicKey,
+  );
+}
+
+function selectReconciledWallet(params: {
+  existingWalletId: string | null;
+  existingSuiAddress: string | null;
+  wallets: PrivySuiWallet[];
+}): PrivySuiWallet | null {
+  const { existingWalletId, existingSuiAddress, wallets } = params;
+
+  if (existingWalletId) {
+    const byWalletId = wallets.find((wallet) => wallet.privyWalletId === existingWalletId);
+    if (byWalletId) {
+      return byWalletId;
+    }
+  }
+
+  if (existingSuiAddress) {
+    const normalizedStoredAddress = normalizeWalletAddress(existingSuiAddress);
+    const byAddress = wallets.find((wallet) => wallet.suiAddress === normalizedStoredAddress);
+    if (byAddress) {
+      return byAddress;
+    }
+  }
+
+  if (wallets.length === 1) {
+    return wallets[0] ?? null;
+  }
+
+  return null;
+}
+
+function assertWalletHasPublicKey(wallet: PrivySuiWallet): asserts wallet is PrivySuiWallet & {
+  suiPublicKey: string;
+} {
+  if (!wallet.suiPublicKey) {
+    throw new Error('Privy wallet created without public key');
+  }
+}
+
 export function buildPrivyRawSignAuthorizationRequest(
   walletId: string,
   txBytes: Uint8Array,
@@ -81,6 +204,38 @@ export function buildPrivyRawSignAuthorizationRequest(
   };
 }
 
+export async function listSuiWalletsForPrivyUser(
+  privy: PrivyClient,
+  privyUserId: string,
+): Promise<PrivySuiWallet[]> {
+  const wallets: PrivySuiWallet[] = [];
+
+  for await (const wallet of privy.wallets().list({
+    user_id: privyUserId,
+    chain_type: 'sui',
+  })) {
+    const normalizedAddress = normalizeSuiAddress(wallet.address);
+    wallets.push({
+      privyWalletId: wallet.id,
+      suiAddress: normalizedAddress,
+      suiPublicKey: wallet.public_key ?? null,
+    });
+  }
+
+  return wallets;
+}
+
+export async function findSuiWalletForPrivyUserByAddress(
+  privy: PrivyClient,
+  privyUserId: string,
+  suiAddress: string,
+): Promise<PrivySuiWallet | null> {
+  const normalizedAddress = normalizeSuiAddress(suiAddress);
+  const wallets = await listSuiWalletsForPrivyUser(privy, privyUserId);
+
+  return wallets.find((wallet) => wallet.suiAddress === normalizedAddress) ?? null;
+}
+
 /**
  * Get or create a Sui embedded wallet for the given X user.
  * On first call it creates the wallet via Privy, stores the details in the DB,
@@ -88,8 +243,8 @@ export function buildPrivyRawSignAuthorizationRequest(
  *
  * Callers are expected to serialize concurrent setup attempts per X user
  * (for example with the Redis lock in `wallet/setup/route.ts`). Safety across
- * retries relies on Privy's `idempotency_key` guarantee plus the final Prisma
- * upsert.
+ * retries relies on Privy's `idempotency_key` guarantee plus the final
+ * Prisma upsert.
  */
 export async function getOrCreateSuiWallet(
   privy: PrivyClient,
@@ -106,11 +261,60 @@ export async function getOrCreateSuiWallet(
     select: { privyWalletId: true, suiAddress: true, suiPublicKey: true },
   });
 
-  if (existing?.privyWalletId && existing.suiAddress && existing.suiPublicKey) {
+  if (isCompleteStoredWalletBinding(existing)) {
     return {
       privyWalletId: existing.privyWalletId,
       suiAddress: existing.suiAddress,
       suiPublicKey: existing.suiPublicKey,
+    };
+  }
+
+  const existingWallets = await listSuiWalletsForPrivyUser(privy, privyUserId);
+  const reconciledWallet = selectReconciledWallet({
+    existingWalletId: existing?.privyWalletId ?? null,
+    existingSuiAddress: existing?.suiAddress ?? null,
+    wallets: existingWallets,
+  });
+
+  if (reconciledWallet) {
+    assertWalletHasPublicKey(reconciledWallet);
+    assertWalletMatchesStoredBinding({
+      existingWalletId: existing?.privyWalletId ?? null,
+      existingSuiAddress: existing?.suiAddress ?? null,
+      existingSuiPublicKey: existing?.suiPublicKey ?? null,
+      createdWalletId: reconciledWallet.privyWalletId,
+      createdSuiAddress: reconciledWallet.suiAddress,
+      createdSuiPublicKey: reconciledWallet.suiPublicKey,
+    });
+
+    try {
+      decodeStoredSuiPublicKey(reconciledWallet.suiPublicKey, reconciledWallet.suiAddress);
+    } catch {
+      throw new Error('Privy wallet created with an invalid Sui public key');
+    }
+
+    await prisma.xUser.upsert({
+      where: { xUserId },
+      update: {
+        privyUserId,
+        privyWalletId: reconciledWallet.privyWalletId,
+        suiAddress: reconciledWallet.suiAddress,
+        suiPublicKey: reconciledWallet.suiPublicKey,
+      },
+      create: {
+        xUserId,
+        username: xUserId,
+        privyUserId,
+        privyWalletId: reconciledWallet.privyWalletId,
+        suiAddress: reconciledWallet.suiAddress,
+        suiPublicKey: reconciledWallet.suiPublicKey,
+      },
+    });
+
+    return {
+      privyWalletId: reconciledWallet.privyWalletId,
+      suiAddress: reconciledWallet.suiAddress,
+      suiPublicKey: reconciledWallet.suiPublicKey,
     };
   }
 
@@ -121,20 +325,21 @@ export async function getOrCreateSuiWallet(
     idempotency_key: `sui-wallet-${xUserId}`,
   });
 
+  const walletAddress = normalizeWalletAddress(wallet.address);
+  assertValidWalletAddress(walletAddress);
+
   if (!wallet.public_key) {
     throw new Error('Privy wallet created without public key');
   }
 
-  let walletAddress: string;
-  try {
-    walletAddress = normalizeSuiAddress(wallet.address);
-  } catch {
-    throw new Error('Privy wallet created with an invalid Sui address');
-  }
-
-  if (!isValidSuiAddress(walletAddress)) {
-    throw new Error('Privy wallet created with an invalid Sui address');
-  }
+  assertWalletMatchesStoredBinding({
+    existingWalletId: existing?.privyWalletId ?? null,
+    existingSuiAddress: existing?.suiAddress ?? null,
+    existingSuiPublicKey: existing?.suiPublicKey ?? null,
+    createdWalletId: wallet.id,
+    createdSuiAddress: walletAddress,
+    createdSuiPublicKey: wallet.public_key,
+  });
 
   try {
     decodeStoredSuiPublicKey(wallet.public_key, walletAddress);

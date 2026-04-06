@@ -13,14 +13,15 @@ import {
   isSupportedCoinType,
   requiresPackageIdForCoinType,
 } from '@/lib/coins';
-import { deriveVaultAddress } from '@/lib/sui';
+import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
-import { verifyPrivyXAuth } from '@/lib/privy-auth';
+import { getPrivyClient, verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
+import { getVaultOwnershipState } from '@/lib/vault-ownership';
 
 const RequestSchema = z.object({
   username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username'),
@@ -178,7 +179,11 @@ export async function POST(req: NextRequest) {
   // Check XUser account status — reject if SUSPENDED or DELETED
   const existingUser = await prisma.xUser.findUnique({
     where: { xUserId: userInfo.xUserId },
-    select: { accountStatus: true },
+    select: {
+      accountStatus: true,
+      privyUserId: true,
+      suiAddress: true,
+    },
   });
   if (
     existingUser &&
@@ -205,6 +210,33 @@ export async function POST(req: NextRequest) {
     userInfo.profilePicture && isTrustedProfilePictureUrl(userInfo.profilePicture)
       ? userInfo.profilePicture
       : null;
+
+  try {
+    const ownership = await getVaultOwnershipState({
+      client: getSuiClient(),
+      vaultAddress,
+      canonicalAddress: existingUser?.suiAddress ?? null,
+      privy: existingUser?.privyUserId ? getPrivyClient() : null,
+      privyUserId: existingUser?.privyUserId ?? null,
+    });
+
+    if (existingUser?.privyUserId && !existingUser.suiAddress && ownership.vaultExists) {
+      return noStoreJson(
+        { error: 'Recipient wallet binding is incomplete and cannot safely receive new funds.' },
+        { status: 409 },
+      );
+    }
+
+    if (ownership.kind === 'OWNED_BY_OTHER' && !ownership.repairWallet) {
+      return noStoreJson(
+        { error: 'Recipient vault is controlled by a different wallet and cannot safely receive new funds.' },
+        { status: 409 },
+      );
+    }
+  } catch (error) {
+    console.error('Failed to verify recipient vault ownership', error);
+    return noStoreJson({ error: 'Failed to verify recipient vault ownership' }, { status: 500 });
+  }
 
   // Generate HMAC token with 5-minute expiry
   const hmacSecret = process.env.HMAC_SECRET;

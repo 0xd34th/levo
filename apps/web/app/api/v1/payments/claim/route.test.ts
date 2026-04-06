@@ -6,17 +6,24 @@ const {
   buildPrivyRawSignAuthorizationRequestMock,
   buildBurnFromStableCoinTxMock,
   deriveVaultAddressMock,
+  findSuiWalletForPrivyUserByAddressMock,
   findUniqueMock,
   getGasStationKeypairMock,
+  getDynamicFieldObjectMock,
+  getDynamicFieldsMock,
   getPrivyClientMock,
   redisDelMock,
   redisGetMock,
   redisSetMock,
+  dryRunTransactionBlockMock,
   getSuiClientMock,
   requestAttestationMock,
+  requestOwnerRecoveryAttestationMock,
   rateLimitMock,
   signSuiTransactionMock,
   txBuildMock,
+  txSetGasBudgetMock,
+  txSetGasOwnerMock,
   txMoveCallMock,
   txObjectMock,
   txPureAddressMock,
@@ -36,17 +43,24 @@ const {
     buildPrivyRawSignAuthorizationRequestMock: vi.fn(),
     buildBurnFromStableCoinTxMock: vi.fn(),
     deriveVaultAddressMock: vi.fn(),
+    findSuiWalletForPrivyUserByAddressMock: vi.fn(),
+    dryRunTransactionBlockMock: vi.fn(),
     findUniqueMock: vi.fn(),
     getGasStationKeypairMock: vi.fn(),
+    getDynamicFieldObjectMock: vi.fn(),
+    getDynamicFieldsMock: vi.fn(),
     getPrivyClientMock: vi.fn(),
     redisDelMock: vi.fn(),
     redisGetMock: vi.fn(),
     redisSetMock: vi.fn(),
     getSuiClientMock: vi.fn(),
     requestAttestationMock: vi.fn(),
+    requestOwnerRecoveryAttestationMock: vi.fn(),
     rateLimitMock: vi.fn(),
     signSuiTransactionMock: vi.fn(),
     txBuildMock: vi.fn(),
+    txSetGasBudgetMock: vi.fn(),
+    txSetGasOwnerMock: vi.fn(),
     txMoveCallMock: vi.fn(),
     txObjectMock: vi.fn(),
     txPureAddressMock: vi.fn(),
@@ -63,7 +77,8 @@ vi.mock('@mysten/sui/transactions', () => ({
   Transaction: vi.fn().mockImplementation(function TransactionMock() {
     return {
       setSender: vi.fn(),
-      setGasOwner: vi.fn(),
+      setGasOwner: txSetGasOwnerMock,
+      setGasBudget: txSetGasBudgetMock,
       moveCall: txMoveCallMock,
       object: txObjectMock,
       pure: {
@@ -90,6 +105,7 @@ vi.mock('@/lib/api', async () => {
 
 vi.mock('@/lib/nautilus', () => ({
   requestAttestation: requestAttestationMock,
+  requestOwnerRecoveryAttestation: requestOwnerRecoveryAttestationMock,
 }));
 
 vi.mock('@/lib/gas-station', () => ({
@@ -111,6 +127,7 @@ vi.mock('@/lib/privy-auth', () => ({
 
 vi.mock('@/lib/privy-wallet', () => ({
   buildPrivyRawSignAuthorizationRequest: buildPrivyRawSignAuthorizationRequestMock,
+  findSuiWalletForPrivyUserByAddress: findSuiWalletForPrivyUserByAddressMock,
   signSuiTransaction: signSuiTransactionMock,
 }));
 
@@ -162,6 +179,10 @@ describe('POST /api/v1/payments/claim', () => {
     redisSetMock.mockResolvedValue('OK');
     redisDelMock.mockResolvedValue(1);
     getSuiClientMock.mockReturnValue({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
       getOwnedObjects: vi.fn().mockResolvedValue({
         data: [
           {
@@ -170,12 +191,32 @@ describe('POST /api/v1/payments/claim', () => {
               version: '1',
               digest: 'digest-1',
               type: '0x2::coin::Coin<0x2::sui::SUI>',
+              content: {
+                dataType: 'moveObject',
+                type: '0x2::coin::Coin<0x2::sui::SUI>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '1000',
+                  id: { id: 'coin-1' },
+                },
+              },
             },
           },
         ],
         nextCursor: null,
         hasNextPage: false,
       }),
+    });
+    getDynamicFieldsMock.mockResolvedValue({
+      data: [],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getDynamicFieldObjectMock.mockResolvedValue({ data: null });
+    dryRunTransactionBlockMock.mockResolvedValue({
+      effects: {
+        status: { status: 'success' },
+      },
     });
     requestAttestationMock.mockResolvedValue({
       xUserId: 12345n,
@@ -184,6 +225,16 @@ describe('POST /api/v1/payments/claim', () => {
       expiresAt: 1_800_000_000_000n,
       signature: Uint8Array.from([1, 2, 3, 4]),
     });
+    requestOwnerRecoveryAttestationMock.mockResolvedValue({
+      xUserId: 12345n,
+      vaultId: '0xvault',
+      currentOwner: '0xlegacy',
+      newOwner: '0xwallet',
+      recoveryCounter: 2n,
+      expiresAt: 1_800_000_000_000n,
+      signature: Uint8Array.from([9, 8, 7, 6]),
+    });
+    findSuiWalletForPrivyUserByAddressMock.mockResolvedValue(null);
     txMoveCallMock.mockReturnValue(['move-call-result']);
     txObjectMock.mockImplementation((value: string) => value);
     txPureU64Mock.mockImplementation((value: bigint | number | string) => value);
@@ -273,6 +324,131 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
+  it('builds a withdraw flow instead of claim_vault when the canonical wallet already owns the vault', async () => {
+    getDynamicFieldObjectMock.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xwallet',
+            recovery_counter: '0',
+          },
+        },
+      },
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(requestAttestationMock).not.toHaveBeenCalled();
+    expect(txMoveCallMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ target: 'package-id::x_vault::claim_vault' }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
+  it('builds an owner-handoff flow when the vault is owned by another wallet under the same Privy user', async () => {
+    getDynamicFieldObjectMock.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xlegacy',
+            recovery_counter: '2',
+          },
+        },
+      },
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-new',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key-new',
+    });
+    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce({
+      privyWalletId: 'wallet-old',
+      suiAddress: '0xlegacy',
+      suiPublicKey: 'public-key-old',
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(requestOwnerRecoveryAttestationMock).toHaveBeenCalledWith({
+      xUserId: '12345',
+      vaultId: '0xvault',
+      currentOwner: '0xlegacy',
+      newOwner: '0xwallet',
+      recoveryCounter: '2',
+    });
+    expect(buildPrivyRawSignAuthorizationRequestMock).toHaveBeenCalledWith(
+      'wallet-old',
+      expect.any(Uint8Array),
+    );
+    expect(txMoveCallMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: 'package-id::x_vault::update_owner',
+      }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
+  it('blocks claims when the vault is owned by a wallet outside the current Privy wallet set', async () => {
+    getDynamicFieldObjectMock.mockResolvedValueOnce({
+      data: {
+        objectId: '0xvault',
+        content: {
+          dataType: 'moveObject',
+          fields: {
+            owner: '0xlegacy',
+            recovery_counter: '2',
+          },
+        },
+      },
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-new',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key-new',
+    });
+    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce(null);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'This vault is currently controlled by a different wallet. Repair ownership before claiming again.',
+    });
+  });
+
   it('uses the provided authorization signature when signing a claim', async () => {
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'privy-user',
@@ -353,29 +529,43 @@ describe('POST /api/v1/payments/claim', () => {
 
   it('uses StableLayer burn composition for mainnet LevoUSD claims and passes the current registry ABI args', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
-    getSuiClientMock
-      .mockReturnValueOnce({})
-      .mockReturnValueOnce({
-        getOwnedObjects: vi.fn().mockResolvedValue({
-          data: [
-            {
-              data: {
-                objectId: 'coin-1',
-                version: '1',
-                digest: 'digest-1',
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [
+          {
+            data: {
+              objectId: 'coin-1',
+              version: '1',
+              digest: 'digest-1',
+              type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              content: {
+                dataType: 'moveObject',
                 type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '10000',
+                  id: { id: 'coin-1' },
+                },
               },
             },
-          ],
-          nextCursor: null,
-          hasNextPage: false,
-        }),
-      });
+          },
+        ],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'privy-user',
       privyWalletId: 'wallet-id',
       suiAddress: '0xwallet',
       suiPublicKey: 'public-key',
+    });
+    getGasStationKeypairMock.mockReturnValueOnce({
+      toSuiAddress: vi.fn().mockReturnValue('0xgas-station'),
     });
     txMoveCallMock
       .mockReturnValueOnce(['vault-object'])
@@ -408,9 +598,9 @@ describe('POST /api/v1/payments/claim', () => {
     expect(txMoveCallMock).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        target: 'package-id::x_vault::withdraw_all',
+        target: 'package-id::x_vault::withdraw',
         typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
-        arguments: ['registry-id', 'vault-object'],
+        arguments: ['registry-id', 'vault-object', 9999n],
       }),
     );
     expect(buildBurnFromStableCoinTxMock).toHaveBeenCalledWith({
@@ -418,6 +608,11 @@ describe('POST /api/v1/payments/claim', () => {
       senderAddress: '0xwallet',
       stableCoinType: '0xlevo::levo_usd::LEVO_USD',
       stableCoin: 'withdrawn-levo-coin',
+    });
+    expect(txSetGasOwnerMock).toHaveBeenCalledWith('0xgas-station');
+    expect(txSetGasBudgetMock).toHaveBeenCalledWith(50_000_000);
+    expect(dryRunTransactionBlockMock).toHaveBeenCalledWith({
+      transactionBlock: Uint8Array.from([1, 2, 3]),
     });
     expect(txTransferObjectsMock).toHaveBeenCalledWith(['burned-usdc-coin'], '0xwallet');
     expect(txMoveCallMock).toHaveBeenNthCalledWith(
@@ -433,26 +628,194 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
-  it('returns a temporary unavailable error when StableLayer burn composition fails before tx.build', async () => {
+  it('uses the existing vault dust balance to avoid accumulating extra leftovers across claims', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
-    getSuiClientMock
-      .mockReturnValueOnce({})
-      .mockReturnValueOnce({
-        getOwnedObjects: vi.fn().mockResolvedValue({
-          data: [
-            {
-              data: {
-                objectId: 'coin-1',
-                version: '1',
-                digest: 'digest-1',
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [
+          {
+            data: {
+              objectId: 'coin-1',
+              version: '1',
+              digest: 'digest-1',
+              type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              content: {
+                dataType: 'moveObject',
                 type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '10000',
+                  id: { id: 'coin-1' },
+                },
               },
             },
-          ],
-          nextCursor: null,
-          hasNextPage: false,
-        }),
+          },
+        ],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
+    getDynamicFieldsMock.mockResolvedValueOnce({
+      data: [
+        {
+          objectId: 'field-object',
+          name: {
+            type: 'package-id::x_vault::BalanceKey<0xlevo::levo_usd::LEVO_USD>',
+            value: {},
+          },
+        },
+      ],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getDynamicFieldObjectMock
+      .mockResolvedValueOnce({ error: { code: 'notExists' } })
+      .mockResolvedValueOnce({
+        data: {
+          content: {
+            dataType: 'moveObject',
+            fields: {
+              value: {
+                fields: {
+                  balance: '1',
+                },
+              },
+            },
+          },
+        },
       });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    txMoveCallMock
+      .mockReturnValueOnce(['vault-object'])
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(['withdrawn-levo-coin']);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txMoveCallMock).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        target: 'package-id::x_vault::withdraw',
+        typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
+        arguments: ['registry-id', 'vault-object', 10000n],
+      }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
+  it('returns a redeemable-minimum error when only StableLayer dust remains in the vault', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
+    getDynamicFieldsMock.mockResolvedValueOnce({
+      data: [
+        {
+          objectId: 'field-object',
+          name: {
+            type: 'package-id::x_vault::BalanceKey<0xlevo::levo_usd::LEVO_USD>',
+            value: {},
+          },
+        },
+      ],
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    getDynamicFieldObjectMock
+      .mockResolvedValueOnce({ error: { code: 'notExists' } })
+      .mockResolvedValueOnce({
+        data: {
+          content: {
+            dataType: 'moveObject',
+            fields: {
+              value: {
+                fields: {
+                  balance: '1',
+                },
+              },
+            },
+          },
+        },
+      });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txMoveCallMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ target: 'package-id::x_vault::withdraw' }),
+    );
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+    });
+  });
+
+  it('returns a temporary unavailable error when StableLayer burn composition fails before tx.build', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [
+          {
+            data: {
+              objectId: 'coin-1',
+              version: '1',
+              digest: 'digest-1',
+              type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              content: {
+                dataType: 'moveObject',
+                type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '10000',
+                  id: { id: 'coin-1' },
+                },
+              },
+            },
+          },
+        ],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'privy-user',
       privyWalletId: 'wallet-id',

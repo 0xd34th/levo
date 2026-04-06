@@ -2,7 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { ZodError } from 'zod';
 import { loadConfig, type SignerConfig } from './config';
 import { parseAttestationRequest } from './schema';
-import { DEFAULT_ATTESTATION_NONCE, signAttestation } from './sign-attestation';
+import {
+  DEFAULT_ATTESTATION_NONCE,
+  signAttestation,
+  signOwnerRecoveryAttestation,
+} from './sign-attestation';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -86,15 +90,28 @@ async function handleRequest(
   try {
     const body = await readJsonBody(req);
     const parsed = parseAttestationRequest(body);
-    const attestation = signAttestation(
-      config,
-      {
-        xUserId: parsed.xUserId,
-        suiAddress: parsed.suiAddress,
-        nonce: DEFAULT_ATTESTATION_NONCE,
-      },
-      { nowMs: Date.now() },
-    );
+    const attestation =
+      parsed.kind === 'owner_recovery'
+        ? signOwnerRecoveryAttestation(
+            config,
+            {
+              xUserId: parsed.xUserId,
+              vaultId: parsed.vaultId,
+              currentOwner: parsed.currentOwner,
+              newOwner: parsed.newOwner,
+              recoveryCounter: parsed.recoveryCounter,
+            },
+            { nowMs: Date.now() },
+          )
+        : signAttestation(
+            config,
+            {
+              xUserId: parsed.xUserId,
+              suiAddress: parsed.suiAddress,
+              nonce: DEFAULT_ATTESTATION_NONCE,
+            },
+            { nowMs: Date.now() },
+          );
 
     sendJson(res, 200, attestation);
   } catch (error) {

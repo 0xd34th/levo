@@ -174,6 +174,29 @@ cd apps/nautilus-signer && node --env-file=.env --import=tsx src/server.ts
 pnpm --filter web dev
 ```
 
+### 4.1 Manual rsync deploy to OVH
+
+如果你不想让服务器自己 `git fetch`，可以直接从本机把当前工作树同步到 OVH，再在远端执行安装、构建、迁移和进程重启：
+
+```bash
+scripts/deploy-rsync.sh --host ovhsui.3mate.io --port 10122 --user root --remote-dir /opt/levo
+```
+
+如果服务器用的不是本地开发 `.env`，可以显式指定两份运行时配置：
+
+```bash
+scripts/deploy-rsync.sh \
+  --web-env-file /path/to/web.prod.env \
+  --signer-env-file /path/to/signer.prod.env
+```
+
+约束：
+
+- 脚本会同步当前工作树，但会排除 `.git`、`node_modules`、本地状态目录和运行时 `.env`
+- `apps/web/.env` 与 `apps/nautilus-signer/.env` 会在代码同步后单独上传
+- 远端默认执行：`pnpm install --frozen-lockfile` -> `pnpm --filter web build` -> `npx prisma migrate deploy` -> `supervisorctl restart levo-signer levo-web`
+- 只想先看变更范围时，可加 `--dry-run`
+
 ### 5. Manual subcommands
 
 如果你不想走总控 bootstrap，仍然可以分别执行底层主网脚本：

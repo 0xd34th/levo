@@ -1,4 +1,5 @@
 import * as React from 'react';
+import Image, { type ImageProps } from 'next/image';
 import { cn } from '@/lib/utils';
 
 function Avatar({
@@ -17,17 +18,22 @@ function Avatar({
   );
 }
 
-interface AvatarImageProps extends React.ComponentProps<'img'> {
+interface AvatarImageProps extends Omit<ImageProps, 'alt' | 'fill'> {
   alt: string;
 }
 
 function AvatarImage({
   className,
   alt,
+  sizes = '100vw',
   ...props
 }: AvatarImageProps) {
   return (
-    <img
+    <Image
+      fill
+      loader={({ src }) => src}
+      unoptimized
+      sizes={sizes}
       data-slot="avatar-image"
       alt={alt}
       className={cn('absolute inset-0 size-full object-cover', className)}

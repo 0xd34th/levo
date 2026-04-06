@@ -20,10 +20,39 @@ export interface SignAttestationOutput {
   expires_at: string;
 }
 
+export interface SignOwnerRecoveryAttestationInput {
+  xUserId: string | number | bigint;
+  vaultId: string;
+  currentOwner: string;
+  newOwner: string;
+  recoveryCounter: string | number | bigint;
+  expiresAt?: string | number | bigint;
+}
+
+export interface SignOwnerRecoveryAttestationOutput {
+  signature: string;
+  x_user_id: string;
+  vault_id: string;
+  current_owner: string;
+  new_owner: string;
+  recovery_counter: string;
+  expires_at: string;
+}
+
 export interface BuildAttestationBytesInput {
   xUserId: bigint;
   suiAddress: string;
   nonce: bigint;
+  expiresAt: bigint;
+  registryId: string;
+}
+
+export interface BuildOwnerRecoveryAttestationBytesInput {
+  xUserId: bigint;
+  vaultId: string;
+  currentOwner: string;
+  newOwner: string;
+  recoveryCounter: bigint;
   expiresAt: bigint;
   registryId: string;
 }
@@ -54,13 +83,28 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
 }
 
 export function buildAttestationBytes(input: BuildAttestationBytesInput): Uint8Array {
-  // Must match the deployed on-chain AttestationMessage struct (4 fields, no registry_id).
-  // The source code was updated to add registry_id but the deployed contract predates that change.
+  // Must match the deployed on-chain AttestationMessage struct exactly:
+  // x_user_id, sui_address, nonce, expires_at, registry_id.
   return concatBytes([
     u64ToBytes(input.xUserId),
     hexToBytes(normalizeSuiAddress(input.suiAddress), 'sui_address'),
     u64ToBytes(input.nonce),
     u64ToBytes(input.expiresAt),
+    hexToBytes(normalizeSuiAddress(input.registryId), 'registry_id'),
+  ]);
+}
+
+export function buildOwnerRecoveryAttestationBytes(
+  input: BuildOwnerRecoveryAttestationBytesInput,
+): Uint8Array {
+  return concatBytes([
+    u64ToBytes(input.xUserId),
+    hexToBytes(normalizeSuiAddress(input.vaultId), 'vault_id'),
+    hexToBytes(normalizeSuiAddress(input.currentOwner), 'current_owner'),
+    hexToBytes(normalizeSuiAddress(input.newOwner), 'new_owner'),
+    u64ToBytes(input.recoveryCounter),
+    u64ToBytes(input.expiresAt),
+    hexToBytes(normalizeSuiAddress(input.registryId), 'registry_id'),
   ]);
 }
 
@@ -92,6 +136,44 @@ export function signAttestation(
     x_user_id: xUserId.toString(),
     sui_address: suiAddress,
     nonce: nonce.toString(),
+    expires_at: expiresAt.toString(),
+  };
+}
+
+export function signOwnerRecoveryAttestation(
+  config: SignerConfig,
+  input: SignOwnerRecoveryAttestationInput,
+  options: { nowMs?: number; ttlMs?: number } = {},
+): SignOwnerRecoveryAttestationOutput {
+  const xUserId = normalizeU64(input.xUserId, 'x_user_id');
+  const vaultId = normalizeSuiAddress(input.vaultId);
+  const currentOwner = normalizeSuiAddress(input.currentOwner);
+  const newOwner = normalizeSuiAddress(input.newOwner);
+  const recoveryCounter = normalizeU64(input.recoveryCounter, 'recovery_counter');
+  const expiresAt =
+    input.expiresAt === undefined
+      ? BigInt(options.nowMs ?? Date.now()) + BigInt(options.ttlMs ?? DEFAULT_ATTESTATION_TTL_MS)
+      : normalizeU64(input.expiresAt, 'expires_at');
+
+  const attestationBytes = buildOwnerRecoveryAttestationBytes({
+    xUserId,
+    vaultId,
+    currentOwner,
+    newOwner,
+    recoveryCounter,
+    expiresAt,
+    registryId: config.registryId,
+  });
+
+  const signature = ed25519.sign(attestationBytes, config.seed);
+
+  return {
+    signature: `0x${bytesToHex(signature)}`,
+    x_user_id: xUserId.toString(),
+    vault_id: vaultId,
+    current_owner: currentOwner,
+    new_owner: newOwner,
+    recovery_counter: recoveryCounter.toString(),
     expires_at: expiresAt.toString(),
   };
 }

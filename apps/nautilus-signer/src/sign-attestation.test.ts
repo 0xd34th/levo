@@ -3,6 +3,8 @@ import { loadConfig } from './config';
 import {
   DEFAULT_ATTESTATION_TTL_MS,
   buildAttestationBytes,
+  buildOwnerRecoveryAttestationBytes,
+  signOwnerRecoveryAttestation,
   signAttestation,
 } from './sign-attestation';
 
@@ -117,5 +119,52 @@ describe('sign-attestation', () => {
         expiresAt: 1773810000000n,
       }),
     ).toThrow('Invalid x_user_id');
+  });
+
+  it('signs owner-recovery attestations deterministically', () => {
+    const config = loadConfig(env);
+
+    const message = buildOwnerRecoveryAttestationBytes({
+      xUserId: 12345n,
+      vaultId: '0x4',
+      currentOwner: '0x2',
+      newOwner: '0x3',
+      recoveryCounter: 7n,
+      expiresAt: 1773810000000n,
+      registryId: config.registryId,
+    });
+
+    // 7 fields: xUserId(8) + vaultId(32) + currentOwner(32) + newOwner(32)
+    // + recoveryCounter(8) + expiresAt(8) + registryId(32) = 152 bytes.
+    expect(message).toHaveLength(152);
+
+    const first = signOwnerRecoveryAttestation(
+      config,
+      {
+        xUserId: '12345',
+        vaultId: '0x4',
+        currentOwner: '0x2',
+        newOwner: '0x3',
+        recoveryCounter: '7',
+        expiresAt: '1773810000000',
+      },
+    );
+    const second = signOwnerRecoveryAttestation(
+      config,
+      {
+        xUserId: '12345',
+        vaultId: '0x4',
+        currentOwner: '0x2',
+        newOwner: '0x3',
+        recoveryCounter: '7',
+        expiresAt: '1773810000000',
+      },
+    );
+
+    expect(first).toEqual(second);
+    expect(first.signature).toMatch(/^0x[0-9a-f]+$/);
+    expect(first.vault_id).toBe(
+      '0x0000000000000000000000000000000000000000000000000000000000000004',
+    );
   });
 });
