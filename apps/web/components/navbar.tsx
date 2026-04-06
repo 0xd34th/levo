@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
-import { ArrowUpRight, CreditCard, LogOut, Search, Sparkles } from 'lucide-react';
+import { Activity, CreditCard, LogOut, Search, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,10 @@ const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const navigation = [
   { href: '/', label: 'Send', icon: CreditCard, matchPrefix: '/' },
   {
-    href: '/dashboard/sent',
-    label: 'Dashboard',
-    icon: ArrowUpRight,
-    matchPrefix: '/dashboard',
+    href: '/activity',
+    label: 'Activity',
+    icon: Activity,
+    matchPrefix: '/activity',
     requiresAuth: true,
   },
   { href: '/lookup', label: 'Lookup', icon: Search, matchPrefix: '/lookup' },
