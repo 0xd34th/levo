@@ -1,18 +1,20 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, startTransition, useEffect, useRef, useState } from 'react';
 import {
   useAuthorizationSignature,
   useLoginWithOAuth,
   usePrivy,
 } from '@privy-io/react-auth';
 import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { ClaimStepper, type ClaimStep } from '@/components/claim-stepper';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { emitClaimDataRefresh } from '@/lib/claim-refresh';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   claimActionLabel,
@@ -29,6 +31,7 @@ import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 type ClaimOutcome = { type: 'claimed'; txDigest: string };
 
 export default function ClaimPage() {
+  const router = useRouter();
   const {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
@@ -394,6 +397,10 @@ export default function ClaimPage() {
         setClaimOutcome({
           type: 'claimed',
           txDigest: result.txDigest ?? '',
+        });
+        emitClaimDataRefresh();
+        startTransition(() => {
+          router.refresh();
         });
         setNotice(
           result.txDigest

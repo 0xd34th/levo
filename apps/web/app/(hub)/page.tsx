@@ -10,6 +10,7 @@ import { ClaimCard } from '@/components/claim-card';
 import { PaymentTable } from '@/components/payment-table';
 import { PromoCard } from '@/components/promo-card';
 import { Button } from '@/components/ui/button';
+import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
 import {
   getExplorerTransactionUrl,
 } from '@/lib/coins';
@@ -110,6 +111,14 @@ export default function AccountPage() {
       void fetchRecent();
     }
     return () => controllerRef.current?.abort();
+  }, [ready, authenticated, embeddedWalletAddress, fetchRecent]);
+
+  useEffect(() => {
+    return subscribeClaimDataRefresh(() => {
+      if (ready && authenticated && embeddedWalletAddress) {
+        void fetchRecent();
+      }
+    });
   }, [ready, authenticated, embeddedWalletAddress, fetchRecent]);
 
   // Unauthenticated state

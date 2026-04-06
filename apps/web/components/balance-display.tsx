@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
 import { getSuiClient } from '@/lib/sui';
 import { SUI_COIN_TYPE, formatAmount, getCoinLabel, isDisplaySupportedCoinType } from '@/lib/coins';
 
@@ -56,6 +57,12 @@ export function BalanceDisplay({ address }: BalanceDisplayProps) {
   useEffect(() => {
     void fetchBalances();
     return () => abortRef.current?.abort();
+  }, [fetchBalances]);
+
+  useEffect(() => {
+    return subscribeClaimDataRefresh(() => {
+      void fetchBalances();
+    });
   }, [fetchBalances]);
 
   // Find SUI balance as primary display

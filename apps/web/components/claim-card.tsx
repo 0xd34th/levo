@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthorizationSignature, usePrivy } from '@privy-io/react-auth';
 import { Check, LoaderCircle, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { emitClaimDataRefresh } from '@/lib/claim-refresh';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   claimActionLabel,
@@ -24,6 +26,7 @@ interface ClaimCardProps {
 export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
   const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const router = useRouter();
   const [data, setData] = useState<IncomingPaymentsResponse | null>(receivedData ?? null);
   const [loading, setLoading] = useState(false);
   const [claimState, setClaimState] = useState<ClaimState>('idle');
@@ -144,13 +147,17 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
             }
           : prev,
       );
+      emitClaimDataRefresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (err) {
       setClaimState('error');
       setClaimError(err instanceof Error ? err.message : 'Claim failed');
     } finally {
       claimRef.current = false;
     }
-  }, [getAccessToken, generateAuthorizationSignature]);
+  }, [getAccessToken, generateAuthorizationSignature, router]);
 
   const hasPending =
     !loading &&
