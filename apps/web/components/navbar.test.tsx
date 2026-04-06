@@ -52,7 +52,7 @@ describe('Navbar', () => {
     useLoginWithOAuthMock.mockReturnValue({ initOAuth: initOAuthMock });
   });
 
-  it('hides Dashboard when the viewer is not authenticated', () => {
+  it('hides Activity when the viewer is not authenticated', () => {
     usePrivyMock.mockReturnValue({
       ready: true,
       authenticated: false,
@@ -62,13 +62,13 @@ describe('Navbar', () => {
 
     const markup = renderToStaticMarkup(<Navbar />);
 
-    expect(markup).not.toContain('Dashboard');
+    expect(markup).not.toContain('/activity');
     expect(markup).toContain('Send');
     expect(markup).toContain('Lookup');
     expect(markup).toContain('Claim');
   });
 
-  it('shows Dashboard when the viewer is authenticated', () => {
+  it('shows Activity when the viewer is authenticated', () => {
     usePrivyMock.mockReturnValue({
       ready: true,
       authenticated: true,
@@ -82,6 +82,6 @@ describe('Navbar', () => {
 
     const markup = renderToStaticMarkup(<Navbar />);
 
-    expect(markup).toContain('Dashboard');
+    expect(markup).toContain('Activity');
   });
 });
