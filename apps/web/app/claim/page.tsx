@@ -15,6 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { emitClaimDataRefresh } from '@/lib/claim-refresh';
+import {
+  parseClaimErrorPayload,
+  type ClaimErrorPayload,
+} from '@/lib/claim-error-details';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   claimActionLabel,
@@ -29,6 +33,13 @@ import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 type ClaimOutcome = { type: 'claimed'; txDigest: string };
+
+function readClaimErrorPayload(payload: unknown) {
+  const parsed = parseClaimErrorPayload(payload);
+  return parsed && (parsed.debugId || parsed.code || parsed.details)
+    ? parsed
+    : null;
+}
 
 export default function ClaimPage() {
   const router = useRouter();
@@ -51,6 +62,7 @@ export default function ClaimPage() {
   const [loadingStepId, setLoadingStepId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [claimErrorPayload, setClaimErrorPayload] = useState<ClaimErrorPayload | null>(null);
   const [claimOutcome, setClaimOutcome] = useState<ClaimOutcome | null>(null);
   const [lookup, setLookup] = useState<PublicLookupResponse | null>(null);
   const lookupRequestIdRef = useRef(0);
@@ -109,6 +121,7 @@ export default function ClaimPage() {
     stepActionRequestIdRef.current += 1;
     setLookup(null);
     setClaimOutcome(null);
+    setClaimErrorPayload(null);
     setLoadingStepId(null);
     setNotice(null);
 
@@ -258,36 +271,43 @@ export default function ClaimPage() {
       }
 
       if (!effectiveSignedIn) {
+        setClaimErrorPayload(null);
         setNotice('Sign in with X before claiming.');
         return;
       }
 
       if (!walletReady) {
+        setClaimErrorPayload(null);
         setNotice('Wallet not ready yet. Please wait a moment.');
         return;
       }
 
       if (!lookup) {
+        setClaimErrorPayload(null);
         setNotice('Load the handle first so Levo can check the vault.');
         return;
       }
 
       if (previouslyClaimed) {
+        setClaimErrorPayload(null);
         setNotice('This vault was already claimed previously.');
         return;
       }
 
       if (lookup.claimAction === 'NONE') {
+        setClaimErrorPayload(null);
         setNotice('There is no claimable balance in the vault right now.');
         return;
       }
 
       if (lookup.pendingBalances.length === 0) {
+        setClaimErrorPayload(null);
         setNotice('There is no claimable balance in the vault yet.');
         return;
       }
 
       if (effectiveClaimed) {
+        setClaimErrorPayload(null);
         setNotice('This vault has already been claimed.');
         return;
       }
@@ -299,6 +319,7 @@ export default function ClaimPage() {
       stepDelayAbortRef.current = controller;
       claimInFlightRef.current = true;
       setLoadingStepId(id);
+      setClaimErrorPayload(null);
 
       try {
         const requestClaim = (authorizationSignature?: string) => (
@@ -325,6 +346,7 @@ export default function ClaimPage() {
 
         if (!res.ok) {
           const payload = await res.json().catch(() => ({ error: 'Claim failed' }));
+          setClaimErrorPayload(readClaimErrorPayload(payload));
           setNotice(payload.error ?? 'Claim failed. Please try again.');
           return;
         }
@@ -364,6 +386,7 @@ export default function ClaimPage() {
 
           if (!res.ok) {
             const errorPayload = await res.json().catch(() => ({ error: 'Claim failed' }));
+            setClaimErrorPayload(readClaimErrorPayload(errorPayload));
             setNotice(errorPayload.error ?? 'Claim failed. Please try again.');
             return;
           }
@@ -396,6 +419,7 @@ export default function ClaimPage() {
         startTransition(() => {
           router.refresh();
         });
+        setClaimErrorPayload(null);
         setNotice(
           result.txDigest
             ? `Claim successful! Transaction: ${result.txDigest.slice(0, 10)}...`
@@ -405,6 +429,7 @@ export default function ClaimPage() {
         if (claimError instanceof DOMException && claimError.name === 'AbortError') {
           return;
         }
+        setClaimErrorPayload(null);
         setNotice('Claim failed. Please try again.');
       } finally {
         claimInFlightRef.current = false;
@@ -518,7 +543,39 @@ export default function ClaimPage() {
 
                 {notice ? (
                   <div className="rounded-[22px] border border-primary/20 bg-primary/8 px-4 py-3 text-sm text-foreground">
-                    {notice}
+                    <p>{notice}</p>
+                    {claimErrorPayload ? (
+                      <div className="mt-3 rounded-[18px] border border-border/60 bg-background/70 p-3 text-xs text-muted-foreground dark:border-white/10 dark:bg-black/20">
+                        {claimErrorPayload.debugId ? (
+                          <p>
+                            <span className="font-semibold text-foreground">Debug ID:</span>{' '}
+                            <span className="font-mono">{claimErrorPayload.debugId}</span>
+                          </p>
+                        ) : null}
+                        {claimErrorPayload.code ? (
+                          <p className="mt-1">
+                            <span className="font-semibold text-foreground">Code:</span>{' '}
+                            <span className="font-mono">{claimErrorPayload.code}</span>
+                          </p>
+                        ) : null}
+                        {claimErrorPayload.details ? (
+                          <div className="mt-3 space-y-1 font-mono">
+                            <p>stage: {claimErrorPayload.details.stage}</p>
+                            <p>reason: {claimErrorPayload.details.reason}</p>
+                            <p>stored_raw: {claimErrorPayload.details.storedStableLayerBalanceRaw}</p>
+                            <p>incoming_raw: {claimErrorPayload.details.incomingStableLayerBalanceRaw}</p>
+                            <p>total_raw: {claimErrorPayload.details.totalStableLayerBalanceRaw}</p>
+                            <p>withdraw_raw: {claimErrorPayload.details.stableLayerWithdrawAmountRaw}</p>
+                            <p>incoming_coin_count: {claimErrorPayload.details.incomingStableLayerCoinCount}</p>
+                            {claimErrorPayload.details.rawChainError ? (
+                              <p className="break-all whitespace-pre-wrap">
+                                raw_chain_error: {claimErrorPayload.details.rawChainError}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 

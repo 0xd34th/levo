@@ -6,6 +6,7 @@ const {
   buildPrivyRawSignAuthorizationRequestMock,
   buildBurnFromStableCoinTxMock,
   deriveVaultAddressMock,
+  executeTransactionBlockMock,
   findUniqueMock,
   getGasStationKeypairMock,
   getDynamicFieldObjectMock,
@@ -42,6 +43,7 @@ const {
     buildBurnFromStableCoinTxMock: vi.fn(),
     deriveVaultAddressMock: vi.fn(),
     dryRunTransactionBlockMock: vi.fn(),
+    executeTransactionBlockMock: vi.fn(),
     findUniqueMock: vi.fn(),
     getGasStationKeypairMock: vi.fn(),
     getDynamicFieldObjectMock: vi.fn(),
@@ -150,6 +152,10 @@ vi.mock('@/lib/stable-layer', () => ({
 
 import { POST } from './route';
 
+vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => {});
+vi.spyOn(console, 'log').mockImplementation(() => {});
+
 describe('POST /api/v1/payments/claim', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -174,6 +180,7 @@ describe('POST /api/v1/payments/claim', () => {
     redisDelMock.mockResolvedValue(1);
     getSuiClientMock.mockReturnValue({
       dryRunTransactionBlock: dryRunTransactionBlockMock,
+      executeTransactionBlock: executeTransactionBlockMock,
       getObject: getDynamicFieldObjectMock,
       getDynamicFieldObject: getDynamicFieldObjectMock,
       getDynamicFields: getDynamicFieldsMock,
@@ -208,6 +215,12 @@ describe('POST /api/v1/payments/claim', () => {
     });
     getDynamicFieldObjectMock.mockResolvedValue({ data: null });
     dryRunTransactionBlockMock.mockResolvedValue({
+      effects: {
+        status: { status: 'success' },
+      },
+    });
+    executeTransactionBlockMock.mockResolvedValue({
+      digest: 'tx-digest',
       effects: {
         status: { status: 'success' },
       },
@@ -746,8 +759,20 @@ describe('POST /api/v1/payments/claim', () => {
       expect.objectContaining({ target: 'package-id::x_vault::withdraw' }),
     );
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({
+    await expect(res.json()).resolves.toMatchObject({
       error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+      code: 'stable_layer_withdraw_amount_zero',
+      debugId: expect.any(String),
+      details: {
+        stage: 'precheck',
+        reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
+        rawChainError: null,
+        totalStableLayerBalanceRaw: '1',
+        storedStableLayerBalanceRaw: '1',
+        incomingStableLayerBalanceRaw: '0',
+        stableLayerWithdrawAmountRaw: '0',
+        incomingStableLayerCoinCount: 0,
+      },
     });
   });
 
@@ -806,8 +831,20 @@ describe('POST /api/v1/payments/claim', () => {
     const res = await POST(req);
 
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({
+    await expect(res.json()).resolves.toMatchObject({
       error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+      code: 'stable_layer_balance_split',
+      debugId: expect.any(String),
+      details: {
+        stage: 'build',
+        reason: 'StableLayer redeem hit a balance split failure while building the transaction.',
+        rawChainError: expect.stringContaining('balance::split'),
+        totalStableLayerBalanceRaw: '10000',
+        storedStableLayerBalanceRaw: '0',
+        incomingStableLayerBalanceRaw: '10000',
+        stableLayerWithdrawAmountRaw: '9999',
+        incomingStableLayerCoinCount: 1,
+      },
     });
   });
 
@@ -869,8 +906,20 @@ describe('POST /api/v1/payments/claim', () => {
     const res = await POST(req);
 
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({
+    await expect(res.json()).resolves.toMatchObject({
       error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+      code: 'stable_layer_balance_split',
+      debugId: expect.any(String),
+      details: {
+        stage: 'preflight',
+        reason: 'StableLayer redeem hit a balance split failure during dry-run.',
+        rawChainError: expect.stringContaining('MoveAbort'),
+        totalStableLayerBalanceRaw: '10000',
+        storedStableLayerBalanceRaw: '0',
+        incomingStableLayerBalanceRaw: '10000',
+        stableLayerWithdrawAmountRaw: '9999',
+        incomingStableLayerCoinCount: 1,
+      },
     });
   });
 
@@ -926,8 +975,88 @@ describe('POST /api/v1/payments/claim', () => {
 
     expect(txBuildMock).not.toHaveBeenCalled();
     expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({
+    await expect(res.json()).resolves.toMatchObject({
       error: 'Claims are temporarily unavailable. Please retry shortly.',
+      code: 'stable_layer_compose_failed',
+      debugId: expect.any(String),
+      details: {
+        stage: 'compose_burn',
+        reason: 'StableLayer burn transaction composition failed.',
+        rawChainError: 'rpc timeout',
+        totalStableLayerBalanceRaw: '10000',
+        storedStableLayerBalanceRaw: '0',
+        incomingStableLayerBalanceRaw: '10000',
+        stableLayerWithdrawAmountRaw: '9999',
+        incomingStableLayerCoinCount: 1,
+      },
+    });
+  });
+
+  it('returns structured StableLayer execute details when the signed claim fails on-chain', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    redisGetMock.mockResolvedValueOnce(JSON.stringify({
+      txBytesBase64: Buffer.from(Uint8Array.from([1, 2, 3])).toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'public-key',
+      stableLayerDebugContext: {
+        debugId: 'debug-123',
+        xUserId: '12345',
+        vaultAddress: '0xvault',
+        claimFlow: 'WITHDRAW',
+        signingAddress: '0xwallet',
+        stableCoinType: '0xlevo::levo_usd::LEVO_USD',
+        storedStableLayerBalanceRaw: '1',
+        incomingStableLayerBalanceRaw: '20000',
+        totalStableLayerBalanceRaw: '20001',
+        stableLayerWithdrawAmountRaw: '20000',
+        incomingStableLayerCoinCount: 2,
+        incomingStableLayerCoins: [
+          { objectId: 'coin-1', balanceRaw: '10000' },
+          { objectId: 'coin-2', balanceRaw: '10000' },
+        ],
+      },
+    }));
+    executeTransactionBlockMock.mockResolvedValueOnce({
+      digest: 'failed-digest',
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'MoveAbort(... 0x2::balance::split ...)',
+        },
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      body: JSON.stringify({
+        authorizationSignature: 'client-authorization-signature',
+      }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+      code: 'stable_layer_balance_split',
+      debugId: 'debug-123',
+      details: {
+        stage: 'execute',
+        reason: 'StableLayer redeem hit a balance split failure on-chain.',
+        rawChainError: expect.stringContaining('balance::split'),
+        totalStableLayerBalanceRaw: '20001',
+        storedStableLayerBalanceRaw: '1',
+        incomingStableLayerBalanceRaw: '20000',
+        stableLayerWithdrawAmountRaw: '20000',
+        incomingStableLayerCoinCount: 2,
+      },
     });
   });
 });

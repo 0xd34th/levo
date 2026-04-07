@@ -19,6 +19,7 @@ import {
 } from '@/lib/coins';
 import { getRedis, rateLimit } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
+import { type ClaimErrorDetails, type ClaimErrorStage } from '@/lib/claim-error-details';
 import { buildBurnFromStableCoinTx } from '@/lib/stable-layer';
 import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { parseXUserId } from '@/lib/twitter';
@@ -43,6 +44,25 @@ const PendingClaimAuthorizationBundleSchema = z.object({
   txBytesBase64: z.string().min(1),
   walletId: z.string().min(1),
   storedPublicKey: z.string().min(1),
+  stableLayerDebugContext: z.object({
+    debugId: z.string().min(1),
+    xUserId: z.string().min(1),
+    vaultAddress: z.string().min(1),
+    claimFlow: z.enum(['CLAIM', 'WITHDRAW']),
+    signingAddress: z.string().min(1),
+    stableCoinType: z.string().min(1),
+    storedStableLayerBalanceRaw: z.string().min(1),
+    incomingStableLayerBalanceRaw: z.string().min(1),
+    totalStableLayerBalanceRaw: z.string().min(1),
+    stableLayerWithdrawAmountRaw: z.string().min(1),
+    incomingStableLayerCoinCount: z.number().int().nonnegative(),
+    incomingStableLayerCoins: z.array(
+      z.object({
+        objectId: z.string().min(1),
+        balanceRaw: z.string().min(1),
+      }),
+    ),
+  }).nullable().optional(),
 });
 
 type PendingClaimAuthorizationBundle = z.infer<typeof PendingClaimAuthorizationBundleSchema>;
@@ -60,19 +80,173 @@ type ClaimableVaultCoin = {
 
 type ClaimFlow = 'CLAIM' | 'WITHDRAW';
 
-function buildStableLayerClaimFailureResponse(error: unknown) {
-  console.error('Failed to compose StableLayer burn transaction', error);
+type StableLayerIncomingCoinDebug = {
+  objectId: string;
+  balanceRaw: string;
+};
+
+type StableLayerClaimDebugContext = {
+  debugId: string;
+  xUserId: string;
+  vaultAddress: string;
+  claimFlow: ClaimFlow;
+  signingAddress: string;
+  stableCoinType: string;
+  storedStableLayerBalanceRaw: string;
+  incomingStableLayerBalanceRaw: string;
+  totalStableLayerBalanceRaw: string;
+  stableLayerWithdrawAmountRaw: string;
+  incomingStableLayerCoinCount: number;
+  incomingStableLayerCoins: StableLayerIncomingCoinDebug[];
+};
+
+type StableLayerClaimFailureCode =
+  | 'stable_layer_withdraw_amount_zero'
+  | 'stable_layer_balance_split'
+  | 'stable_layer_compose_failed'
+  | 'stable_layer_build_failed'
+  | 'stable_layer_preflight_failed'
+  | 'stable_layer_execute_failed';
+
+function createClaimDebugId() {
+  return globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function extractStableLayerErrorMessage(error: unknown): string | null {
+  const candidates: unknown[] = [error];
+  const seen = new Set<unknown>();
+
+  while (candidates.length > 0) {
+    const current = candidates.pop();
+    if (current == null || seen.has(current)) {
+      continue;
+    }
+    seen.add(current);
+
+    if (typeof current === 'string') {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+      continue;
+    }
+
+    if (current instanceof Error) {
+      candidates.push(current.message, current.cause);
+      continue;
+    }
+
+    if (typeof current === 'object') {
+      const record = current as Record<string, unknown>;
+      candidates.push(
+        record.message,
+        record.error,
+        record.cause,
+        record.executionError,
+        record.status,
+      );
+    }
+  }
+
+  return null;
+}
+
+function buildStableLayerClaimDetails(
+  debugContext: StableLayerClaimDebugContext,
+  params: {
+    stage: ClaimErrorStage;
+    reason: string;
+    rawChainError: string | null;
+  },
+): ClaimErrorDetails {
+  return {
+    stage: params.stage,
+    reason: params.reason,
+    rawChainError: params.rawChainError,
+    totalStableLayerBalanceRaw: debugContext.totalStableLayerBalanceRaw,
+    storedStableLayerBalanceRaw: debugContext.storedStableLayerBalanceRaw,
+    incomingStableLayerBalanceRaw: debugContext.incomingStableLayerBalanceRaw,
+    stableLayerWithdrawAmountRaw: debugContext.stableLayerWithdrawAmountRaw,
+    incomingStableLayerCoinCount: debugContext.incomingStableLayerCoinCount,
+  };
+}
+
+function logStableLayerClaimFailure(
+  message: string,
+  params: {
+    code: StableLayerClaimFailureCode;
+    stage: ClaimErrorStage;
+    reason: string;
+    error?: unknown;
+    rawChainError?: string | null;
+    debugContext: StableLayerClaimDebugContext;
+  },
+) {
+  const { code, stage, reason, error, rawChainError, debugContext } = params;
+  console.error(message, {
+    debugId: debugContext.debugId,
+    code,
+    stage,
+    reason,
+    rawChainError: rawChainError ?? null,
+    isBalanceSplitError: isStableLayerBalanceSplitError(rawChainError ?? error),
+    xUserId: debugContext.xUserId,
+    vaultAddress: debugContext.vaultAddress,
+    claimFlow: debugContext.claimFlow,
+    signingAddress: debugContext.signingAddress,
+    stableCoinType: debugContext.stableCoinType,
+    storedStableLayerBalanceRaw: debugContext.storedStableLayerBalanceRaw,
+    incomingStableLayerBalanceRaw: debugContext.incomingStableLayerBalanceRaw,
+    totalStableLayerBalanceRaw: debugContext.totalStableLayerBalanceRaw,
+    stableLayerWithdrawAmountRaw: debugContext.stableLayerWithdrawAmountRaw,
+    incomingStableLayerCoinCount: debugContext.incomingStableLayerCoinCount,
+    incomingStableLayerCoins: debugContext.incomingStableLayerCoins,
+    error,
+  });
+}
+
+function buildStableLayerClaimFailureResponse(params: {
+  status: number;
+  error: string;
+  code: StableLayerClaimFailureCode;
+  stage: ClaimErrorStage;
+  reason: string;
+  rawChainError?: string | null;
+  debugContext: StableLayerClaimDebugContext;
+}) {
+  const details = buildStableLayerClaimDetails(params.debugContext, {
+    stage: params.stage,
+    reason: params.reason,
+    rawChainError: params.rawChainError ?? null,
+  });
+
   return noStoreJson(
-    { error: 'Claims are temporarily unavailable. Please retry shortly.' },
-    { status: 503 },
+    {
+      error: params.error,
+      code: params.code,
+      debugId: params.debugContext.debugId,
+      details,
+    },
+    { status: params.status },
   );
 }
 
-function buildStableLayerRedeemableMinimumResponse() {
-  return noStoreJson(
-    { error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR },
-    { status: 409 },
-  );
+function buildStableLayerRedeemableMinimumResponse(params: {
+  stage: ClaimErrorStage;
+  reason: string;
+  rawChainError?: string | null;
+  debugContext: StableLayerClaimDebugContext;
+}) {
+  return buildStableLayerClaimFailureResponse({
+    status: 409,
+    error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR,
+    code: 'stable_layer_balance_split',
+    stage: params.stage,
+    reason: params.reason,
+    rawChainError: params.rawChainError,
+    debugContext: params.debugContext,
+  });
 }
 
 function extractCoinBalance(rawContent: unknown): bigint | null {
@@ -156,6 +330,7 @@ async function stagePendingClaimAuthorization(
   txBytes: Uint8Array,
   walletId: string,
   storedPublicKey: string,
+  stableLayerDebugContext: StableLayerClaimDebugContext | null,
 ) {
   const redis = getRedis();
   if (redis.status !== 'ready') {
@@ -166,6 +341,7 @@ async function stagePendingClaimAuthorization(
     txBytesBase64: Buffer.from(txBytes).toString('base64'),
     walletId,
     storedPublicKey,
+    stableLayerDebugContext,
   };
 
   await redis.set(
@@ -499,6 +675,7 @@ export async function POST(req: NextRequest) {
     let txBytes: Uint8Array;
     let walletId = signingWalletId;
     let storedPublicKey = signingPublicKey;
+    let stableLayerDebugContext: StableLayerClaimDebugContext | null = null;
 
     if (authorizationSignature) {
       const authorizationBundle = await loadPendingClaimAuthorization(auth.identity.xUserId);
@@ -514,6 +691,7 @@ export async function POST(req: NextRequest) {
       txBytes = Uint8Array.from(Buffer.from(authorizationBundle.txBytesBase64, 'base64'));
       walletId = authorizationBundle.walletId;
       storedPublicKey = authorizationBundle.storedPublicKey;
+      stableLayerDebugContext = authorizationBundle.stableLayerDebugContext ?? null;
     } else {
       const tx = new Transaction();
       tx.setSender(signingAddress);
@@ -590,14 +768,44 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const stableLayerIncomingCoins =
+        configuredLevoUsdCoinType
+          ? claimableCoins
+            .filter((coin) => coin.coinType === configuredLevoUsdCoinType)
+            .map((coin) => ({
+              objectId: coin.objectId,
+              balanceRaw: coin.balance.toString(),
+            }))
+          : [];
+      const incomingStableLayerBalance =
+        configuredLevoUsdCoinType
+          ? (incomingBalanceByType.get(configuredLevoUsdCoinType) ?? 0n)
+          : 0n;
       const totalStableLayerBalance =
         configuredLevoUsdCoinType
-          ? (incomingBalanceByType.get(configuredLevoUsdCoinType) ?? 0n) + storedStableLayerBalance
+          ? incomingStableLayerBalance + storedStableLayerBalance
           : 0n;
       const stableLayerWithdrawAmount =
         totalStableLayerBalance > STABLE_LAYER_DUST_RESERVE_RAW
           ? totalStableLayerBalance - STABLE_LAYER_DUST_RESERVE_RAW
           : 0n;
+      stableLayerDebugContext =
+        configuredLevoUsdCoinType
+          ? {
+              debugId: createClaimDebugId(),
+              xUserId,
+              vaultAddress,
+              claimFlow,
+              signingAddress,
+              stableCoinType: configuredLevoUsdCoinType,
+              storedStableLayerBalanceRaw: storedStableLayerBalance.toString(),
+              incomingStableLayerBalanceRaw: incomingStableLayerBalance.toString(),
+              totalStableLayerBalanceRaw: totalStableLayerBalance.toString(),
+              stableLayerWithdrawAmountRaw: stableLayerWithdrawAmount.toString(),
+              incomingStableLayerCoinCount: stableLayerIncomingCoins.length,
+              incomingStableLayerCoins: stableLayerIncomingCoins,
+            } satisfies StableLayerClaimDebugContext
+          : null;
       let hasClaimableWithdrawal = false;
 
       for (const innerCoinType of coinTypes) {
@@ -630,7 +838,34 @@ export async function POST(req: NextRequest) {
             });
             tx.transferObjects([usdcCoin], xUser.suiAddress);
           } catch (error) {
-            return buildStableLayerClaimFailureResponse(error);
+            const rawChainError = extractStableLayerErrorMessage(error);
+            if (stableLayerDebugContext) {
+              logStableLayerClaimFailure(
+                'Failed to compose StableLayer burn transaction',
+                {
+                  code: 'stable_layer_compose_failed',
+                  stage: 'compose_burn',
+                  reason: 'StableLayer burn transaction composition failed.',
+                  error,
+                  rawChainError,
+                  debugContext: stableLayerDebugContext,
+                },
+              );
+              return buildStableLayerClaimFailureResponse({
+                status: 503,
+                error: 'Claims are temporarily unavailable. Please retry shortly.',
+                code: 'stable_layer_compose_failed',
+                stage: 'compose_burn',
+                reason: 'StableLayer burn transaction composition failed.',
+                rawChainError,
+                debugContext: stableLayerDebugContext,
+              });
+            }
+            console.error('Failed to compose StableLayer burn transaction', error);
+            return noStoreJson(
+              { error: 'Claims are temporarily unavailable. Please retry shortly.' },
+              { status: 503 },
+            );
           }
         } else {
           const [withdrawn] = tx.moveCall({
@@ -649,7 +884,29 @@ export async function POST(req: NextRequest) {
 
       if (!hasClaimableWithdrawal) {
         if (totalStableLayerBalance > 0n) {
-          return buildStableLayerRedeemableMinimumResponse();
+          if (stableLayerDebugContext) {
+            logStableLayerClaimFailure(
+              'StableLayer claim resolved to zero withdraw amount',
+              {
+                code: 'stable_layer_withdraw_amount_zero',
+                stage: 'precheck',
+                reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
+                debugContext: stableLayerDebugContext,
+              },
+            );
+            return buildStableLayerClaimFailureResponse({
+              status: 409,
+              error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR,
+              code: 'stable_layer_withdraw_amount_zero',
+              stage: 'precheck',
+              reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
+              debugContext: stableLayerDebugContext,
+            });
+          }
+          return noStoreJson(
+            { error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR },
+            { status: 409 },
+          );
         }
 
         return noStoreJson({ error: 'No claimable funds found in the vault' }, { status: 400 });
@@ -666,10 +923,43 @@ export async function POST(req: NextRequest) {
       try {
         txBytes = await tx.build({ client });
       } catch (error) {
-        console.error('Failed to build claim transaction', error);
-        if (isStableLayerBalanceSplitError(error)) {
-          return buildStableLayerRedeemableMinimumResponse();
+        const rawChainError = extractStableLayerErrorMessage(error);
+        if (stableLayerDebugContext) {
+          const isBalanceSplit = isStableLayerBalanceSplitError(error);
+          logStableLayerClaimFailure(
+            'Failed to build claim transaction',
+            {
+              code: isBalanceSplit
+                ? 'stable_layer_balance_split'
+                : 'stable_layer_build_failed',
+              stage: 'build',
+              reason: isBalanceSplit
+                ? 'StableLayer redeem hit a balance split failure while building the transaction.'
+                : 'StableLayer redeem failed while building the claim transaction.',
+              error,
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            },
+          );
+          if (isBalanceSplit) {
+            return buildStableLayerRedeemableMinimumResponse({
+              stage: 'build',
+              reason: 'StableLayer redeem hit a balance split failure while building the transaction.',
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            });
+          }
+          return buildStableLayerClaimFailureResponse({
+            status: 400,
+            error: 'Failed to build claim transaction',
+            code: 'stable_layer_build_failed',
+            stage: 'build',
+            reason: 'StableLayer redeem failed while building the claim transaction.',
+            rawChainError,
+            debugContext: stableLayerDebugContext,
+          });
         }
+        console.error('Failed to build claim transaction', error);
         return noStoreJson(
           { error: 'Failed to build claim transaction' },
           { status: 400 },
@@ -682,22 +972,76 @@ export async function POST(req: NextRequest) {
         });
 
         if (preflight.effects?.status.status !== 'success') {
+          const rawChainError = extractStableLayerErrorMessage(preflight.effects?.status.error);
+          if (stableLayerDebugContext) {
+            const isBalanceSplit = isStableLayerBalanceSplitError(preflight.effects?.status.error);
+            logStableLayerClaimFailure(
+              'Claim preflight dry-run failed',
+              {
+                code: isBalanceSplit
+                  ? 'stable_layer_balance_split'
+                  : 'stable_layer_preflight_failed',
+                stage: 'preflight',
+                reason: isBalanceSplit
+                  ? 'StableLayer redeem hit a balance split failure during dry-run.'
+                  : 'StableLayer redeem failed during dry-run.',
+                error: preflight.effects?.status,
+                rawChainError,
+                debugContext: stableLayerDebugContext,
+              },
+            );
+            if (isBalanceSplit) {
+              return buildStableLayerRedeemableMinimumResponse({
+                stage: 'preflight',
+                reason: 'StableLayer redeem hit a balance split failure during dry-run.',
+                rawChainError,
+                debugContext: stableLayerDebugContext,
+              });
+            }
+            return buildStableLayerClaimFailureResponse({
+              status: 503,
+              error: 'Claims are temporarily unavailable. Please retry shortly.',
+              code: 'stable_layer_preflight_failed',
+              stage: 'preflight',
+              reason: 'StableLayer redeem failed during dry-run.',
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            });
+          }
           console.error('Claim preflight dry-run failed', {
             xUserId,
             vaultAddress,
             status: preflight.effects?.status,
           });
-
-          if (isStableLayerBalanceSplitError(preflight.effects?.status.error)) {
-            return buildStableLayerRedeemableMinimumResponse();
-          }
-
           return noStoreJson(
             { error: 'Claims are temporarily unavailable. Please retry shortly.' },
             { status: 503 },
           );
         }
       } catch (error) {
+        if (stableLayerDebugContext) {
+          const rawChainError = extractStableLayerErrorMessage(error);
+          logStableLayerClaimFailure(
+            'Failed to preflight claim transaction',
+            {
+              code: 'stable_layer_preflight_failed',
+              stage: 'preflight',
+              reason: 'Claim preflight could not complete.',
+              error,
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            },
+          );
+          return buildStableLayerClaimFailureResponse({
+            status: 503,
+            error: 'Claims are temporarily unavailable. Please retry shortly.',
+            code: 'stable_layer_preflight_failed',
+            stage: 'preflight',
+            reason: 'Claim preflight could not complete.',
+            rawChainError,
+            debugContext: stableLayerDebugContext,
+          });
+        }
         console.error('Failed to preflight claim transaction', error);
         return noStoreJson(
           { error: 'Claims are temporarily unavailable. Please retry shortly.' },
@@ -711,6 +1055,7 @@ export async function POST(req: NextRequest) {
           txBytes,
           walletId,
           storedPublicKey,
+          stableLayerDebugContext,
         );
       } catch (error) {
         console.error('Failed to stage claim authorization request', error);
@@ -771,17 +1116,48 @@ export async function POST(req: NextRequest) {
       });
 
       if (result.effects?.status.status !== 'success') {
+        const rawChainError = extractStableLayerErrorMessage(result.effects?.status.error);
+        if (stableLayerDebugContext) {
+          const isBalanceSplit = isStableLayerBalanceSplitError(result.effects?.status.error);
+          logStableLayerClaimFailure(
+            'Claim transaction failed on-chain',
+            {
+              code: isBalanceSplit
+                ? 'stable_layer_balance_split'
+                : 'stable_layer_execute_failed',
+              stage: 'execute',
+              reason: isBalanceSplit
+                ? 'StableLayer redeem hit a balance split failure on-chain.'
+                : 'Claim transaction failed on-chain.',
+              error: result.effects?.status,
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            },
+          );
+          if (isBalanceSplit) {
+            return buildStableLayerRedeemableMinimumResponse({
+              stage: 'execute',
+              reason: 'StableLayer redeem hit a balance split failure on-chain.',
+              rawChainError,
+              debugContext: stableLayerDebugContext,
+            });
+          }
+          return buildStableLayerClaimFailureResponse({
+            status: 409,
+            error: 'Claim transaction failed on-chain. Please try again.',
+            code: 'stable_layer_execute_failed',
+            stage: 'execute',
+            reason: 'Claim transaction failed on-chain.',
+            rawChainError,
+            debugContext: stableLayerDebugContext,
+          });
+        }
         console.error('Claim transaction failed on-chain', {
           xUserId,
           vaultAddress,
           txDigest: result.digest,
           status: result.effects?.status,
         });
-
-        if (isStableLayerBalanceSplitError(result.effects?.status.error)) {
-          return buildStableLayerRedeemableMinimumResponse();
-        }
-
         return noStoreJson(
           { error: 'Claim transaction failed on-chain. Please try again.' },
           { status: 409 },
@@ -790,6 +1166,29 @@ export async function POST(req: NextRequest) {
 
       txDigest = result.digest;
     } catch (error) {
+      if (stableLayerDebugContext) {
+        const rawChainError = extractStableLayerErrorMessage(error);
+        logStableLayerClaimFailure(
+          'Failed to execute claim transaction',
+          {
+            code: 'stable_layer_execute_failed',
+            stage: 'execute',
+            reason: 'Claim execution did not complete.',
+            error,
+            rawChainError,
+            debugContext: stableLayerDebugContext,
+          },
+        );
+        return buildStableLayerClaimFailureResponse({
+          status: 500,
+          error: 'Claim execution did not complete. Please try again.',
+          code: 'stable_layer_execute_failed',
+          stage: 'execute',
+          reason: 'Claim execution did not complete.',
+          rawChainError,
+          debugContext: stableLayerDebugContext,
+        });
+      }
       console.error('Failed to execute claim transaction', error);
       return noStoreJson(
         { error: 'Claim execution did not complete. Please try again.' },
