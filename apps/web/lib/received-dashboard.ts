@@ -15,7 +15,6 @@ import {
   IncomingPaymentSender,
   ReceivedVaultSummary,
 } from '@/lib/received-dashboard-types';
-import { getPrivyClient } from '@/lib/privy-auth';
 import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { encodeTransactionHistoryCursor } from '@/lib/transaction-history-cursor';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
@@ -351,8 +350,6 @@ export async function getReceivedVaultSummary(
     client,
     vaultAddress,
     canonicalAddress: xUser?.suiAddress ?? null,
-    privy: xUser?.privyUserId ? getPrivyClient() : null,
-    privyUserId: xUser?.privyUserId ?? null,
   });
 
   let claimStatus: ReceivedVaultSummary['claimStatus'];
@@ -365,15 +362,14 @@ export async function getReceivedVaultSummary(
     claimStatus = 'PREVIOUSLY_CLAIMED';
     claimAction = 'NONE';
   } else if (hasIncompleteWalletBinding) {
-    claimStatus = 'REPAIR_REQUIRED';
+    claimStatus = 'CLAIMED';
     claimAction = 'NONE';
   } else if (ownership.kind === 'UNCLAIMED') {
     claimStatus = 'UNCLAIMED';
     claimAction = pendingBalances.length > 0 ? 'CLAIM' : 'NONE';
   } else if (ownership.kind === 'OWNED_BY_OTHER') {
-    claimStatus = 'REPAIR_REQUIRED';
-    claimAction =
-      ownership.repairWallet && pendingBalances.length > 0 ? 'REPAIR_AND_WITHDRAW' : 'NONE';
+    claimStatus = 'CLAIMED';
+    claimAction = 'NONE';
   } else {
     claimStatus = 'CLAIMED';
     claimAction = pendingBalances.length > 0 ? 'WITHDRAW' : 'NONE';

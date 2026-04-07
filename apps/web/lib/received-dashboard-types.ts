@@ -3,10 +3,9 @@ export const RECEIVED_CLAIM_STATUS_MODEL = 'vault_owner_balance_v2';
 export type ReceivedClaimStatus =
   | 'UNCLAIMED'
   | 'CLAIMED'
-  | 'PREVIOUSLY_CLAIMED'
-  | 'REPAIR_REQUIRED';
+  | 'PREVIOUSLY_CLAIMED';
 
-export type ReceivedClaimAction = 'NONE' | 'CLAIM' | 'WITHDRAW' | 'REPAIR_AND_WITHDRAW';
+export type ReceivedClaimAction = 'NONE' | 'CLAIM' | 'WITHDRAW';
 
 export interface ReceivedBalance {
   coinType: string;

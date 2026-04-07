@@ -43,20 +43,12 @@ export function claimStatusLabel(status: ReceivedClaimStatus) {
     return 'Previously claimed';
   }
 
-  if (status === 'REPAIR_REQUIRED') {
-    return 'Repair required';
-  }
-
   return 'Unclaimed';
 }
 
 export function claimActionLabel(action: ReceivedClaimAction) {
   if (action === 'WITHDRAW') {
     return 'Withdraw now';
-  }
-
-  if (action === 'REPAIR_AND_WITHDRAW') {
-    return 'Repair & withdraw';
   }
 
   if (action === 'CLAIM') {

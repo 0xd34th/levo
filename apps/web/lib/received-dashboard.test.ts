@@ -5,10 +5,8 @@ const MAINNET_USDC_TYPE =
 
 const {
   deriveVaultAddress,
-  findSuiWalletForPrivyUserByAddress,
   getAllBalances,
   getObject,
-  getPrivyClient,
   paymentLedgerFindMany,
   paymentLedgerGroupBy,
   xUserFindMany,
@@ -16,10 +14,8 @@ const {
   xUserUpsert,
 } = vi.hoisted(() => ({
   deriveVaultAddress: vi.fn(() => '0xvault'),
-  findSuiWalletForPrivyUserByAddress: vi.fn(),
   getObject: vi.fn(),
   getAllBalances: vi.fn(),
-  getPrivyClient: vi.fn(),
   xUserUpsert: vi.fn(),
   xUserFindUnique: vi.fn(),
   xUserFindMany: vi.fn(() => []),
@@ -47,14 +43,6 @@ vi.mock('@/lib/sui', () => ({
     getObject,
     getAllBalances,
   }),
-}));
-
-vi.mock('@/lib/privy-auth', () => ({
-  getPrivyClient,
-}));
-
-vi.mock('@/lib/privy-wallet', () => ({
-  findSuiWalletForPrivyUserByAddress,
 }));
 
 import { decodeTransactionHistoryCursor } from './transaction-history-cursor';
@@ -199,16 +187,10 @@ describe('getReceivedVaultSummary', () => {
     ]);
   });
 
-  it('marks owner mismatches as repair-and-withdraw when the legacy owner wallet is still owned by the same Privy user', async () => {
+  it('treats owner mismatches as non-actionable claimed vaults in the received summary', async () => {
     xUserFindUnique.mockResolvedValueOnce({
       suiAddress: '0xcanonical',
       privyUserId: 'privy-user',
-    });
-    getPrivyClient.mockReturnValue({});
-    findSuiWalletForPrivyUserByAddress.mockResolvedValueOnce({
-      privyWalletId: 'wallet-old',
-      suiAddress: '0xlegacy',
-      suiPublicKey: 'old-public-key',
     });
     getObject.mockResolvedValueOnce({
       data: {
@@ -228,11 +210,11 @@ describe('getReceivedVaultSummary', () => {
 
     const result = await getReceivedVaultSummary('456', '0xregistry');
 
-    expect(result.claimStatus).toBe('REPAIR_REQUIRED');
-    expect(result.claimAction).toBe('REPAIR_AND_WITHDRAW');
+    expect(result.claimStatus).toBe('CLAIMED');
+    expect(result.claimAction).toBe('NONE');
   });
 
-  it('treats a claimed vault with missing canonical wallet binding as repair-required', async () => {
+  it('treats a claimed vault with missing canonical wallet binding as a non-actionable claimed vault', async () => {
     xUserFindUnique.mockResolvedValueOnce({
       suiAddress: null,
       privyUserId: 'privy-user',
@@ -255,7 +237,7 @@ describe('getReceivedVaultSummary', () => {
 
     const result = await getReceivedVaultSummary('456', '0xregistry');
 
-    expect(result.claimStatus).toBe('REPAIR_REQUIRED');
+    expect(result.claimStatus).toBe('CLAIMED');
     expect(result.claimAction).toBe('NONE');
   });
 });

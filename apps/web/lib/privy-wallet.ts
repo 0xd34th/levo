@@ -225,17 +225,6 @@ export async function listSuiWalletsForPrivyUser(
   return wallets;
 }
 
-export async function findSuiWalletForPrivyUserByAddress(
-  privy: PrivyClient,
-  privyUserId: string,
-  suiAddress: string,
-): Promise<PrivySuiWallet | null> {
-  const normalizedAddress = normalizeSuiAddress(suiAddress);
-  const wallets = await listSuiWalletsForPrivyUser(privy, privyUserId);
-
-  return wallets.find((wallet) => wallet.suiAddress === normalizedAddress) ?? null;
-}
-
 /**
  * Get or create a Sui embedded wallet for the given X user.
  * On first call it creates the wallet via Privy, stores the details in the DB,

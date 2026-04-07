@@ -6,7 +6,6 @@ const {
   buildPrivyRawSignAuthorizationRequestMock,
   buildBurnFromStableCoinTxMock,
   deriveVaultAddressMock,
-  findSuiWalletForPrivyUserByAddressMock,
   findUniqueMock,
   getGasStationKeypairMock,
   getDynamicFieldObjectMock,
@@ -18,7 +17,6 @@ const {
   dryRunTransactionBlockMock,
   getSuiClientMock,
   requestAttestationMock,
-  requestOwnerRecoveryAttestationMock,
   rateLimitMock,
   signSuiTransactionMock,
   txBuildMock,
@@ -43,7 +41,6 @@ const {
     buildPrivyRawSignAuthorizationRequestMock: vi.fn(),
     buildBurnFromStableCoinTxMock: vi.fn(),
     deriveVaultAddressMock: vi.fn(),
-    findSuiWalletForPrivyUserByAddressMock: vi.fn(),
     dryRunTransactionBlockMock: vi.fn(),
     findUniqueMock: vi.fn(),
     getGasStationKeypairMock: vi.fn(),
@@ -55,7 +52,6 @@ const {
     redisSetMock: vi.fn(),
     getSuiClientMock: vi.fn(),
     requestAttestationMock: vi.fn(),
-    requestOwnerRecoveryAttestationMock: vi.fn(),
     rateLimitMock: vi.fn(),
     signSuiTransactionMock: vi.fn(),
     txBuildMock: vi.fn(),
@@ -105,7 +101,6 @@ vi.mock('@/lib/api', async () => {
 
 vi.mock('@/lib/nautilus', () => ({
   requestAttestation: requestAttestationMock,
-  requestOwnerRecoveryAttestation: requestOwnerRecoveryAttestationMock,
 }));
 
 vi.mock('@/lib/gas-station', () => ({
@@ -127,7 +122,6 @@ vi.mock('@/lib/privy-auth', () => ({
 
 vi.mock('@/lib/privy-wallet', () => ({
   buildPrivyRawSignAuthorizationRequest: buildPrivyRawSignAuthorizationRequestMock,
-  findSuiWalletForPrivyUserByAddress: findSuiWalletForPrivyUserByAddressMock,
   signSuiTransaction: signSuiTransactionMock,
 }));
 
@@ -225,16 +219,6 @@ describe('POST /api/v1/payments/claim', () => {
       expiresAt: 1_800_000_000_000n,
       signature: Uint8Array.from([1, 2, 3, 4]),
     });
-    requestOwnerRecoveryAttestationMock.mockResolvedValue({
-      xUserId: 12345n,
-      vaultId: '0xvault',
-      currentOwner: '0xlegacy',
-      newOwner: '0xwallet',
-      recoveryCounter: 2n,
-      expiresAt: 1_800_000_000_000n,
-      signature: Uint8Array.from([9, 8, 7, 6]),
-    });
-    findSuiWalletForPrivyUserByAddressMock.mockResolvedValue(null);
     txMoveCallMock.mockReturnValue(['move-call-result']);
     txObjectMock.mockImplementation((value: string) => value);
     txPureU64Mock.mockImplementation((value: bigint | number | string) => value);
@@ -361,7 +345,7 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
-  it('builds an owner-handoff flow when the vault is owned by another wallet under the same Privy user', async () => {
+  it('blocks claims when the vault is owned by another wallet even if the old owner wallet is still known', async () => {
     getDynamicFieldObjectMock.mockResolvedValueOnce({
       data: {
         objectId: '0xvault',
@@ -380,12 +364,6 @@ describe('POST /api/v1/payments/claim', () => {
       suiAddress: '0xwallet',
       suiPublicKey: 'public-key-new',
     });
-    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce({
-      privyWalletId: 'wallet-old',
-      suiAddress: '0xlegacy',
-      suiPublicKey: 'public-key-old',
-    });
-
     const req = new NextRequest('http://localhost/api/v1/payments/claim', {
       method: 'POST',
       headers: { origin: 'http://localhost' },
@@ -393,25 +371,15 @@ describe('POST /api/v1/payments/claim', () => {
 
     const res = await POST(req);
 
-    expect(requestOwnerRecoveryAttestationMock).toHaveBeenCalledWith({
-      xUserId: '12345',
-      vaultId: '0xvault',
-      currentOwner: '0xlegacy',
-      newOwner: '0xwallet',
-      recoveryCounter: '2',
-    });
-    expect(buildPrivyRawSignAuthorizationRequestMock).toHaveBeenCalledWith(
-      'wallet-old',
-      expect.any(Uint8Array),
-    );
-    expect(txMoveCallMock).toHaveBeenCalledWith(
+    expect(buildPrivyRawSignAuthorizationRequestMock).not.toHaveBeenCalled();
+    expect(txMoveCallMock).not.toHaveBeenCalledWith(
       expect.objectContaining({
         target: 'package-id::x_vault::update_owner',
       }),
     );
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({
-      status: 'authorization_required',
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'This vault is currently controlled by a different wallet and cannot be claimed from this app.',
     });
   });
 
@@ -434,8 +402,6 @@ describe('POST /api/v1/payments/claim', () => {
       suiAddress: '0xwallet',
       suiPublicKey: 'public-key-new',
     });
-    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce(null);
-
     const req = new NextRequest('http://localhost/api/v1/payments/claim', {
       method: 'POST',
       headers: { origin: 'http://localhost' },
@@ -445,7 +411,7 @@ describe('POST /api/v1/payments/claim', () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
-      error: 'This vault is currently controlled by a different wallet. Repair ownership before claiming again.',
+      error: 'This vault is currently controlled by a different wallet and cannot be claimed from this app.',
     });
   });
 

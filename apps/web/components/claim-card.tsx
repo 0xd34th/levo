@@ -42,9 +42,7 @@ export function ClaimCard({ receivedData, onPendingChange }: ClaimCardProps) {
   const claimDescription =
     data?.claimAction === 'WITHDRAW'
       ? 'New funds are waiting inside your claimed vault.'
-      : data?.claimAction === 'REPAIR_AND_WITHDRAW'
-        ? 'Claiming will repair vault ownership, then move funds to your current wallet.'
-        : 'Funds waiting in your vault';
+      : 'Funds waiting in your vault';
 
   // Auto-fetch received data if not provided
   useEffect(() => {

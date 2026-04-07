@@ -3,10 +3,7 @@ import { z } from 'zod';
 import { type TransactionArgument, Transaction } from '@mysten/sui/transactions';
 import { getClientIp, noStoreJson, verifySameOrigin } from '@/lib/api';
 import { getGasStationKeypair } from '@/lib/gas-station';
-import {
-  requestAttestation,
-  requestOwnerRecoveryAttestation,
-} from '@/lib/nautilus';
+import { requestAttestation } from '@/lib/nautilus';
 import { prisma } from '@/lib/prisma';
 import {
   getPrivyClient,
@@ -61,7 +58,7 @@ type ClaimableVaultCoin = {
   balance: bigint;
 };
 
-type ClaimFlow = 'CLAIM' | 'WITHDRAW' | 'REPAIR_AND_WITHDRAW';
+type ClaimFlow = 'CLAIM' | 'WITHDRAW';
 
 function buildStableLayerClaimFailureResponse(error: unknown) {
   console.error('Failed to compose StableLayer burn transaction', error);
@@ -401,26 +398,21 @@ export async function POST(req: NextRequest) {
 
     const client = getSuiClient();
     const vaultAddress = deriveVaultAddress(VAULT_REGISTRY_ID, BigInt(xUserId));
-    const privy = getPrivyClient();
-
     let ownership;
     try {
       ownership = await getVaultOwnershipState({
         client,
         vaultAddress,
         canonicalAddress: xUser.suiAddress,
-        privy,
-        privyUserId: xUser.privyUserId,
       });
     } catch (error) {
       console.error('Failed to query vault ownership', error);
       return noStoreJson({ error: 'Failed to query vault status' }, { status: 500 });
     }
 
-    const legacyWallet = ownership.repairWallet;
-    if (ownership.kind === 'OWNED_BY_OTHER' && !legacyWallet) {
+    if (ownership.kind === 'OWNED_BY_OTHER') {
       return noStoreJson(
-        { error: 'This vault is currently controlled by a different wallet. Repair ownership before claiming again.' },
+        { error: 'This vault is currently controlled by a different wallet and cannot be claimed from this app.' },
         { status: 409 },
       );
     }
@@ -428,25 +420,10 @@ export async function POST(req: NextRequest) {
     const claimFlow: ClaimFlow =
       ownership.kind === 'OWNED_BY_CANONICAL'
         ? 'WITHDRAW'
-        : legacyWallet
-          ? 'REPAIR_AND_WITHDRAW'
-          : 'CLAIM';
-    const repairWallet =
-      claimFlow === 'REPAIR_AND_WITHDRAW'
-        ? legacyWallet
-        : null;
-    const signingAddress =
-      claimFlow === 'REPAIR_AND_WITHDRAW'
-        ? repairWallet!.suiAddress
-        : xUser.suiAddress;
-    const signingWalletId =
-      claimFlow === 'REPAIR_AND_WITHDRAW'
-        ? repairWallet!.privyWalletId
-        : xUser.privyWalletId;
-    const signingPublicKey =
-      claimFlow === 'REPAIR_AND_WITHDRAW'
-        ? repairWallet!.suiPublicKey
-        : xUser.suiPublicKey;
+        : 'CLAIM';
+    const signingAddress = xUser.suiAddress;
+    const signingWalletId = xUser.privyWalletId;
+    const signingPublicKey = xUser.suiPublicKey;
 
     if (!signingPublicKey) {
       return noStoreJson(
@@ -464,27 +441,6 @@ export async function POST(req: NextRequest) {
         });
       } catch (error) {
         console.error('Attestation request failed', error);
-        return noStoreJson(
-          { error: 'Failed to obtain attestation. Please try again.' },
-          { status: 502 },
-        );
-      }
-    }
-
-    let ownerRecoveryAttestation: Awaited<
-      ReturnType<typeof requestOwnerRecoveryAttestation>
-    > | null = null;
-    if (claimFlow === 'REPAIR_AND_WITHDRAW') {
-      try {
-        ownerRecoveryAttestation = await requestOwnerRecoveryAttestation({
-          xUserId,
-          vaultId: vaultAddress,
-          currentOwner: repairWallet!.suiAddress,
-          newOwner: xUser.suiAddress,
-          recoveryCounter: ownership.recoveryCounter,
-        });
-      } catch (error) {
-        console.error('Owner recovery attestation request failed', error);
         return noStoreJson(
           { error: 'Failed to obtain attestation. Please try again.' },
           { status: 502 },
@@ -704,19 +660,6 @@ export async function POST(req: NextRequest) {
         tx.moveCall({
           target: `${PACKAGE_ID}::x_vault::transfer_vault`,
           arguments: [vault],
-        });
-      } else if (claimFlow === 'REPAIR_AND_WITHDRAW') {
-        tx.moveCall({
-          target: `${PACKAGE_ID}::x_vault::update_owner`,
-          arguments: [
-            tx.object(VAULT_REGISTRY_ID),
-            tx.object(ENCLAVE_REGISTRY_ID),
-            vault,
-            tx.pure.address(xUser.suiAddress),
-            tx.pure.u64(ownerRecoveryAttestation!.expiresAt),
-            tx.pure.vector('u8', Array.from(ownerRecoveryAttestation!.signature)),
-            tx.object('0x6'),
-          ],
         });
       }
 

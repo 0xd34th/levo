@@ -5,10 +5,8 @@ const {
   countMock,
   createMock,
   deriveVaultAddressMock,
-  findSuiWalletForPrivyUserByAddressMock,
   findUniqueMock,
   getObjectMock,
-  getPrivyClientMock,
   getSuiClientMock,
   rateLimitMock,
   resolveFreshXUserMock,
@@ -21,10 +19,8 @@ const {
   countMock: vi.fn(),
   createMock: vi.fn(),
   deriveVaultAddressMock: vi.fn(),
-  findSuiWalletForPrivyUserByAddressMock: vi.fn(),
   findUniqueMock: vi.fn(),
   getObjectMock: vi.fn(),
-  getPrivyClientMock: vi.fn(),
   getSuiClientMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveFreshXUserMock: vi.fn(),
@@ -81,12 +77,7 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
-  getPrivyClient: getPrivyClientMock,
   verifyPrivyXAuth: verifyPrivyXAuthMock,
-}));
-
-vi.mock('@/lib/privy-wallet', () => ({
-  findSuiWalletForPrivyUserByAddress: findSuiWalletForPrivyUserByAddressMock,
 }));
 
 vi.mock('@/lib/x-user-lookup', () => ({
@@ -108,7 +99,6 @@ describe('POST /api/v1/payments/quote', () => {
     vi.clearAllMocks();
     findUniqueMock.mockReset();
     getObjectMock.mockReset();
-    findSuiWalletForPrivyUserByAddressMock.mockReset();
     vi.stubEnv('TWITTER_API_KEY', 'test-api-key');
     vi.stubEnv('NEXT_PUBLIC_VAULT_REGISTRY_ID', 'test-registry-id');
     vi.stubEnv('HMAC_SECRET', 'x'.repeat(32));
@@ -143,12 +133,10 @@ describe('POST /api/v1/payments/quote', () => {
       },
     });
     deriveVaultAddressMock.mockReturnValue('0xvault');
-    getPrivyClientMock.mockReturnValue({});
     getSuiClientMock.mockReturnValue({
       getObject: getObjectMock,
     });
     getObjectMock.mockResolvedValue({ error: { code: 'notExists' } });
-    findSuiWalletForPrivyUserByAddressMock.mockResolvedValue(null);
     signQuoteTokenMock.mockReturnValue('signed-quote-token');
     upsertMock.mockResolvedValue({});
     createMock.mockResolvedValue({});
@@ -305,7 +293,7 @@ describe('POST /api/v1/payments/quote', () => {
     });
   });
 
-  it('rejects recipient vaults with a non-recoverable owner mismatch before creating a quote', async () => {
+  it('rejects recipient vaults with any owner mismatch before creating a quote', async () => {
     findUniqueMock.mockReset();
     findUniqueMock
       .mockResolvedValueOnce({
@@ -329,8 +317,6 @@ describe('POST /api/v1/payments/quote', () => {
         },
       },
     });
-    findSuiWalletForPrivyUserByAddressMock.mockResolvedValueOnce(null);
-
     const req = new NextRequest('http://localhost/api/v1/payments/quote', {
       method: 'POST',
       body: JSON.stringify({

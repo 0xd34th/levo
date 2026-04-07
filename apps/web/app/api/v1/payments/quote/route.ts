@@ -16,7 +16,7 @@ import {
 import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
-import { getPrivyClient, verifyPrivyXAuth } from '@/lib/privy-auth';
+import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
@@ -216,8 +216,6 @@ export async function POST(req: NextRequest) {
       client: getSuiClient(),
       vaultAddress,
       canonicalAddress: existingUser?.suiAddress ?? null,
-      privy: existingUser?.privyUserId ? getPrivyClient() : null,
-      privyUserId: existingUser?.privyUserId ?? null,
     });
 
     if (existingUser?.privyUserId && !existingUser.suiAddress && ownership.vaultExists) {
@@ -227,7 +225,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (ownership.kind === 'OWNED_BY_OTHER' && !ownership.repairWallet) {
+    if (ownership.kind === 'OWNED_BY_OTHER') {
       return noStoreJson(
         { error: 'Recipient vault is controlled by a different wallet and cannot safely receive new funds.' },
         { status: 409 },

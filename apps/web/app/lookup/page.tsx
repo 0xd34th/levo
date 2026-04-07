@@ -220,13 +220,11 @@ export default function LookupPage() {
                 <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
                   {result.claimAction === 'WITHDRAW'
                     ? 'The recipient signs in with X and withdraws newly arrived funds from the claimed vault.'
-                    : result.claimAction === 'REPAIR_AND_WITHDRAW'
-                      ? 'The recipient signs in with X, repairs vault ownership, and withdraws the pending balance.'
-                      : result.claimStatus === 'CLAIMED'
+                    : result.claimStatus === 'CLAIMED'
                         ? 'This vault is already owned on-chain and there is no pending balance to withdraw right now.'
                         : result.claimStatus === 'PREVIOUSLY_CLAIMED'
                           ? 'This vault was claimed previously and there is no active vault object to act on right now.'
-                      : 'The recipient signs in with X, connects a Sui wallet, and claims the balance.'}
+                          : 'The recipient signs in with X, connects a Sui wallet, and claims the balance.'}
                 </p>
                 <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
                   <Wallet className="size-4 text-primary" />
