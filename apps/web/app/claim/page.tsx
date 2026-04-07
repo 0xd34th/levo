@@ -29,6 +29,7 @@ import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 type ClaimOutcome = { type: 'claimed'; txDigest: string };
+const TEMP_OWNER_MIGRATION_X_USER_ID = '1832743034540507136';
 
 export default function ClaimPage() {
   const router = useRouter();
@@ -53,6 +54,7 @@ export default function ClaimPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [claimOutcome, setClaimOutcome] = useState<ClaimOutcome | null>(null);
   const [lookup, setLookup] = useState<PublicLookupResponse | null>(null);
+  const [ownerMigrationLoading, setOwnerMigrationLoading] = useState(false);
   const lookupRequestIdRef = useRef(0);
   const lookupAbortRef = useRef<AbortController | null>(null);
   const stepDelayAbortRef = useRef<AbortController | null>(null);
@@ -80,6 +82,10 @@ export default function ClaimPage() {
     Boolean(lookup?.xUserId) && privyTwitter?.subject === lookup?.xUserId;
   const signedInHandleMismatch =
     privyXLinked && Boolean(lookup?.xUserId) && !effectiveSignedIn;
+  const canRunTempOwnerMigration =
+    effectiveSignedIn &&
+    walletReady &&
+    lookup?.xUserId === TEMP_OWNER_MIGRATION_X_USER_ID;
 
   useEffect(() => {
     if (!effectiveSignedIn) {
@@ -157,6 +163,67 @@ export default function ClaimPage() {
       if (lookupRequestIdRef.current === lookupRequestId) {
         setLoadingLookup(false);
       }
+    }
+  }
+
+  async function handleTemporaryOwnerMigration() {
+    if (!canRunTempOwnerMigration || ownerMigrationLoading) {
+      return;
+    }
+
+    setNotice(null);
+    setOwnerMigrationLoading(true);
+
+    try {
+      const requestOwnerMigration = (authorizationSignature?: string) => (
+        privyAuthenticatedFetch(getAccessToken, '/api/v1/payments/owner-migration', {
+          method: 'POST',
+          ...(authorizationSignature
+            ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ authorizationSignature }),
+              }
+            : {}),
+        })
+      );
+
+      let res = await requestOwnerMigration();
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ error: 'Owner migration failed' }));
+        setNotice(payload.error ?? 'Owner migration failed. Please try again.');
+        return;
+      }
+
+      let payload = await res.json().catch(() => null);
+      const authorizationRequired = parsePrivyAuthorizationRequiredResponse(payload);
+      if (authorizationRequired) {
+        const result = await generateAuthorizationSignature(
+          authorizationRequired.authorizationRequest,
+        );
+        const authorizationSignature = result.signature;
+        res = await requestOwnerMigration(authorizationSignature);
+
+        if (!res.ok) {
+          const retryPayload = await res.json().catch(() => ({ error: 'Owner migration failed' }));
+          setNotice(retryPayload.error ?? 'Owner migration failed. Please try again.');
+          return;
+        }
+
+        payload = await res.json().catch(() => null);
+      }
+
+      if (payload?.status === 'migrated') {
+        refetchEmbeddedWallet();
+        setNotice('Vault owner updated. Reload claim details before continuing.');
+        return;
+      }
+
+      setNotice('Vault owner migration completed.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Owner migration failed. Please try again.');
+    } finally {
+      setOwnerMigrationLoading(false);
     }
   }
 
@@ -527,6 +594,24 @@ export default function ClaimPage() {
                 {notice ? (
                   <div className="rounded-[22px] border border-primary/20 bg-primary/8 px-4 py-3 text-sm text-foreground">
                     {notice}
+                  </div>
+                ) : null}
+
+                {canRunTempOwnerMigration ? (
+                  <div className="rounded-[22px] border border-amber-500/20 bg-amber-500/8 px-4 py-4 text-sm text-foreground">
+                    <p className="font-medium">Temporary maintenance action</p>
+                    <p className="mt-2 text-muted-foreground">
+                      Use this once to move the vault owner onto your current embedded wallet before the old repair flow is removed.
+                    </p>
+                    <Button
+                      className="mt-3 rounded-full"
+                      disabled={ownerMigrationLoading}
+                      onClick={handleTemporaryOwnerMigration}
+                      type="button"
+                      variant="outline"
+                    >
+                      {ownerMigrationLoading ? 'Updating owner…' : 'Update vault owner'}
+                    </Button>
                   </div>
                 ) : null}
 
