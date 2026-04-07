@@ -18,6 +18,7 @@ REMOTE_DIR="${LEVO_DEPLOY_REMOTE_DIR:-$DEFAULT_REMOTE_DIR}"
 WEB_ENV_FILE="${LEVO_DEPLOY_WEB_ENV_FILE:-$DEFAULT_WEB_ENV_FILE}"
 SIGNER_ENV_FILE="${LEVO_DEPLOY_SIGNER_ENV_FILE:-$DEFAULT_SIGNER_ENV_FILE}"
 DRY_RUN=0
+SKIP_ENV=0
 HEALTHCHECK_URL="${LEVO_DEPLOY_HEALTHCHECK_URL:-$DEFAULT_HEALTHCHECK_URL}"
 
 usage() {
@@ -33,6 +34,7 @@ Options:
   --signer-env-file <path>
                           Signer env file to upload (default: apps/nautilus-signer/.env)
   --healthcheck-url <url>  Remote healthcheck URL (default: http://127.0.0.1:10101/)
+  --skip-env              Skip env file validation and upload (use existing remote .env)
   --dry-run               Print rsync actions without modifying remote files
   --help                  Show this message
 EOF
@@ -123,6 +125,10 @@ while [[ $# -gt 0 ]]; do
       HEALTHCHECK_URL="$2"
       shift 2
       ;;
+    --skip-env)
+      SKIP_ENV=1
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -141,10 +147,12 @@ done
 
 require_command rsync
 require_command ssh
-require_file "$WEB_ENV_FILE"
-require_file "$SIGNER_ENV_FILE"
 require_file "$ROOT_DIR/scripts/rsync-excludes.txt"
-validate_web_env_file
+if [[ "$SKIP_ENV" -eq 0 ]]; then
+  require_file "$WEB_ENV_FILE"
+  require_file "$SIGNER_ENV_FILE"
+  validate_web_env_file
+fi
 
 SSH_TARGET="${USER_NAME}@${HOST}"
 SSH_CMD=(ssh -p "$PORT")
@@ -152,7 +160,6 @@ RSYNC_SSH="ssh -p $PORT"
 RSYNC_ARGS=(
   -az
   --delete
-  --delete-excluded
   --exclude-from="$ROOT_DIR/scripts/rsync-excludes.txt"
   --filter='P /.git/'
   -e "$RSYNC_SSH"
@@ -178,9 +185,13 @@ echo "[deploy-rsync] healthcheck: ${HEALTHCHECK_URL}"
 echo "[deploy-rsync] syncing source tree"
 rsync "${RSYNC_ARGS[@]}" "$ROOT_DIR/" "${SSH_TARGET}:${REMOTE_DIR}/"
 
-echo "[deploy-rsync] syncing runtime env files"
-rsync "${ENV_RSYNC_ARGS[@]}" "$WEB_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/web/.env"
-rsync "${ENV_RSYNC_ARGS[@]}" "$SIGNER_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/nautilus-signer/.env"
+if [[ "$SKIP_ENV" -eq 0 ]]; then
+  echo "[deploy-rsync] syncing runtime env files"
+  rsync "${ENV_RSYNC_ARGS[@]}" "$WEB_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/web/.env"
+  rsync "${ENV_RSYNC_ARGS[@]}" "$SIGNER_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/nautilus-signer/.env"
+else
+  echo "[deploy-rsync] skipping env sync (using remote .env)"
+fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "[deploy-rsync] dry-run complete"
