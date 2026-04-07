@@ -11,6 +11,7 @@ const {
   getPrivyClient,
   paymentLedgerFindMany,
   paymentLedgerGroupBy,
+  xUserFindMany,
   xUserFindUnique,
   xUserUpsert,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   getPrivyClient: vi.fn(),
   xUserUpsert: vi.fn(),
   xUserFindUnique: vi.fn(),
+  xUserFindMany: vi.fn(() => []),
   paymentLedgerFindMany: vi.fn(),
   paymentLedgerGroupBy: vi.fn(() => []),
 }));
@@ -28,6 +30,7 @@ const {
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     xUser: {
+      findMany: xUserFindMany,
       findUnique: xUserFindUnique,
       upsert: xUserUpsert,
     },
@@ -371,6 +374,18 @@ describe('getIncomingPaymentsPage', () => {
         createdAt: new Date('2026-03-15T01:00:00.000Z'),
       },
     ]);
+    xUserFindMany.mockResolvedValueOnce([
+      {
+        suiAddress: '0xsender3',
+        username: 'sender3',
+        profilePicture: 'https://pbs.twimg.com/profile_images/sender3.jpg',
+      },
+      {
+        suiAddress: '0xsender2',
+        username: 'sender2',
+        profilePicture: null,
+      },
+    ] as never);
 
     const result = await getIncomingPaymentsPage(
       '123',
@@ -409,6 +424,10 @@ describe('getIncomingPaymentsPage', () => {
         id: 'ledger-3',
         txDigest: 'digest-3',
         senderAddress: '0xsender3',
+        sender: {
+          username: 'sender3',
+          profilePicture: 'https://pbs.twimg.com/profile_images/sender3.jpg',
+        },
         coinType: '0x2::sui::SUI',
         symbol: 'SUI',
         decimals: 9,
@@ -419,6 +438,10 @@ describe('getIncomingPaymentsPage', () => {
         id: 'ledger-2',
         txDigest: 'digest-2',
         senderAddress: '0xsender2',
+        sender: {
+          username: 'sender2',
+          profilePicture: null,
+        },
         coinType: '0x2::sui::SUI',
         symbol: 'SUI',
         decimals: 9,
@@ -479,6 +502,7 @@ describe('getIncomingPaymentsPage', () => {
           createdAt: new Date('2026-03-15T01:00:00.000Z'),
         },
       ]);
+    xUserFindMany.mockResolvedValueOnce([]);
 
     const result = await getIncomingPaymentsPage('123', 2);
 
