@@ -7,6 +7,7 @@ import {
   ensureActiveMainnet,
   extractJsonFromOutput,
   formatCommand,
+  normalizeHex,
   runCommand,
 } from '../../../scripts/mainnet-bootstrap-runtime.ts';
 import { extractContractsPublishResult } from '../../../scripts/mainnet-bootstrap-lib.ts';
@@ -20,7 +21,12 @@ const publishTempDir = path.join(contractsDir, '.publish-mainnet-temp');
 export interface PublishContractsMainnetOptions {
   confirmMainnet: boolean;
   publishArgs?: string[];
+  sender?: string;
   clientConfig?: string;
+}
+
+export function getContractsMainnetExcludedSources() {
+  return ['test_usdc.move'];
 }
 
 function printUsage() {
@@ -30,13 +36,13 @@ function printUsage() {
       '',
       'This wrapper:',
       '1. verifies the active Sui environment is mainnet',
-      '2. stages a temporary package without sources/test_usdc.move and sources/levo_usd.move',
+      '2. stages a temporary package without testnet-only sources',
       '3. runs `sui client publish` against that clean package with --force',
       '4. emits structured json when --json is present',
       '5. deletes the temporary staging directory before exiting',
       '',
       'Example:',
-      '  pnpm publish:contracts:mainnet -- --confirm-mainnet --gas-budget 100000000',
+      '  pnpm publish:contracts:mainnet -- --confirm-mainnet --gas-budget 100000000 --sender 0x...',
     ].join('\n'),
   );
 }
@@ -60,8 +66,9 @@ export function publishContractsMainnet(options: PublishContractsMainnetOptions)
   cpSync(path.join(contractsDir, 'sources'), path.join(publishTempDir, 'sources'), {
     recursive: true,
   });
-  rmSync(path.join(publishTempDir, 'sources', 'test_usdc.move'), { force: true });
-  rmSync(path.join(publishTempDir, 'sources', 'levo_usd.move'), { force: true });
+  for (const filename of getContractsMainnetExcludedSources()) {
+    rmSync(path.join(publishTempDir, 'sources', filename), { force: true });
+  }
 
   const finalPublishArgs = [...(options.publishArgs ?? [])].filter((arg) => arg !== '--json');
   if (!finalPublishArgs.includes('--force')) {
@@ -74,6 +81,9 @@ export function publishContractsMainnet(options: PublishContractsMainnetOptions)
   const commandArgs = options.clientConfig
     ? ['client', '--client.config', options.clientConfig, 'publish', ...finalPublishArgs, '--json', publishTempDir]
     : ['client', 'publish', ...finalPublishArgs, '--json', publishTempDir];
+  if (options.sender) {
+    commandArgs.splice(commandArgs.length - 2, 0, '--sender', normalizeHex(options.sender, 'sender address'));
+  }
 
   try {
     const result = runCommand('sui', commandArgs, { cwd: contractsDir });
@@ -89,12 +99,26 @@ function parseCliArgs(argv: string[]) {
   const wantsHelp = userArgs.includes('--help') || userArgs.includes('-h');
   const confirmedMainnet = userArgs.includes('--confirm-mainnet');
   const wantsJson = userArgs.includes('--json');
-  const publishArgs = userArgs.filter((arg) => arg !== '--confirm-mainnet');
+  let sender: string | undefined;
+  const publishArgs: string[] = [];
+
+  for (let index = 0; index < userArgs.length; index += 1) {
+    const arg = userArgs[index];
+    if (arg === '--confirm-mainnet') {
+      continue;
+    }
+    if (arg === '--sender') {
+      sender = userArgs[++index];
+      continue;
+    }
+    publishArgs.push(arg);
+  }
 
   return {
     wantsHelp,
     wantsJson,
     confirmedMainnet,
+    sender,
     publishArgs,
   };
 }
@@ -110,6 +134,7 @@ function main() {
     const result = publishContractsMainnet({
       confirmMainnet: parsed.confirmedMainnet,
       publishArgs: parsed.publishArgs,
+      sender: parsed.sender,
     });
 
     if (parsed.wantsJson) {

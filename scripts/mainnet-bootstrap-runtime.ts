@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
@@ -111,13 +111,49 @@ export function extractJsonFromOutput(text: string): unknown {
   throw new Error('Unable to parse JSON output');
 }
 
-function setMainnetRpcInClientConfig(clientConfig: string, rpcUrl: string) {
+function parseKeystorePathFromClientConfig(clientConfigContents: string) {
+  let inKeystoreBlock = false;
+  for (const line of clientConfigContents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === 'keystore:') {
+      inKeystoreBlock = true;
+      continue;
+    }
+    if (inKeystoreBlock && !line.startsWith(' ')) {
+      inKeystoreBlock = false;
+    }
+    if (inKeystoreBlock && trimmed.startsWith('File: ')) {
+      return trimmed.slice('File: '.length).trim().replace(/^['"]|['"]$/g, '');
+    }
+  }
+
+  throw new Error('Failed to locate keystore path in default Sui config');
+}
+
+function setMainnetRpcInClientConfig(clientConfig: string, rpcUrl: string, keystorePath: string) {
   const current = readFileSync(clientConfig, 'utf8');
   const lines = current.split(/\r?\n/);
   let inMainnetBlock = false;
+  let inKeystoreBlock = false;
   let replaced = false;
+  let replacedKeystore = false;
   const next = lines.map((line) => {
     const trimmed = line.trim();
+    const indent = line.slice(0, line.length - line.trimStart().length);
+
+    if (trimmed === 'keystore:') {
+      inKeystoreBlock = true;
+      return line;
+    }
+    if (inKeystoreBlock && !line.startsWith(' ')) {
+      inKeystoreBlock = false;
+    }
+
+    if (inKeystoreBlock && trimmed.startsWith('File: ')) {
+      replacedKeystore = true;
+      return `${indent}File: ${keystorePath}`;
+    }
+
     if (trimmed === '- alias: mainnet') {
       inMainnetBlock = true;
       return line;
@@ -138,36 +174,38 @@ function setMainnetRpcInClientConfig(clientConfig: string, rpcUrl: string) {
   if (!replaced) {
     throw new Error('Failed to update mainnet RPC in temporary Sui config');
   }
+  if (!replacedKeystore) {
+    throw new Error('Failed to update keystore path in temporary Sui config');
+  }
 
-  writeFileSync(clientConfig, next);
+  writeFileSync(clientConfig, `${next}\n`);
 }
 
-function syncImportedKeyIntoClientConfig(input: {
+function setActiveAddressInClientConfig(input: {
   clientConfig: string;
-  aliasFile: string;
-  alias: string;
-  publicBase64Key: string;
   deployerAddress: string;
 }) {
-  const aliasEntries = JSON.parse(readFileSync(input.aliasFile, 'utf8')) as Array<Record<string, unknown>>;
-  const withoutAlias = aliasEntries.filter((entry) => entry.alias !== input.alias);
-  withoutAlias.push({
-    alias: input.alias,
-    public_key_base64: input.publicBase64Key,
-  });
-  writeFileSync(input.aliasFile, `${JSON.stringify(withoutAlias, null, 2)}\n`);
-
   const current = readFileSync(input.clientConfig, 'utf8');
+  let replacedActiveEnv = false;
+  let replacedActiveAddress = false;
   const lines = current.split(/\r?\n/).map((line) => {
     if (line.startsWith('active_env: ')) {
+      replacedActiveEnv = true;
       return 'active_env: mainnet';
     }
     if (line.startsWith('active_address: ')) {
+      replacedActiveAddress = true;
       return `active_address: "${input.deployerAddress}"`;
     }
     return line;
   });
-  writeFileSync(input.clientConfig, lines.join('\n'));
+  if (!replacedActiveEnv) {
+    lines.push('active_env: mainnet');
+  }
+  if (!replacedActiveAddress) {
+    lines.push(`active_address: "${input.deployerAddress}"`);
+  }
+  writeFileSync(input.clientConfig, `${lines.join('\n')}\n`);
 }
 
 export function createIsolatedSuiContext(input: {
@@ -177,18 +215,26 @@ export function createIsolatedSuiContext(input: {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'levo-mainnet-bootstrap-'));
   const clientConfig = path.join(tempDir, 'client.yaml');
   const keystorePath = path.join(tempDir, 'sui.keystore');
-  const aliasFile = path.join(tempDir, 'sui.aliases');
+  const deriveKeystorePath = path.join(tempDir, 'derive.keystore');
   const importAlias = `bootstrap-deployer-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  const defaultClientConfig = path.join(os.homedir(), '.sui', 'sui_config', 'client.yaml');
+  if (!existsSync(defaultClientConfig)) {
+    throw new Error(`Missing default Sui client config: ${defaultClientConfig}`);
+  }
+  const defaultClientConfigContents = readFileSync(defaultClientConfig, 'utf8');
+  const defaultKeystorePath = parseKeystorePathFromClientConfig(defaultClientConfigContents);
+  if (!existsSync(defaultKeystorePath)) {
+    throw new Error(`Missing default Sui keystore: ${defaultKeystorePath}`);
+  }
 
-  const envsResult = runCommand('sui', ['client', '--client.config', clientConfig, '-y', 'envs', '--json']);
-  assertCommandSucceeded(envsResult, 'Initializing isolated Sui config', formatCommand('sui', ['client', '--client.config', clientConfig, '-y', 'envs', '--json']));
+  copyFileSync(defaultClientConfig, clientConfig);
+  copyFileSync(defaultKeystorePath, keystorePath);
+  setMainnetRpcInClientConfig(clientConfig, input.rpcUrl, keystorePath);
 
-  setMainnetRpcInClientConfig(clientConfig, input.rpcUrl);
-
-  const importResult = runCommand('sui', [
+  const deriveResult = runCommand('sui', [
     'keytool',
     '--keystore-path',
-    keystorePath,
+    deriveKeystorePath,
     'import',
     input.deployerPrivateKey,
     'ed25519',
@@ -196,23 +242,40 @@ export function createIsolatedSuiContext(input: {
     importAlias,
     '--json',
   ]);
-  assertCommandSucceeded(importResult, 'Importing deployer private key');
-  const imported = extractJsonFromOutput(importResult.stdout) as Record<string, unknown>;
+  assertCommandSucceeded(deriveResult, 'Deriving deployer address');
+  const imported = extractJsonFromOutput(deriveResult.stdout) as Record<string, unknown>;
   const deployerAddress = String(imported.suiAddress || '');
-  const alias = String(imported.alias || '');
-  const publicBase64Key = String(imported.publicBase64Key || '');
   if (!deployerAddress) {
     throw new Error('Missing deployer address from key import output');
   }
-  if (!alias || !publicBase64Key) {
-    throw new Error('Missing alias metadata from key import output');
+
+  const existingKeyResult = runCommand('sui', [
+    'keytool',
+    '--keystore-path',
+    keystorePath,
+    'export',
+    '--key-identity',
+    deployerAddress,
+    '--json',
+  ]);
+
+  if (existingKeyResult.status !== 0) {
+    const importResult = runCommand('sui', [
+      'keytool',
+      '--keystore-path',
+      keystorePath,
+      'import',
+      input.deployerPrivateKey,
+      'ed25519',
+      '--alias',
+      importAlias,
+      '--json',
+    ]);
+    assertCommandSucceeded(importResult, 'Importing deployer private key');
   }
 
-  syncImportedKeyIntoClientConfig({
+  setActiveAddressInClientConfig({
     clientConfig,
-    aliasFile,
-    alias,
-    publicBase64Key,
     deployerAddress,
   });
 
@@ -222,6 +285,7 @@ export function createIsolatedSuiContext(input: {
     keystorePath,
     deployerAddress,
     cleanup() {
+      rmSync(deriveKeystorePath, { force: true });
       rmSync(tempDir, { recursive: true, force: true });
     },
   };

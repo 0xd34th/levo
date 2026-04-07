@@ -7,6 +7,7 @@ import {
   ensureActiveMainnet,
   extractJsonFromOutput,
   formatCommand,
+  normalizeHex,
   runCommand,
 } from '../../../scripts/mainnet-bootstrap-runtime.ts';
 import { extractLevoUsdPublishResult } from '../../../scripts/mainnet-bootstrap-lib.ts';
@@ -18,6 +19,7 @@ const publishTempDir = path.join(packageDir, '.publish-mainnet-temp');
 export interface PublishLevoUsdMainnetOptions {
   confirmMainnet: boolean;
   publishArgs?: string[];
+  sender?: string;
   clientConfig?: string;
 }
 
@@ -33,7 +35,7 @@ function printUsage() {
       '4. emits structured json when --json is present',
       '',
       'Example:',
-      '  pnpm publish:levo-usd:mainnet -- --confirm-mainnet --gas-budget 50000000 --dry-run',
+      '  pnpm publish:levo-usd:mainnet -- --confirm-mainnet --gas-budget 50000000 --sender 0x...',
     ].join('\n'),
   );
 }
@@ -62,6 +64,9 @@ export function publishLevoUsdMainnet(options: PublishLevoUsdMainnetOptions) {
   const commandArgs = options.clientConfig
     ? ['client', '--client.config', options.clientConfig, 'publish', ...publishArgs, '--json', publishTempDir]
     : ['client', 'publish', ...publishArgs, '--json', publishTempDir];
+  if (options.sender) {
+    commandArgs.splice(commandArgs.length - 2, 0, '--sender', normalizeHex(options.sender, 'sender address'));
+  }
 
   try {
     const result = runCommand('sui', commandArgs, { cwd: packageDir });
@@ -74,11 +79,27 @@ export function publishLevoUsdMainnet(options: PublishLevoUsdMainnetOptions) {
 
 function parseCliArgs(argv: string[]) {
   const userArgs = argv.filter((arg) => arg !== '--');
+  let sender: string | undefined;
+  const publishArgs: string[] = [];
+
+  for (let index = 0; index < userArgs.length; index += 1) {
+    const arg = userArgs[index];
+    if (arg === '--confirm-mainnet') {
+      continue;
+    }
+    if (arg === '--sender') {
+      sender = userArgs[++index];
+      continue;
+    }
+    publishArgs.push(arg);
+  }
+
   return {
     wantsHelp: userArgs.includes('--help') || userArgs.includes('-h'),
     wantsJson: userArgs.includes('--json'),
     confirmedMainnet: userArgs.includes('--confirm-mainnet'),
-    publishArgs: userArgs.filter((arg) => arg !== '--confirm-mainnet'),
+    sender,
+    publishArgs,
   };
 }
 
@@ -93,6 +114,7 @@ function main() {
     const result = publishLevoUsdMainnet({
       confirmMainnet: parsed.confirmedMainnet,
       publishArgs: parsed.publishArgs,
+      sender: parsed.sender,
     });
 
     if (parsed.wantsJson) {

@@ -506,7 +506,7 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
-  it('uses StableLayer burn composition for mainnet LevoUSD claims and passes the current registry ABI args', async () => {
+  it('uses StableLayer burn composition for mainnet LevoUSD claims and withdraws the full stable balance', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
     getSuiClientMock.mockReturnValueOnce({
       dryRunTransactionBlock: dryRunTransactionBlockMock,
@@ -577,9 +577,9 @@ describe('POST /api/v1/payments/claim', () => {
     expect(txMoveCallMock).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        target: 'package-id::x_vault::withdraw',
+        target: 'package-id::x_vault::withdraw_all',
         typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
-        arguments: ['registry-id', 'vault-object', 9999n],
+        arguments: ['registry-id', 'vault-object'],
       }),
     );
     expect(buildBurnFromStableCoinTxMock).toHaveBeenCalledWith({
@@ -607,7 +607,7 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
-  it('uses the existing vault dust balance to avoid accumulating extra leftovers across claims', async () => {
+  it('redeems the full StableLayer balance without preserving a vault dust reserve', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
     getSuiClientMock.mockReturnValueOnce({
       dryRunTransactionBlock: dryRunTransactionBlockMock,
@@ -688,9 +688,9 @@ describe('POST /api/v1/payments/claim', () => {
     expect(txMoveCallMock).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        target: 'package-id::x_vault::withdraw',
+        target: 'package-id::x_vault::withdraw_all',
         typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
-        arguments: ['registry-id', 'vault-object', 10000n],
+        arguments: ['registry-id', 'vault-object'],
       }),
     );
     expect(res.status).toBe(200);
@@ -699,7 +699,7 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
-  it('returns a redeemable-minimum error when only StableLayer dust remains in the vault', async () => {
+  it('does not pre-block claims just because only a small StableLayer balance remains', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
     getSuiClientMock.mockReturnValueOnce({
       dryRunTransactionBlock: dryRunTransactionBlockMock,
@@ -755,24 +755,17 @@ describe('POST /api/v1/payments/claim', () => {
 
     const res = await POST(req);
 
-    expect(txMoveCallMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ target: 'package-id::x_vault::withdraw' }),
+    expect(txMoveCallMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        target: 'package-id::x_vault::withdraw_all',
+        typeArguments: ['0xlevo::levo_usd::LEVO_USD'],
+        arguments: ['registry-id', 'move-call-result'],
+      }),
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
-      error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
-      code: 'stable_layer_withdraw_amount_zero',
-      debugId: expect.any(String),
-      details: {
-        stage: 'precheck',
-        reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
-        rawChainError: null,
-        totalStableLayerBalanceRaw: '1',
-        storedStableLayerBalanceRaw: '1',
-        incomingStableLayerBalanceRaw: '0',
-        stableLayerWithdrawAmountRaw: '0',
-        incomingStableLayerCoinCount: 0,
-      },
+      status: 'authorization_required',
     });
   });
 
@@ -842,7 +835,7 @@ describe('POST /api/v1/payments/claim', () => {
         totalStableLayerBalanceRaw: '10000',
         storedStableLayerBalanceRaw: '0',
         incomingStableLayerBalanceRaw: '10000',
-        stableLayerWithdrawAmountRaw: '9999',
+        stableLayerWithdrawAmountRaw: '10000',
         incomingStableLayerCoinCount: 1,
       },
     });
@@ -917,7 +910,7 @@ describe('POST /api/v1/payments/claim', () => {
         totalStableLayerBalanceRaw: '10000',
         storedStableLayerBalanceRaw: '0',
         incomingStableLayerBalanceRaw: '10000',
-        stableLayerWithdrawAmountRaw: '9999',
+        stableLayerWithdrawAmountRaw: '10000',
         incomingStableLayerCoinCount: 1,
       },
     });
@@ -986,7 +979,7 @@ describe('POST /api/v1/payments/claim', () => {
         totalStableLayerBalanceRaw: '10000',
         storedStableLayerBalanceRaw: '0',
         incomingStableLayerBalanceRaw: '10000',
-        stableLayerWithdrawAmountRaw: '9999',
+        stableLayerWithdrawAmountRaw: '10000',
         incomingStableLayerCoinCount: 1,
       },
     });
@@ -1014,7 +1007,7 @@ describe('POST /api/v1/payments/claim', () => {
         storedStableLayerBalanceRaw: '1',
         incomingStableLayerBalanceRaw: '20000',
         totalStableLayerBalanceRaw: '20001',
-        stableLayerWithdrawAmountRaw: '20000',
+        stableLayerWithdrawAmountRaw: '20001',
         incomingStableLayerCoinCount: 2,
         incomingStableLayerCoins: [
           { objectId: 'coin-1', balanceRaw: '10000' },
@@ -1054,7 +1047,7 @@ describe('POST /api/v1/payments/claim', () => {
         totalStableLayerBalanceRaw: '20001',
         storedStableLayerBalanceRaw: '1',
         incomingStableLayerBalanceRaw: '20000',
-        stableLayerWithdrawAmountRaw: '20000',
+        stableLayerWithdrawAmountRaw: '20001',
         incomingStableLayerCoinCount: 2,
       },
     });

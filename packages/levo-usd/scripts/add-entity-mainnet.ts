@@ -76,7 +76,7 @@ function buildPreviewCommand(options: Required<Pick<AddEntityMainnetOptions, 'st
   ];
 
   if (options.sender) {
-    args.push('--sender', normalizeHex(options.sender, 'sender address'));
+    args.push('--sender', `@${normalizeHex(options.sender, 'sender address')}`);
   }
 
   return `sui ${args.map(shellQuote).join(' ')}`;
@@ -155,7 +155,7 @@ export function addEntityMainnet(input: AddEntityMainnetOptions) {
   );
 
   if (options.sender) {
-    commandArgs.push('--sender', normalizeHex(options.sender, 'sender address'));
+    commandArgs.push('--sender', `@${normalizeHex(options.sender, 'sender address')}`);
   }
   if (options.dryRun) {
     commandArgs.push('--dry-run');

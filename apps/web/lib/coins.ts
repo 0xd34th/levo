@@ -37,9 +37,9 @@ export function getConfiguredLevoUsdCoinType(
     return normalizedExplicitCoinType;
   }
 
-  // On mainnet the active LEVO_USD lives in a standalone package
-  // (packages/levo-usd), not in the contracts package. The bundled
-  // contracts::levo_usd is broken — never fall back to it.
+  // On mainnet the active LEVO_USD lives in the standalone
+  // packages/levo-usd publish, not in the contracts package.
+  // Never derive the mainnet coin type from NEXT_PUBLIC_PACKAGE_ID.
   if (getConfiguredNetwork(network) === 'mainnet') {
     return null;
   }

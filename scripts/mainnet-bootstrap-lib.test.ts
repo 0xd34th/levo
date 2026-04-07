@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   assertSuiEffectsSuccess,
   appendDeploymentHistory,
+  buildLiveStableLayerState,
   classifyRegisterPubkeyDryRun,
   decideBootstrapActions,
   extractEnclaveRegistryPubkeys,
@@ -302,7 +303,25 @@ test('sumGasMistBalance adds all gas coins', () => {
   );
 });
 
-test('appendDeploymentHistory archives previous live state without touching broken incidents', () => {
+test('buildLiveStableLayerState strips broken incidents from live mainnet state', () => {
+  assert.deepEqual(
+    buildLiveStableLayerState({
+      packageId: '0xstable',
+      registryId: '0xregistry',
+      mainnetUsdcType: '0xusdc::usdc::USDC',
+      activeLevoUsd: { coinType: '0xactive::levo_usd::LEVO_USD' },
+      brokenLevoUsd: { coinType: '0xbroken::levo_usd::LEVO_USD' },
+    }),
+    {
+      packageId: '0xstable',
+      registryId: '0xregistry',
+      mainnetUsdcType: '0xusdc::usdc::USDC',
+      activeLevoUsd: { coinType: '0xactive::levo_usd::LEVO_USD' },
+    },
+  );
+});
+
+test('appendDeploymentHistory archives previous live state including broken incidents', () => {
   const input = {
     network: 'mainnet',
     status: 'repair_complete',
@@ -324,6 +343,7 @@ test('appendDeploymentHistory archives previous live state without touching brok
   assert.equal(output.history.runs[0]?.reason, 'force_redeploy');
   assert.deepEqual(output.history.runs[0]?.previous?.contracts, input.contracts);
   assert.deepEqual(output.history.runs[0]?.previous?.stableLayer?.activeLevoUsd, input.stableLayer.activeLevoUsd);
+  assert.deepEqual(output.history.runs[0]?.previous?.stableLayer?.brokenLevoUsd, input.stableLayer.brokenLevoUsd);
   assert.deepEqual(output.history.runs[0]?.previous?.signer, input.signer);
   assert.deepEqual(output.stableLayer.brokenLevoUsd, input.stableLayer.brokenLevoUsd);
 });

@@ -27,6 +27,14 @@ type DeploymentLike = {
   [key: string]: unknown;
 };
 
+type LiveStableLayerLike = {
+  packageId?: string;
+  registryId?: string;
+  mainnetUsdcType?: string;
+  activeLevoUsd?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 function asRecord(value: unknown, label: string): JsonRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`Invalid ${label}`);
@@ -319,6 +327,15 @@ export function sumGasMistBalance(payload: Array<{ mistBalance: string | number 
   return payload.reduce((sum, coin) => sum + BigInt(coin.mistBalance), 0n);
 }
 
+export function buildLiveStableLayerState(state: LiveStableLayerLike) {
+  return {
+    packageId: state.packageId,
+    registryId: state.registryId,
+    mainnetUsdcType: state.mainnetUsdcType,
+    activeLevoUsd: state.activeLevoUsd,
+  };
+}
+
 export function appendDeploymentHistory(
   currentState: DeploymentLike,
   entry: { timestamp: string; reason: string },
@@ -330,6 +347,9 @@ export function appendDeploymentHistory(
       ? {
         activeLevoUsd: currentState.stableLayer.activeLevoUsd
           ? structuredClone(currentState.stableLayer.activeLevoUsd)
+          : undefined,
+        brokenLevoUsd: currentState.stableLayer.brokenLevoUsd
+          ? structuredClone(currentState.stableLayer.brokenLevoUsd)
           : undefined,
       }
       : undefined,

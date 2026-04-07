@@ -1,12 +1,12 @@
 {
   "network": "mainnet",
-  "status": "repair_complete",
+  "status": "bootstrap_ready",
   "contracts": {
-    "publishTxDigest": "D7EhrcGAK5K7MngK8SjJaQakaCi9AVc8R4fKTKxvDzxb",
-    "packageId": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3",
-    "xVaultRegistryId": "0x193e578e0dbe875b584cc089b1b2f3cd65cb671e51fc1e8c6e0964dce25101f0",
-    "enclaveRegistryId": "0xfefa4033d0a9ed6aa9b04fbfe3e60f55a3d8f1af374c8903909f5d5d42ad558a",
-    "upgradeCapId": "0xabd6cd2a2af5c00e85ca0a3517a0ad4e6deb6d6ced024144cbc58d810c55ebbb"
+    "publishTxDigest": "G4F5BPAhgsMCoEYuPTTRRXvNiuNcYhYkKbTBcywuc8G3",
+    "packageId": "0xd5aa6f6bbc694069c19d2b1fe6af162c75298a06da735dd5209b9612f34c13ac",
+    "xVaultRegistryId": "0xcb3b34dbebdf5d9f5a9321954c188c95a989b2c922d72e3bf79484ce40c63c3a",
+    "enclaveRegistryId": "0x554d9c6ffaa31d13571942fd9926c6f4848c40f8ea3241755b31e15b888321ab",
+    "upgradeCapId": "0xaad925371a637e984601216fc5586ba34bf1de58df0c9ba29a6f113cc4aefc84"
   },
   "stableLayer": {
     "packageId": "0xa4a78d8d3d1df62fb81d10068142e79b0d30ad4e3f578060487e36ed9ea764da",
@@ -14,44 +14,89 @@
     "mainnetUsdcType": "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
     "activeLevoUsd": {
       "status": "active",
-      "publishPackageId": "0x282e33926864ab4befbc88510dcaba08d4b248a94b32cb700f158198d46e57c4",
-      "treasuryCapId": "0x8675e19cc93eb240a77af29d0cef73737b0ab82f2d2e0c0c47d1f77b5bd41e14",
-      "currencyId": "0x5686e9347dd10c7cedc939d1f6e24f79571e394db1778ea9968bf9239bc85948",
-      "coinType": "0x282e33926864ab4befbc88510dcaba08d4b248a94b32cb700f158198d46e57c4::levo_usd::LEVO_USD",
+      "publishPackageId": "0x062241b3f3f49ae764399b88b2ad863108c4b647481314251c668d262e4b44e4",
+      "treasuryCapId": "0x5720fbb1bf9f59c2505085b2da8f0f29374829c347b1d573ada4f30a74595466",
+      "currencyId": "0xc2254cc92a217b3254b059b5f51c25a42a7560a7c4c3cd4b2cb5219c90236b05",
+      "coinType": "0x062241b3f3f49ae764399b88b2ad863108c4b647481314251c668d262e4b44e4::levo_usd::LEVO_USD",
       "maxSupplyRaw": "1000000000000",
-      "publishTxDigest": "3UKGQ4Azmh77AhnTa9YtpYRHa6s3SCvwRNrefu1cLgVD",
-      "onboardingTxDigest": "GuK9d7GVV77PKyXEcPvGRY9tUmKckpvPQ1WswJWNuHp3",
+      "publishTxDigest": "No7soGWMz4jC6PdkZrWVp57qKX2WrSEzXzArRZAcufh",
+      "onboardingTxDigest": "7m47GHXbSE1s1v6mbazebe2GaWzbBU7RVZTrbKbzeT9K",
       "entityType": "0xc1025fe014b03d33b207b5afb0ba04293be87fab438c1418a26a75c2fe05c223::stable_vault_farm::StableVaultFarmEntity<0xb75744fadcbfc174627567ca29645d0af8f6e6fd01b6f57c75a08cd3fb97c567::lake_usdc::LakeUSDC,0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
-      "addEntityTxDigest": "ALJWBZ91wFEsBqLaGNV48Pp3rKct3zmsutrx1zB6PWjF",
-      "factoryCapId": "0x3b2dbba0919d933d2be784fa26dc10d42dabfdedf7b5f7500e5f02908fac25e9",
-      "factoryId": "0x5ebd731d22984248e3edd6bf47b39ece67bd30afca68e01ed8515e3a0df9df00"
-    },
-    "brokenLevoUsd": {
-      "status": "broken",
-      "reason": "Onboarded with stable_layer::new<LEVO_USD, StableVaultFarmEntity<...>> instead of stable_layer::new<LEVO_USD, USDC>, causing mint-time dynamic_field::EFieldTypeMismatch.",
-      "publishPackageId": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3",
-      "treasuryCapId": "0xbef961c56cf869b17ecf8b33b3cc6e1b3a7717f10f308b6684f1a3d04f3b8374",
-      "currencyId": "0x6786d57f3aaf66890d990d4ac79da37b20538f9578a4c7b75228a9c5fed5d637",
-      "coinType": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3::levo_usd::LEVO_USD",
-      "maxSupplyRaw": "1000000000000",
-      "publishTxDigest": "D7EhrcGAK5K7MngK8SjJaQakaCi9AVc8R4fKTKxvDzxb",
-      "onboardingTxDigest": "5jZcsXEp2uPn3aiGarGXJEzGgirG3ko37CMK4K3SwiWr",
-      "factoryCapId": "0x6e4008df18e19e5c9c82f767a355d7671d52b72a79d186de8b2f0c7fa96195fe",
-      "factoryId": "0xa8e1a27361e6f6fd2ea668bd094a91155e78369d710709df89c36fd2289faa69",
-      "totalSupplyRaw": "0"
+      "factoryCapId": "0x785dd750f4fae4e9fe51a87c8ba685f7950b18827ad95b60e38889afec67c5c7",
+      "factoryId": "0x7d9f68d702736e0b273c98e5a4d498be24c5bc6ed71598e5da7869e954feb8bc",
+      "addEntityTxDigest": "DKJAnnvm9DgL8S35STZY3GmstVLWWa8SUQwr5hGeBJBW"
     }
   },
+  "history": {
+    "runs": [
+      {
+        "timestamp": "2026-04-07T00:00:00.000Z",
+        "reason": "bootstrap_replace",
+        "previous": {
+          "stableLayer": {
+            "brokenLevoUsd": {
+              "status": "broken",
+              "reason": "Onboarded with stable_layer::new<LEVO_USD, StableVaultFarmEntity<...>> instead of stable_layer::new<LEVO_USD, USDC>, causing mint-time dynamic_field::EFieldTypeMismatch.",
+              "publishPackageId": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3",
+              "treasuryCapId": "0xbef961c56cf869b17ecf8b33b3cc6e1b3a7717f10f308b6684f1a3d04f3b8374",
+              "currencyId": "0x6786d57f3aaf66890d990d4ac79da37b20538f9578a4c7b75228a9c5fed5d637",
+              "coinType": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3::levo_usd::LEVO_USD",
+              "maxSupplyRaw": "1000000000000",
+              "publishTxDigest": "D7EhrcGAK5K7MngK8SjJaQakaCi9AVc8R4fKTKxvDzxb",
+              "onboardingTxDigest": "5jZcsXEp2uPn3aiGarGXJEzGgirG3ko37CMK4K3SwiWr",
+              "factoryCapId": "0x6e4008df18e19e5c9c82f767a355d7671d52b72a79d186de8b2f0c7fa96195fe",
+              "factoryId": "0xa8e1a27361e6f6fd2ea668bd094a91155e78369d710709df89c36fd2289faa69",
+              "totalSupplyRaw": "0"
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-04-07T14:32:50.809Z",
+        "reason": "force_redeploy",
+        "previous": {
+          "contracts": {
+            "publishTxDigest": "D7EhrcGAK5K7MngK8SjJaQakaCi9AVc8R4fKTKxvDzxb",
+            "packageId": "0xbb9577426e21e4ea5d14987988939bbf1c785111bf171b2c899ae0592d2380d3",
+            "xVaultRegistryId": "0x193e578e0dbe875b584cc089b1b2f3cd65cb671e51fc1e8c6e0964dce25101f0",
+            "enclaveRegistryId": "0xfefa4033d0a9ed6aa9b04fbfe3e60f55a3d8f1af374c8903909f5d5d42ad558a",
+            "upgradeCapId": "0xabd6cd2a2af5c00e85ca0a3517a0ad4e6deb6d6ced024144cbc58d810c55ebbb"
+          },
+          "stableLayer": {
+            "activeLevoUsd": {
+              "status": "active",
+              "publishPackageId": "0x282e33926864ab4befbc88510dcaba08d4b248a94b32cb700f158198d46e57c4",
+              "treasuryCapId": "0x8675e19cc93eb240a77af29d0cef73737b0ab82f2d2e0c0c47d1f77b5bd41e14",
+              "currencyId": "0x5686e9347dd10c7cedc939d1f6e24f79571e394db1778ea9968bf9239bc85948",
+              "coinType": "0x282e33926864ab4befbc88510dcaba08d4b248a94b32cb700f158198d46e57c4::levo_usd::LEVO_USD",
+              "maxSupplyRaw": "1000000000000",
+              "publishTxDigest": "3UKGQ4Azmh77AhnTa9YtpYRHa6s3SCvwRNrefu1cLgVD",
+              "onboardingTxDigest": "GuK9d7GVV77PKyXEcPvGRY9tUmKckpvPQ1WswJWNuHp3",
+              "entityType": "0xc1025fe014b03d33b207b5afb0ba04293be87fab438c1418a26a75c2fe05c223::stable_vault_farm::StableVaultFarmEntity<0xb75744fadcbfc174627567ca29645d0af8f6e6fd01b6f57c75a08cd3fb97c567::lake_usdc::LakeUSDC,0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC>",
+              "addEntityTxDigest": "ALJWBZ91wFEsBqLaGNV48Pp3rKct3zmsutrx1zB6PWjF",
+              "factoryCapId": "0x3b2dbba0919d933d2be784fa26dc10d42dabfdedf7b5f7500e5f02908fac25e9",
+              "factoryId": "0x5ebd731d22984248e3edd6bf47b39ece67bd30afca68e01ed8515e3a0df9df00"
+            }
+          },
+          "signer": {
+            "registrationTxDigest": "FwGzTKahArtYgufH4vv4FYbvwTKbDr7E2F77fbSnGVfi",
+            "expectedPublicKey": "0x3534d742e8358da368372006b80164213396b7e6c01575b39ab341979c6cd765"
+          }
+        }
+      }
+    ]
+  },
   "signer": {
-    "registrationTxDigest": "FwGzTKahArtYgufH4vv4FYbvwTKbDr7E2F77fbSnGVfi",
-    "expectedPublicKey": "0x3534d742e8358da368372006b80164213396b7e6c01575b39ab341979c6cd765"
+    "expectedPublicKey": "0x3534d742e8358da368372006b80164213396b7e6c01575b39ab341979c6cd765",
+    "registrationTxDigest": "26gqpVbVXEiYLvDzzK6AmXigZ49qaaB4UQYxMAQBrDYk"
   },
   "gasStation": {
     "address": "0x0b55003250123db565686e7e779e40056c7d98e4b3ab89fc2a267dbe8656f84e"
   },
   "notes": [
     "Mainnet xvault/verifier publish completed without the test_usdc module.",
-    "The first bundled LevoUSD onboarding is intentionally preserved here as brokenLevoUsd for incident tracking.",
-    "The active mainnet LevoUSD now comes from the standalone packages/levo-usd publish, is onboarded as StableFactory<LEVO_USD, USDC>, and has StableVaultFarmEntity activation recorded via add_entity.",
+    "The active mainnet LevoUSD comes from the standalone packages/levo-usd publish, is onboarded as StableFactory<LEVO_USD, USDC>, and has StableVaultFarmEntity activation recorded via add_entity.",
+    "Historical broken LevoUSD incidents are archived under history.runs rather than kept in the live stableLayer state.",
     "NEXT_PUBLIC_PACKAGE_ID should keep pointing at the xvault/verifier package unless those contracts are republished."
   ]
 }

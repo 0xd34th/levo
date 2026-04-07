@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   appendDeploymentHistory,
+  buildLiveStableLayerState,
   decideBootstrapActions,
   extractEnclaveRegistryPubkeys,
   sumGasMistBalance,
@@ -224,7 +225,6 @@ function getCurrentStableLayerState(deploymentState: JsonRecord, webEnv: EnvMap)
       factoryCapId: typeof activeLevoUsd.factoryCapId === 'string' ? activeLevoUsd.factoryCapId : '',
       factoryId: typeof activeLevoUsd.factoryId === 'string' ? activeLevoUsd.factoryId : '',
     },
-    brokenLevoUsd: stableLayer.brokenLevoUsd,
   };
 }
 
@@ -326,13 +326,12 @@ function buildNextDeploymentState(input: {
   nextState.network = 'mainnet';
   nextState.status = 'bootstrap_ready';
   nextState.contracts = input.contracts;
-  nextState.stableLayer = {
+  nextState.stableLayer = buildLiveStableLayerState({
     packageId: input.stableLayer.packageId,
     registryId: input.stableLayer.registryId,
     mainnetUsdcType: input.stableLayer.mainnetUsdcType,
     activeLevoUsd: input.stableLayer.activeLevoUsd,
-    brokenLevoUsd: input.stableLayer.brokenLevoUsd,
-  };
+  });
   nextState.signer = input.signer;
   nextState.gasStation = input.gasStation;
 
@@ -444,6 +443,7 @@ function main() {
       nextContracts = publishContractsMainnet({
         confirmMainnet: true,
         publishArgs: ['--gas-budget', CONTRACTS_GAS_BUDGET],
+        sender: isolated.deployerAddress,
         clientConfig: isolated.clientConfig,
       });
     }
@@ -452,6 +452,7 @@ function main() {
       const publishResult = publishLevoUsdMainnet({
         confirmMainnet: true,
         publishArgs: ['--gas-budget', LEVO_USD_PUBLISH_GAS_BUDGET],
+        sender: isolated.deployerAddress,
         clientConfig: isolated.clientConfig,
       });
       const onboardResult = onboardLevoUsdMainnet({
@@ -459,6 +460,7 @@ function main() {
         brandCoinType: publishResult.coinType,
         maxSupplyRaw: process.env.LEVO_USD_MAX_SUPPLY_RAW?.trim() || DEFAULT_MAX_SUPPLY_RAW,
         gasBudget: STABLE_LAYER_GAS_BUDGET,
+        sender: isolated.deployerAddress,
         executeMainnet: true,
         confirmMainnet: true,
         clientConfig: isolated.clientConfig,
@@ -467,6 +469,7 @@ function main() {
         factoryCapId: onboardResult.factoryCapId,
         brandCoinType: publishResult.coinType,
         gasBudget: STABLE_LAYER_GAS_BUDGET,
+        sender: isolated.deployerAddress,
         executeMainnet: true,
         confirmMainnet: true,
         clientConfig: isolated.clientConfig,
@@ -497,6 +500,7 @@ function main() {
         enclaveRegistryId: nextContracts.enclaveRegistryId,
         seedBase64: bootstrapInput.signerSeed,
         gasBudget: REGISTER_GAS_BUDGET,
+        sender: isolated.deployerAddress,
         executeMainnet: true,
         confirmMainnet: true,
         clientConfig: isolated.clientConfig,

@@ -32,7 +32,6 @@ const MAX_CLAIM_COIN_OBJECTS = 200;
 const MAX_CLAIM_COIN_PAGES = 20;
 const AUTHORIZATION_BUNDLE_TTL_SEC = 120;
 const CLAIM_SPONSORED_GAS_BUDGET_MIST = 50_000_000;
-const STABLE_LAYER_DUST_RESERVE_RAW = 1n;
 const STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR =
   'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.';
 
@@ -101,7 +100,6 @@ type StableLayerClaimDebugContext = {
 };
 
 type StableLayerClaimFailureCode =
-  | 'stable_layer_withdraw_amount_zero'
   | 'stable_layer_balance_split'
   | 'stable_layer_compose_failed'
   | 'stable_layer_build_failed'
@@ -785,10 +783,7 @@ export async function POST(req: NextRequest) {
         configuredLevoUsdCoinType
           ? incomingStableLayerBalance + storedStableLayerBalance
           : 0n;
-      const stableLayerWithdrawAmount =
-        totalStableLayerBalance > STABLE_LAYER_DUST_RESERVE_RAW
-          ? totalStableLayerBalance - STABLE_LAYER_DUST_RESERVE_RAW
-          : 0n;
+      const stableLayerWithdrawAmount = totalStableLayerBalance;
       stableLayerDebugContext =
         configuredLevoUsdCoinType
           ? {
@@ -819,12 +814,11 @@ export async function POST(req: NextRequest) {
           }
 
           const [withdrawn] = tx.moveCall({
-            target: `${PACKAGE_ID}::x_vault::withdraw`,
+            target: `${PACKAGE_ID}::x_vault::withdraw_all`,
             typeArguments: [innerCoinType],
             arguments: [
               tx.object(VAULT_REGISTRY_ID),
               vault,
-              tx.pure.u64(stableLayerWithdrawAmount),
             ],
           });
 
@@ -883,32 +877,6 @@ export async function POST(req: NextRequest) {
       }
 
       if (!hasClaimableWithdrawal) {
-        if (totalStableLayerBalance > 0n) {
-          if (stableLayerDebugContext) {
-            logStableLayerClaimFailure(
-              'StableLayer claim resolved to zero withdraw amount',
-              {
-                code: 'stable_layer_withdraw_amount_zero',
-                stage: 'precheck',
-                reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
-                debugContext: stableLayerDebugContext,
-              },
-            );
-            return buildStableLayerClaimFailureResponse({
-              status: 409,
-              error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR,
-              code: 'stable_layer_withdraw_amount_zero',
-              stage: 'precheck',
-              reason: 'StableLayer withdraw amount resolved to zero after reserve logic.',
-              debugContext: stableLayerDebugContext,
-            });
-          }
-          return noStoreJson(
-            { error: STABLE_LAYER_REDEEMABLE_MINIMUM_ERROR },
-            { status: 409 },
-          );
-        }
-
         return noStoreJson({ error: 'No claimable funds found in the vault' }, { status: 400 });
       }
 

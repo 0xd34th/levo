@@ -1,30 +1,30 @@
 ## Goal
 
-在 `tenxhunter` 已完成链上 owner 迁移后，彻底移除应用层 `repair` 相关入口与临时 owner migration 流程，收口到稳定上线所需的主路径。
+按“全新开始、不留尾巴”的要求，重发主网 `contracts` 与独立 `Levo USD`，重新完成 StableLayer 注册链路，并把主网 claim 从“保留 1 raw dust”改成“零剩余赎回”。
 
 ## Scope
 
-- 删除临时 `/api/v1/payments/owner-migration` 路由及其前端入口。
-- 删除应用层 `REPAIR_REQUIRED` / `REPAIR_AND_WITHDRAW` 相关类型、状态、文案、按钮与测试。
-- 调整 claim / quote / dashboard / lookup 行为，使应用层只支持正常 `CLAIM` 与 `WITHDRAW` 主路径。
-- 对 `OWNED_BY_OTHER` 统一改为不支持的阻断行为，不再尝试 repair。
+- 移除 `packages/contracts` 内嵌 `levo_usd.move`，主网只认 `packages/levo-usd` 独立包。
+- 更新主网发布/bootstrap 逻辑：`publish contracts -> publish levo-usd -> onboard stable layer -> add_entity -> register signer`。
+- 调整 `apps/web` claim 路径：主网 `LEVO_USD` 使用 `withdraw_all` 后整额 burn，不再保留 dust reserve。
+- 更新部署状态与样例：live state 不再保留 `brokenLevoUsd`，旧状态只进 history。
 
 ## Non-Goals
 
-- 不升级或修改已部署 Move 合约。
-- 不修改 StableLayer 协议逻辑。
-- 不处理新的历史迁移方案设计；legacy-owner 仅保留服务端阻断，不再提供自助修复。
+- 不重新部署 StableLayer 自身主网 package / registry。
+- 不设计或实现旧主网资产迁移。
+- 不给 `x_vault` 引入新的按币种最小入账阈值配置。
 
 ## Constraints
 
-- 变更要一次收干净，不保留临时 owner migration 入口、repair UI 或双轨逻辑。
-- 必须贴合现有 web app 结构与测试模式，保持主路径行为不变。
-- `tenxhunter` 已迁移完成这一事实视为前置条件，本轮代码不得再依赖 repair 流程。
+- 一次收干净：不保留 bundled `contracts::levo_usd`、不保留 claim reserve 逻辑、不中留 `brokenLevoUsd` live 字段。
+- 改动要贴合现有发布脚本、bootstrap 结构、web claim 测试模式。
+- 若 StableLayer 不接受整额 burn，系统应明确报不可赎回，不做部分兑付。
 
 ## Acceptance
 
-1. 代码库中不再存在应用层 `owner-migration` 临时入口，相关路由、前端按钮和测试全部删除。
-2. 代码库中不再存在 `REPAIR_REQUIRED`、`REPAIR_AND_WITHDRAW`、`repairWallet`、`requestOwnerRecoveryAttestation` 在应用层 claim/quote/dashboard 路径中的使用。
-3. `claim` API 只保留 `CLAIM` / `WITHDRAW` 主路径；遇到 `OWNED_BY_OTHER` 时直接返回不支持，不再尝试 repair。
-4. `quote`、`received dashboard`、`claim page`、`lookup page`、`claim card` 的文案和动作已收口，不再向用户暴露 repair 概念。
-5. `pnpm --filter web lint`、`pnpm --filter web test`、`pnpm --filter web build` 全部通过。
+1. `packages/contracts/sources/levo_usd.move` 已删除，contracts 主网发布脚本不再依赖或排除该文件。
+2. `bootstrap-mainnet` 产出的 live deployment state 只包含当前有效 `activeLevoUsd`，旧 active/broken 状态仅归档到 `history.runs`。
+3. 主网 `LEVO_USD` claim 不再使用 `withdraw(total - 1)` 或 `STABLE_LAYER_DUST_RESERVE_RAW`，而是整额 `withdraw_all` 后 burn。
+4. `apps/web` 不再返回 `stable_layer_withdraw_amount_zero` 这类 reserve 预检语义；整额 burn 失败时走明确的 StableLayer 失败响应。
+5. 相关测试通过，且 `packages/contracts` 的 `sui move build` 通过。
