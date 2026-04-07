@@ -110,11 +110,44 @@ function extractCoinBalance(rawContent: unknown): bigint | null {
 }
 
 function isStableLayerBalanceSplitError(error: unknown) {
-  return (
-    typeof error === 'string' &&
-    error.includes('0x2::balance') &&
-    error.includes('split')
-  );
+  const candidates: unknown[] = [error];
+  const seen = new Set<unknown>();
+
+  while (candidates.length > 0) {
+    const current = candidates.pop();
+    if (current == null || seen.has(current)) {
+      continue;
+    }
+    seen.add(current);
+
+    if (typeof current === 'string') {
+      const normalized = current.toLowerCase();
+      if (
+        /0x0*2::balance::split/.test(normalized) ||
+        /name:\s*identifier\("balance"\).*function_name:\s*some\("split"\)/.test(normalized)
+      ) {
+        return true;
+      }
+      continue;
+    }
+
+    if (current instanceof Error) {
+      candidates.push(current.message, current.cause);
+      continue;
+    }
+
+    if (typeof current === 'object') {
+      const record = current as Record<string, unknown>;
+      candidates.push(
+        record.message,
+        record.error,
+        record.cause,
+        record.executionError,
+      );
+    }
+  }
+
+  return false;
 }
 
 function getPendingClaimAuthorizationKey(xUserId: string) {
@@ -691,6 +724,9 @@ export async function POST(req: NextRequest) {
         txBytes = await tx.build({ client });
       } catch (error) {
         console.error('Failed to build claim transaction', error);
+        if (isStableLayerBalanceSplitError(error)) {
+          return buildStableLayerRedeemableMinimumResponse();
+        }
         return noStoreJson(
           { error: 'Failed to build claim transaction' },
           { status: 400 },

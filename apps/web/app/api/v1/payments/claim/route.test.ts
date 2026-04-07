@@ -785,6 +785,129 @@ describe('POST /api/v1/payments/claim', () => {
     });
   });
 
+  it('returns the redeemable-minimum error when tx.build hits a zero-padded balance::split MoveAbort', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [
+          {
+            data: {
+              objectId: 'coin-1',
+              version: '1',
+              digest: 'digest-1',
+              type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              content: {
+                dataType: 'moveObject',
+                type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '10000',
+                  id: { id: 'coin-1' },
+                },
+              },
+            },
+          },
+        ],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    txMoveCallMock
+      .mockReturnValueOnce(['vault-object'])
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(['withdrawn-levo-coin']);
+    txBuildMock.mockRejectedValueOnce(
+      new Error(
+        "Transaction resolution failed: MoveAbort in 18th command, abort code: 2, in '0x0000000000000000000000000000000000000000000000000000000000000002::balance::split' (instruction 10)",
+      ),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+    });
+  });
+
+  it('returns the redeemable-minimum error when preflight reports a MoveLocation balance split failure', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    getSuiClientMock.mockReturnValueOnce({
+      dryRunTransactionBlock: dryRunTransactionBlockMock,
+      getObject: getDynamicFieldObjectMock,
+      getDynamicFieldObject: getDynamicFieldObjectMock,
+      getDynamicFields: getDynamicFieldsMock,
+      getOwnedObjects: vi.fn().mockResolvedValue({
+        data: [
+          {
+            data: {
+              objectId: 'coin-1',
+              version: '1',
+              digest: 'digest-1',
+              type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+              content: {
+                dataType: 'moveObject',
+                type: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+                hasPublicTransfer: true,
+                fields: {
+                  balance: '10000',
+                  id: { id: 'coin-1' },
+                },
+              },
+            },
+          },
+        ],
+        nextCursor: null,
+        hasNextPage: false,
+      }),
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    txMoveCallMock
+      .mockReturnValueOnce(['vault-object'])
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(['withdrawn-levo-coin']);
+    dryRunTransactionBlockMock.mockResolvedValueOnce({
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'MoveAbort(MoveLocation { module: ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier("balance") }, function: 7, instruction: 10, function_name: Some("split") }, 2) in command 16',
+        },
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/claim', {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Current vault balance is below StableLayer\'s redeemable minimum. Wait for more funds before claiming.',
+    });
+  });
+
   it('returns a temporary unavailable error when StableLayer burn composition fails before tx.build', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
     getSuiClientMock.mockReturnValueOnce({
