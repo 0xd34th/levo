@@ -81,6 +81,22 @@ export function receivedPaymentDisplay(item: IncomingPaymentItem) {
   return `${formatAmount(item.amount, item.coinType)} ${item.symbol}`;
 }
 
+export function getIncomingPaymentSenderDisplay(item: IncomingPaymentItem) {
+  if (item.sender) {
+    return {
+      label: `@${item.sender.username}`,
+      subLabel: 'X sender',
+      avatarUrl: item.sender.profilePicture,
+    };
+  }
+
+  return {
+    label: truncateAddress(item.senderAddress),
+    subLabel: 'Sender wallet',
+    avatarUrl: null,
+  };
+}
+
 export function explorerUrl(network: string, txDigest: string) {
   return getExplorerTransactionUrl(network, txDigest);
 }

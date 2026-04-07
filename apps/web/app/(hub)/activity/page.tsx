@@ -10,8 +10,8 @@ import {
   claimStatusLabel,
   explorerUrl,
   formatPendingBalances,
+  getIncomingPaymentSenderDisplay,
   receivedPaymentDisplay,
-  truncateAddress,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
 import {
@@ -294,15 +294,20 @@ export default function ActivityPage() {
                 counterpartyColumnLabel="Sender"
                 emptyDescription="No confirmed incoming payments yet."
                 emptyTitle="Nothing received yet"
-                rows={receivedData.items.map((item) => ({
-                  id: item.id,
-                  counterpartyLabel: truncateAddress(item.senderAddress),
-                  counterpartySubLabel: 'Sender wallet',
-                  amount: receivedPaymentDisplay(item),
-                  status: 'Confirmed',
-                  date: item.createdAt,
-                  txUrl: explorerUrl(NETWORK, item.txDigest),
-                }))}
+                rows={receivedData.items.map((item) => {
+                  const senderDisplay = getIncomingPaymentSenderDisplay(item);
+
+                  return {
+                    id: item.id,
+                    counterpartyAvatarUrl: senderDisplay.avatarUrl,
+                    counterpartyLabel: senderDisplay.label,
+                    counterpartySubLabel: senderDisplay.subLabel,
+                    amount: receivedPaymentDisplay(item),
+                    status: 'Confirmed',
+                    date: item.createdAt,
+                    txUrl: explorerUrl(NETWORK, item.txDigest),
+                  };
+                })}
                 showTxLink
               />
               {receivedData.nextCursor ? (

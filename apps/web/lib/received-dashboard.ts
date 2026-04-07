@@ -12,6 +12,7 @@ import {
   RECEIVED_CLAIM_STATUS_MODEL,
   ReceivedBalance,
   ReceivedDashboardUser,
+  IncomingPaymentSender,
   ReceivedVaultSummary,
 } from '@/lib/received-dashboard-types';
 import { getPrivyClient } from '@/lib/privy-auth';
@@ -98,12 +99,55 @@ function mapIncomingPayment(row: IncomingPaymentRow): IncomingPaymentItem | null
     id: row.id,
     txDigest: row.txDigest,
     senderAddress: row.senderAddress,
+    sender: null,
     coinType: displayCoinType,
     symbol: getCoinLabel(displayCoinType),
     decimals: getCoinDecimals(displayCoinType),
     amount: row.amount.toString(),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+async function attachIncomingPaymentSenders(
+  items: IncomingPaymentItem[],
+): Promise<IncomingPaymentItem[]> {
+  const senderAddresses = Array.from(
+    new Set(items.map((item) => item.senderAddress)),
+  );
+
+  if (senderAddresses.length === 0) {
+    return items;
+  }
+
+  const senderRows = await prisma.xUser.findMany({
+    where: {
+      suiAddress: {
+        in: senderAddresses,
+      },
+    },
+    select: {
+      suiAddress: true,
+      username: true,
+      profilePicture: true,
+    },
+  });
+
+  const senderByAddress = new Map<string, IncomingPaymentSender>();
+  for (const row of senderRows) {
+    if (!row.suiAddress) {
+      continue;
+    }
+
+    senderByAddress.set(row.suiAddress, {
+      username: row.username,
+      profilePicture: sanitizeProfilePictureUrl(row.profilePicture),
+    });
+  }
+
+  return items.map((item) => ({
+    ...item,
+    sender: senderByAddress.get(item.senderAddress) ?? null,
+  }));
 }
 
 export function toReceivedDashboardUser(userInfo: XUserInfo): ReceivedDashboardUser {
@@ -351,6 +395,7 @@ export async function getIncomingPaymentsPage(
   xUserId: string,
   limit: number,
   cursor: IncomingPaymentsCursor | null = null,
+  includeSenders = true,
 ): Promise<{
   items: IncomingPaymentItem[];
   nextCursor: string | null;
@@ -408,7 +453,7 @@ export async function getIncomingPaymentsPage(
       : null;
 
   return {
-    items,
+    items: includeSenders ? await attachIncomingPaymentSenders(items) : items,
     nextCursor: nextCursorSource
       ? encodeTransactionHistoryCursor({
           createdAt: nextCursorSource.createdAt,
@@ -428,6 +473,8 @@ export async function buildPublicLookupResponse(
     getIncomingPaymentsPage(
       userInfo.xUserId,
       PUBLIC_LOOKUP_RECENT_PAYMENTS_LIMIT,
+      null,
+      false,
     ),
   ]);
 

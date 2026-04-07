@@ -19,11 +19,17 @@ export interface IncomingPaymentItem {
   id: string;
   txDigest: string;
   senderAddress: string;
+  sender: IncomingPaymentSender | null;
   coinType: string;
   symbol: string;
   decimals: number;
   amount: string;
   createdAt: string;
+}
+
+export interface IncomingPaymentSender {
+  username: string;
+  profilePicture: string | null;
 }
 
 export interface ReceivedDashboardUser {

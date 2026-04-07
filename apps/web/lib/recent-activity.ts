@@ -4,8 +4,8 @@ import {
   isDisplaySupportedCoinType,
 } from '@/lib/coins';
 import {
+  getIncomingPaymentSenderDisplay,
   receivedPaymentDisplay,
-  truncateAddress,
   type IncomingPaymentItem,
 } from '@/lib/received-dashboard-client';
 import type { TransactionItem } from '@/lib/transaction-history';
@@ -45,16 +45,20 @@ export function buildRecentActivityItems(
     counterpartyAvatarUrl: item.recipient.profilePicture,
   }));
 
-  const received = receivedItems.map((item) => ({
-    id: item.id,
-    txDigest: item.txDigest,
-    createdAt: item.createdAt,
-    amount: receivedPaymentDisplay(item),
-    direction: 'Received' as const,
-    counterpartyLabel: truncateAddress(item.senderAddress),
-    counterpartySubLabel: 'Sender wallet',
-    counterpartyAvatarUrl: null,
-  }));
+  const received = receivedItems.map((item) => {
+    const senderDisplay = getIncomingPaymentSenderDisplay(item);
+
+    return {
+      id: item.id,
+      txDigest: item.txDigest,
+      createdAt: item.createdAt,
+      amount: receivedPaymentDisplay(item),
+      direction: 'Received' as const,
+      counterpartyLabel: senderDisplay.label,
+      counterpartySubLabel: senderDisplay.subLabel,
+      counterpartyAvatarUrl: senderDisplay.avatarUrl,
+    };
+  });
 
   return [...sent, ...received]
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
