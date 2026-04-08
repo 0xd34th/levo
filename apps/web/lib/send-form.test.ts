@@ -25,6 +25,19 @@ describe('send-form helpers', () => {
     expect(normalizeRecipientInput('0xABCD')).toBe('0xabcd');
   });
 
+  it('preserves @ prefix for hex-only handles to prevent address misclassification', () => {
+    expect(normalizeRecipientInput('@0xABCD')).toBe('@0xABCD');
+    expect(normalizeRecipientInput('@0xBEEF')).toBe('@0xBEEF');
+    expect(normalizeRecipientInput('@@0xABCD')).toBe('@0xABCD');
+    expect(normalizeRecipientInput('@ 0xABCD')).toBe('@0xABCD');
+  });
+
+  it('preserves full Sui address on paste without HTML maxLength truncation', () => {
+    const fullAddress = '0x' + 'a'.repeat(64);
+    expect(normalizeRecipientInput(fullAddress)).toBe(fullAddress);
+    expect(normalizeRecipientInput(fullAddress)).toHaveLength(66);
+  });
+
   it('clears amounts that become invalid for the selected asset', () => {
     vi.stubEnv('NEXT_PUBLIC_PACKAGE_ID', '0x123');
     const testUsdcCoinType = getTestUsdcCoinType()!;

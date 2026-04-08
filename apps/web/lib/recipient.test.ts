@@ -19,4 +19,10 @@ describe('recipient helpers', () => {
     expect(detectRecipientType('0xFoobar')).toBe('X_HANDLE');
     expect(isValidSuiAddressInput('0xMert')).toBe(false);
   });
+
+  it('treats @-prefixed hex handles as X handles, not addresses', () => {
+    expect(detectRecipientType('@0xABCD')).toBe('X_HANDLE');
+    expect(detectRecipientType('@0xBEEF')).toBe('X_HANDLE');
+    expect(detectRecipientType('@0x')).toBe('X_HANDLE');
+  });
 });
