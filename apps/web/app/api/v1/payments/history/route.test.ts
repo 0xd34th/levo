@@ -190,7 +190,14 @@ describe('GET /api/v1/payments/history', () => {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 11,
-      include: {
+      select: {
+        id: true,
+        txDigest: true,
+        coinType: true,
+        amount: true,
+        createdAt: true,
+        recipientType: true,
+        vaultAddress: true,
         xUser: {
           select: { username: true, profilePicture: true },
         },
