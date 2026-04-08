@@ -204,4 +204,49 @@ describe('GET /api/v1/payments/history', () => {
       },
     });
   });
+
+  it('returns direct-address sends with a truncated label and explicit recipientAddress', async () => {
+    findUniqueMock.mockResolvedValue({
+      privyUserId: 'privy-user',
+      suiAddress: `0x${'0'.repeat(63)}2`,
+    });
+    findManyMock.mockResolvedValue([
+      {
+        id: 'ledger-1',
+        txDigest: 'digest-1',
+        coinType: '0x2::sui::SUI',
+        amount: BigInt(42),
+        createdAt: new Date('2026-04-08T10:00:00.000Z'),
+        recipientType: 'SUI_ADDRESS',
+        vaultAddress: `0x${'1'.repeat(64)}`,
+        xUser: null,
+      },
+    ]);
+
+    const req = new NextRequest(
+      'http://localhost/api/v1/payments/history?senderAddress=0x2',
+    );
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      items: [
+        {
+          id: 'ledger-1',
+          txDigest: 'digest-1',
+          coinType: '0x2::sui::SUI',
+          amount: '42',
+          createdAt: '2026-04-08T10:00:00.000Z',
+          recipientType: 'SUI_ADDRESS',
+          recipient: {
+            username: `0x1111...1111`,
+            profilePicture: null,
+          },
+          recipientAddress: `0x${'1'.repeat(64)}`,
+        },
+      ],
+      nextCursor: null,
+    });
+  });
 });
