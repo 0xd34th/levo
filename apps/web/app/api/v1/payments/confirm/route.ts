@@ -20,7 +20,7 @@ const RequestSchema = z.object({
 type QuoteVerificationData = Pick<
   QuotePayload,
   'senderAddress' | 'xUserId' | 'vaultAddress' | 'coinType' | 'amount'
->;
+> & { recipientType?: 'X_HANDLE' | 'SUI_ADDRESS' };
 
 class QuoteClaimError extends Error {
   constructor() {
@@ -85,10 +85,12 @@ async function findMatchingConfirmedLedgerEntry(
     },
   });
 
+  // Normalize xUserId: empty string in HMAC payload maps to null in DB
+  const normalizedQuoteXUserId = quoteData.xUserId || null;
   if (
     !existingLedger ||
     existingLedger.senderAddress !== quoteData.senderAddress ||
-    existingLedger.xUserId !== quoteData.xUserId ||
+    (existingLedger.xUserId ?? null) !== normalizedQuoteXUserId ||
     existingLedger.vaultAddress !== quoteData.vaultAddress ||
     existingLedger.coinType !== quoteData.coinType ||
     existingLedger.amount !== BigInt(quoteData.amount)
@@ -113,7 +115,7 @@ async function syncPendingQuoteWithConfirmedLedger(
       hmacToken: quoteToken,
       status: 'PENDING',
       senderAddress: quoteData.senderAddress,
-      xUserId: quoteData.xUserId,
+      xUserId: quoteData.xUserId || null,
       vaultAddress: quoteData.vaultAddress,
       coinType: quoteData.coinType,
       amount: BigInt(quoteData.amount),
@@ -167,6 +169,7 @@ export async function POST(req: NextRequest) {
       expiresAt: true,
       amount: true,
       senderAddress: true,
+      recipientType: true,
       xUserId: true,
       vaultAddress: true,
       coinType: true,
@@ -176,8 +179,9 @@ export async function POST(req: NextRequest) {
 
   const storedQuoteData: QuoteVerificationData | null = storedQuote
     ? {
+        recipientType: storedQuote.recipientType,
         senderAddress: storedQuote.senderAddress,
-        xUserId: storedQuote.xUserId,
+        xUserId: storedQuote.xUserId ?? '',
         vaultAddress: storedQuote.vaultAddress,
         coinType: storedQuote.coinType,
         amount: storedQuote.amount.toString(),
@@ -268,7 +272,11 @@ export async function POST(req: NextRequest) {
   }
 
   const quotedAmount = BigInt(quoteData.amount);
-  const settlementCoinType = getSettlementCoinType(quoteData.coinType);
+  const isDirectAddressSend = quoteData.recipientType === 'SUI_ADDRESS';
+  // Direct address sends transfer the original coin (no StableLayer)
+  const settlementCoinType = isDirectAddressSend
+    ? quoteData.coinType
+    : getSettlementCoinType(quoteData.coinType);
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -381,6 +389,8 @@ export async function POST(req: NextRequest) {
   // 11. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
   try {
     const confirmedAt = new Date();
+    const normalizedXUserId = quoteData.xUserId || null;
+    const recipientType = quoteData.recipientType ?? 'X_HANDLE';
     await prisma.$transaction(async (txClient) => {
       const claim = await txClient.paymentQuote.updateMany({
         where: {
@@ -390,7 +400,7 @@ export async function POST(req: NextRequest) {
             ? { confirmedTxDigest: txDigest }
             : { expiresAt: { gte: confirmedAt } }),
           senderAddress: quoteData.senderAddress,
-          xUserId: quoteData.xUserId,
+          xUserId: normalizedXUserId,
           vaultAddress: quoteData.vaultAddress,
           coinType: quoteData.coinType,
           amount: onChainAmount,
@@ -411,7 +421,8 @@ export async function POST(req: NextRequest) {
           txDigest,
           sourceIndex: 0,
           senderAddress: quoteData.senderAddress,
-          xUserId: quoteData.xUserId,
+          recipientType,
+          xUserId: normalizedXUserId,
           vaultAddress: quoteData.vaultAddress,
           coinType: quoteData.coinType,
           amount: onChainAmount,

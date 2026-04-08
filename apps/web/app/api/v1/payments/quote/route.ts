@@ -24,11 +24,15 @@ import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 import { getVaultOwnershipState } from '@/lib/vault-ownership';
 
 const RequestSchema = z.object({
-  username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username'),
+  username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username').optional(),
+  recipientAddress: z.string().min(1).optional(),
   coinType: z.string().min(1),
   amount: z.string().regex(/^\d+$/, 'amount must be a numeric string'),
   senderAddress: z.string().min(1),
-});
+}).refine(
+  (data) => Boolean(data.username) !== Boolean(data.recipientAddress),
+  { message: 'Provide exactly one of username or recipientAddress' },
+);
 
 const QUOTE_EXPIRY_SECONDS = 5 * 60; // 5 minutes
 const MAX_PENDING_QUOTES = 10;
@@ -52,8 +56,9 @@ export async function POST(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  const { username, coinType, amount } = parsed.data;
+  const { username, recipientAddress, coinType, amount } = parsed.data;
   const senderAddress = normalizedSenderAddress;
+  const isDirectAddressSend = Boolean(recipientAddress);
 
   const xUser = await prisma.xUser.findUnique({
     where: { xUserId: auth.identity.xUserId },
@@ -138,7 +143,71 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve username via twitterapi.io, reusing a very recent cached resolution when possible.
+  // Generate HMAC token with 5-minute expiry
+  const hmacSecret = process.env.HMAC_SECRET;
+  if (!hasValidHmacSecret(hmacSecret)) {
+    return noStoreJson(
+      { error: 'Server configuration error' },
+      { status: 500 },
+    );
+  }
+
+  const nonce = randomBytes(16).toString('hex');
+  const expiresAtUnix = Math.floor(Date.now() / 1000) + QUOTE_EXPIRY_SECONDS;
+  const expiresAt = new Date(expiresAtUnix * 1000);
+
+  // ── SUI_ADDRESS branch: direct transfer to a Sui address ──
+  if (isDirectAddressSend) {
+    const normalizedRecipientAddress = parseSuiAddress(recipientAddress!);
+    if (!normalizedRecipientAddress) {
+      return noStoreJson({ error: 'Invalid Sui address' }, { status: 400 });
+    }
+
+    if (normalizedRecipientAddress === senderAddress) {
+      return noStoreJson({ error: 'Cannot send to yourself' }, { status: 400 });
+    }
+
+    const payload: QuotePayload = {
+      recipientType: 'SUI_ADDRESS',
+      xUserId: '',
+      derivationVersion: 0,
+      vaultAddress: normalizedRecipientAddress,
+      coinType,
+      amount,
+      senderAddress,
+      nonce,
+      expiresAt: expiresAtUnix,
+    };
+
+    const quoteToken = signQuoteToken(payload, hmacSecret);
+
+    await prisma.paymentQuote.create({
+      data: {
+        senderAddress,
+        recipientType: 'SUI_ADDRESS',
+        xUserId: null,
+        usernameAtQuote: null,
+        derivationVersion: 0,
+        vaultAddress: normalizedRecipientAddress,
+        coinType,
+        amount: BigInt(amount),
+        expiresAt,
+        status: 'PENDING',
+        hmacToken: quoteToken,
+      },
+    });
+
+    return noStoreJson({
+      recipientType: 'SUI_ADDRESS',
+      recipientAddress: normalizedRecipientAddress,
+      coinType,
+      amount,
+      quoteToken,
+      expiresAt: expiresAt.toISOString(),
+    });
+  }
+
+  // ── X_HANDLE branch: resolve via Twitter API and derive vault ──
   const apiKey = process.env.TWITTER_API_KEY;
   if (!apiKey) {
     return noStoreJson(
@@ -149,7 +218,7 @@ export async function POST(req: NextRequest) {
 
   let userInfo;
   try {
-    userInfo = await resolveFreshXUser(username, apiKey);
+    userInfo = await resolveFreshXUser(username!, apiKey);
   } catch (error) {
     const lookupError = getXLookupErrorDetails(error);
     if (lookupError.status === 429) {
@@ -236,18 +305,6 @@ export async function POST(req: NextRequest) {
     return noStoreJson({ error: 'Failed to verify recipient vault ownership' }, { status: 500 });
   }
 
-  // Generate HMAC token with 5-minute expiry
-  const hmacSecret = process.env.HMAC_SECRET;
-  if (!hasValidHmacSecret(hmacSecret)) {
-    return noStoreJson(
-      { error: 'Server configuration error' },
-      { status: 500 },
-    );
-  }
-
-  const nonce = randomBytes(16).toString('hex');
-  const expiresAtUnix = Math.floor(Date.now() / 1000) + QUOTE_EXPIRY_SECONDS;
-
   const payload: QuotePayload = {
     xUserId: userInfo.xUserId,
     derivationVersion,
@@ -260,7 +317,6 @@ export async function POST(req: NextRequest) {
   };
 
   const quoteToken = signQuoteToken(payload, hmacSecret);
-  const expiresAt = new Date(expiresAtUnix * 1000);
 
   // Upsert XUser row
   await prisma.xUser.upsert({
@@ -283,6 +339,7 @@ export async function POST(req: NextRequest) {
   await prisma.paymentQuote.create({
     data: {
       senderAddress,
+      recipientType: 'X_HANDLE',
       xUserId: userInfo.xUserId,
       usernameAtQuote: userInfo.username,
       derivationVersion,
@@ -296,6 +353,7 @@ export async function POST(req: NextRequest) {
   });
 
   return noStoreJson({
+    recipientType: 'X_HANDLE',
     xUserId: userInfo.xUserId,
     username: userInfo.username,
     profilePicture: trustedProfilePicture,

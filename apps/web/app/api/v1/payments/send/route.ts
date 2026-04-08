@@ -476,7 +476,11 @@ export async function POST(req: NextRequest) {
   // 8. Build or load the Sui transaction
   const client = getSuiClient();
   const amount = BigInt(quotePayload.amount);
-  const settlementCoinType = getSettlementCoinType(quotePayload.coinType);
+  const isDirectAddressSend = quotePayload.recipientType === 'SUI_ADDRESS';
+  // Direct address sends transfer the original coin (no StableLayer minting)
+  const settlementCoinType = isDirectAddressSend
+    ? quotePayload.coinType
+    : getSettlementCoinType(quotePayload.coinType);
 
   let gasKeypair: ReturnType<typeof getGasStationKeypair>;
   try {
@@ -513,6 +517,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (
+      !isDirectAddressSend &&
       process.env.NEXT_PUBLIC_SUI_NETWORK === 'mainnet' &&
       quotePayload.coinType === MAINNET_USDC_TYPE &&
       !isStableLayerEnabled()
@@ -648,13 +653,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const quoteXUserId = quotePayload.xUserId || null;
+  const quoteRecipientType = quotePayload.recipientType ?? 'X_HANDLE';
+
   const marker = await prisma.paymentQuote.updateMany({
     where: {
       hmacToken: quoteToken,
       status: 'PENDING',
       confirmedTxDigest: null,
       senderAddress: quotePayload.senderAddress,
-      xUserId: quotePayload.xUserId,
+      xUserId: quoteXUserId,
       vaultAddress: quotePayload.vaultAddress,
       coinType: quotePayload.coinType,
       amount,
@@ -775,7 +783,7 @@ export async function POST(req: NextRequest) {
           status: 'PENDING',
           confirmedTxDigest: stagedTxDigest,
           senderAddress: quotePayload.senderAddress,
-          xUserId: quotePayload.xUserId,
+          xUserId: quoteXUserId,
           vaultAddress: quotePayload.vaultAddress,
           coinType: quotePayload.coinType,
           amount,
@@ -800,7 +808,7 @@ export async function POST(req: NextRequest) {
           status: 'PENDING',
           confirmedTxDigest: stagedTxDigest,
           senderAddress: quotePayload.senderAddress,
-          xUserId: quotePayload.xUserId,
+          xUserId: quoteXUserId,
           vaultAddress: quotePayload.vaultAddress,
           coinType: quotePayload.coinType,
           amount,
@@ -821,7 +829,8 @@ export async function POST(req: NextRequest) {
           txDigest: confirmedTxDigest,
           sourceIndex: 0,
           senderAddress: quotePayload.senderAddress,
-          xUserId: quotePayload.xUserId,
+          recipientType: quoteRecipientType,
+          xUserId: quoteXUserId,
           vaultAddress: quotePayload.vaultAddress,
           coinType: quotePayload.coinType,
           amount: onChainAmount,

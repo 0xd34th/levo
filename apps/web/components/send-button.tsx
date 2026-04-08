@@ -19,6 +19,8 @@ import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorizati
 import {
   privyAuthenticatedFetch,
 } from '@/lib/privy-fetch';
+import type { RecipientType } from '@/lib/recipient';
+import { isValidSuiAddressInput } from '@/lib/recipient';
 import type { ResolvedUserPreview } from '@/lib/resolved-user';
 import { normalizeUsernameInput } from '@/lib/send-form';
 
@@ -26,6 +28,7 @@ interface SendButtonProps {
   username: string;
   amount: string;
   coinType: string;
+  recipientType: RecipientType | null;
   /** Privy embedded wallet address. Required for sending. */
   embeddedWalletAddress?: string | null;
   onError: (error: string | null) => void;
@@ -49,9 +52,18 @@ function createAbortError() {
   return new DOMException('Request aborted', 'AbortError');
 }
 
-type QuoteResponse = {
+type XHandleQuoteResponse = {
+  recipientType?: 'X_HANDLE';
   quoteToken: string;
 } & ResolvedUserPreview;
+
+type SuiAddressQuoteResponse = {
+  recipientType: 'SUI_ADDRESS';
+  recipientAddress: string;
+  quoteToken: string;
+};
+
+type QuoteResponse = XHandleQuoteResponse | SuiAddressQuoteResponse;
 
 type SendResponse = {
   status: 'confirmed' | 'pending';
@@ -79,18 +91,40 @@ async function getResponseError(response: Response, fallback: string) {
   return response.status ? `${fallback} (${response.status})` : fallback;
 }
 
-function parseQuoteResponse(payload: unknown): QuoteResponse | null {
+function truncateAddress(address: string): string {
+  if (address.length <= 14) return address;
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function parseQuoteResponse(payload: unknown, expectedType: RecipientType): QuoteResponse | null {
   if (typeof payload !== 'object' || payload === null) {
     return null;
   }
 
+  const obj = payload as Record<string, unknown>;
+
+  if (expectedType === 'SUI_ADDRESS') {
+    if (
+      typeof obj.quoteToken !== 'string' || obj.quoteToken === '' ||
+      typeof obj.recipientAddress !== 'string' || obj.recipientAddress === ''
+    ) {
+      return null;
+    }
+    return {
+      recipientType: 'SUI_ADDRESS',
+      recipientAddress: obj.recipientAddress as string,
+      quoteToken: obj.quoteToken as string,
+    };
+  }
+
+  // X_HANDLE response
   const {
     isBlueVerified,
     profilePicture,
     quoteToken,
     username,
     vaultAddress,
-  } = payload as Partial<QuoteResponse>;
+  } = obj as Partial<XHandleQuoteResponse>;
   if (
     typeof quoteToken !== 'string' ||
     quoteToken === '' ||
@@ -194,6 +228,7 @@ export function SendButton({
   username,
   amount,
   coinType,
+  recipientType,
   embeddedWalletAddress,
   onError,
   onConfirm,
@@ -212,6 +247,12 @@ export function SendButton({
 
   const amountNum = amount === '' ? Number.NaN : Number(amount);
   const normalizedUsername = normalizeUsernameInput(username);
+  const isAddressSend = recipientType === 'SUI_ADDRESS';
+
+  const hasValidRecipient = isAddressSend
+    ? isValidSuiAddressInput(username)
+    : Boolean(normalizedUsername);
+
   const hasValidAmount =
     amount !== '' &&
     !Number.isNaN(amountNum) &&
@@ -219,7 +260,7 @@ export function SendButton({
     isValidAmountInput(amount, coinType);
   const disabled =
     !embeddedWalletAddress ||
-    !normalizedUsername ||
+    !hasValidRecipient ||
     !hasValidAmount ||
     sending;
 
@@ -254,7 +295,7 @@ export function SendButton({
   }, []);
 
   const handleSend = async () => {
-    if (!embeddedWalletAddress || !normalizedUsername || inFlightRef.current) return;
+    if (!embeddedWalletAddress || !hasValidRecipient || inFlightRef.current) return;
 
     const amountNum = amount === '' ? Number.NaN : Number(amount);
     if (amount === '' || Number.isNaN(amountNum) || amountNum <= 0) {
@@ -287,15 +328,24 @@ export function SendButton({
 
     try {
       // 1. Request a payment quote, resolving the recipient server-side.
+      const quoteBody = isAddressSend
+        ? {
+            recipientAddress: username,
+            coinType,
+            amount: baseAmount.toString(),
+            senderAddress,
+          }
+        : {
+            username: normalizedUsername,
+            coinType,
+            amount: baseAmount.toString(),
+            senderAddress,
+          };
+
       const quoteRes = await privyAuthenticatedFetch(getAccessToken, '/api/v1/payments/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: normalizedUsername,
-          coinType,
-          amount: baseAmount.toString(),
-          senderAddress,
-        }),
+        body: JSON.stringify(quoteBody),
         signal: controller.signal,
       }, {
         identityToken,
@@ -312,24 +362,37 @@ export function SendButton({
 
       const quotePayload = await quoteRes.json().catch(() => null);
       if (isAborted()) return;
-      const quote = parseQuoteResponse(quotePayload);
+      const quote = parseQuoteResponse(quotePayload, recipientType ?? 'X_HANDLE');
       if (!quote) {
         onError('Invalid quote response');
         return;
       }
-      const { quoteToken, ...resolvedRecipient } = quote;
 
-      const confirmed = await requestRecipientConfirmation({
-        amount,
-        coinType,
-        recipient: resolvedRecipient,
-      });
-      if (isAborted()) return;
-      if (!confirmed) {
-        return;
+      const quoteToken = quote.quoteToken;
+      let displayUsername: string;
+
+      if (quote.recipientType === 'SUI_ADDRESS') {
+        const confirmed = await requestRecipientConfirmation({
+          amount,
+          coinType,
+          recipientType: 'SUI_ADDRESS',
+          recipientAddress: quote.recipientAddress,
+        });
+        if (isAborted()) return;
+        if (!confirmed) return;
+        displayUsername = truncateAddress(quote.recipientAddress);
+      } else {
+        const { quoteToken: _, ...resolvedRecipient } = quote as XHandleQuoteResponse;
+        const confirmed = await requestRecipientConfirmation({
+          amount,
+          coinType,
+          recipientType: 'X_HANDLE',
+          recipient: resolvedRecipient,
+        });
+        if (isAborted()) return;
+        if (!confirmed) return;
+        displayUsername = resolvedRecipient.username;
       }
-
-      const { username: resolvedUsername } = resolvedRecipient;
 
       // 2. Server builds, signs, and executes the transaction
       setSendStage('confirming');
@@ -434,8 +497,9 @@ export function SendButton({
       onConfirm({
         amount,
         coinType,
-        username: resolvedUsername,
+        username: displayUsername,
         txDigest: sendResult.txDigest,
+        recipientType: recipientType ?? 'X_HANDLE',
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -458,7 +522,7 @@ export function SendButton({
 
   let buttonLabel = 'Send now';
   if (sendStage === 'resolving') {
-    buttonLabel = 'Resolving recipient';
+    buttonLabel = isAddressSend ? 'Validating address' : 'Resolving recipient';
   } else if (sendStage === 'reviewing') {
     buttonLabel = 'Review recipient';
   } else if (sendStage === 'authorizing') {

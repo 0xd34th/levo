@@ -40,9 +40,11 @@ export function buildRecentActivityItems(
     createdAt: item.createdAt,
     amount: formatSentAmount(item.amount, item.coinType),
     direction: 'Sent' as const,
-    counterpartyLabel: `@${item.recipient.username}`,
-    counterpartySubLabel: 'Recipient',
-    counterpartyAvatarUrl: item.recipient.profilePicture,
+    counterpartyLabel: item.recipientType === 'SUI_ADDRESS'
+      ? item.recipient.username
+      : `@${item.recipient.username}`,
+    counterpartySubLabel: item.recipientType === 'SUI_ADDRESS' ? 'Sui address' : 'Recipient',
+    counterpartyAvatarUrl: item.recipientType === 'SUI_ADDRESS' ? null : item.recipient.profilePicture,
   }));
 
   const received = receivedItems.map((item) => {

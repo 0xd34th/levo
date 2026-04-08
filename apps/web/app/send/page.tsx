@@ -11,6 +11,7 @@ import { UsernameInput } from '@/components/username-input';
 import { Button } from '@/components/ui/button';
 import { SUI_COIN_TYPE, getUserFacingUsdcCoinType } from '@/lib/coins';
 import { truncateAddress } from '@/lib/received-dashboard-client';
+import { detectRecipientType } from '@/lib/recipient';
 import { sanitizeAmountForCoinType } from '@/lib/send-form';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
@@ -159,6 +160,7 @@ export default function SendPage() {
           <SendButton
             amount={amount}
             coinType={coinType}
+            recipientType={detectRecipientType(username)}
             embeddedWalletAddress={embeddedWalletAddress}
             onConfirm={(data) => {
               setSendError(null);

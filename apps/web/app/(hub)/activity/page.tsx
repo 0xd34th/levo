@@ -12,6 +12,7 @@ import {
   formatPendingBalances,
   getIncomingPaymentSenderDisplay,
   receivedPaymentDisplay,
+  truncateAddress,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
 import {
@@ -236,9 +237,11 @@ export default function ActivityPage() {
                 emptyTitle="No payments yet"
                 rows={sentItems.map((item) => ({
                   id: item.id,
-                  counterpartyAvatarUrl: item.recipient.profilePicture,
-                  counterpartyLabel: `@${item.recipient.username}`,
-                  counterpartySubLabel: 'X recipient',
+                  counterpartyAvatarUrl: item.recipientType === 'SUI_ADDRESS' ? null : item.recipient.profilePicture,
+                  counterpartyLabel: item.recipientType === 'SUI_ADDRESS'
+                    ? (item.recipientAddress ? truncateAddress(item.recipientAddress) : item.recipient.username)
+                    : `@${item.recipient.username}`,
+                  counterpartySubLabel: item.recipientType === 'SUI_ADDRESS' ? 'Sui address' : 'X recipient',
                   amount: formatSentAmount(item.amount, item.coinType),
                   status: 'Confirmed',
                   date: item.createdAt,

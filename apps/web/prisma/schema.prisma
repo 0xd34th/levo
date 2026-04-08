@@ -38,21 +38,22 @@ enum AccountStatus {
 }
 
 model PaymentQuote {
-  id                String      @id @default(cuid())
-  senderAddress     String      @map("sender_address")
-  xUserId           String      @map("x_user_id")
-  usernameAtQuote   String      @map("username_at_quote")
-  derivationVersion Int         @map("derivation_version")
-  vaultAddress      String      @map("vault_address")
-  coinType          String      @map("coin_type")
+  id                String        @id @default(cuid())
+  senderAddress     String        @map("sender_address")
+  recipientType     RecipientType @default(X_HANDLE) @map("recipient_type")
+  xUserId           String?       @map("x_user_id")
+  usernameAtQuote   String?       @map("username_at_quote")
+  derivationVersion Int           @map("derivation_version")
+  vaultAddress      String        @map("vault_address")
+  coinType          String        @map("coin_type")
   amount            BigInt
-  expiresAt         DateTime    @map("expires_at")
-  status            QuoteStatus @default(PENDING)
-  hmacToken         String      @map("hmac_token")
-  confirmedTxDigest String?     @map("confirmed_tx_digest")
-  createdAt         DateTime    @default(now()) @map("created_at")
+  expiresAt         DateTime      @map("expires_at")
+  status            QuoteStatus   @default(PENDING)
+  hmacToken         String        @map("hmac_token")
+  confirmedTxDigest String?       @map("confirmed_tx_digest")
+  createdAt         DateTime      @default(now()) @map("created_at")
 
-  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+  xUser XUser? @relation(fields: [xUserId], references: [xUserId])
 
   @@unique([hmacToken])
   @@index([senderAddress, status])
@@ -69,18 +70,19 @@ enum QuoteStatus {
 }
 
 model PaymentLedger {
-  id            String       @id @default(cuid())
-  ledgerSource  LedgerSource @map("ledger_source")
-  txDigest      String       @map("tx_digest")
-  sourceIndex   Int          @map("source_index")
-  senderAddress String       @map("sender_address")
-  xUserId       String       @map("x_user_id")
-  vaultAddress  String       @map("vault_address")
-  coinType      String       @map("coin_type")
+  id            String        @id @default(cuid())
+  ledgerSource  LedgerSource  @map("ledger_source")
+  txDigest      String        @map("tx_digest")
+  sourceIndex   Int           @map("source_index")
+  senderAddress String        @map("sender_address")
+  recipientType RecipientType @default(X_HANDLE) @map("recipient_type")
+  xUserId       String?       @map("x_user_id")
+  vaultAddress  String        @map("vault_address")
+  coinType      String        @map("coin_type")
   amount        BigInt
-  createdAt     DateTime     @default(now()) @map("created_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
 
-  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+  xUser XUser? @relation(fields: [xUserId], references: [xUserId])
 
   @@unique([ledgerSource, txDigest, sourceIndex])
   @@index([senderAddress, createdAt(sort: Desc), id(sort: Desc)])
@@ -91,4 +93,9 @@ model PaymentLedger {
 enum LedgerSource {
   SEND_CONFIRM
   CONTRACT_EVENT
+}
+
+enum RecipientType {
+  X_HANDLE
+  SUI_ADDRESS
 }

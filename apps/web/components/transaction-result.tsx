@@ -12,6 +12,7 @@ export interface TransactionResultData {
   coinType: string;
   username: string;
   txDigest: string;
+  recipientType?: 'X_HANDLE' | 'SUI_ADDRESS';
 }
 
 interface TransactionResultProps {
@@ -28,6 +29,11 @@ export function TransactionResult({ data, network, onReset }: TransactionResultP
     ? getCoinLabel(data.coinType)
     : 'unsupported asset';
 
+  const isAddressSend = data.recipientType === 'SUI_ADDRESS';
+  const recipientDisplay = isAddressSend
+    ? `sent to ${data.username}`
+    : `is now waiting for @${data.username}`;
+
   return (
     <div className="rounded-[28px] border border-accent/20 bg-accent/8 p-5 shadow-[0_20px_44px_rgba(0,200,150,0.12)]">
       <div className="flex items-start justify-between gap-3">
@@ -38,7 +44,7 @@ export function TransactionResult({ data, network, onReset }: TransactionResultP
           <div>
             <p className="text-lg font-semibold tracking-[-0.03em]">Money sent</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {data.amount} {coinLabel} is now waiting for @{data.username}.
+              {data.amount} {coinLabel} {recipientDisplay}.
             </p>
           </div>
         </div>

@@ -13,13 +13,22 @@ import {
   ResolvedUserCard,
   type ResolvedUserPreview,
 } from '@/components/resolved-user-card';
+import { Card, CardContent } from '@/components/ui/card';
 import { getCoinLabel } from '@/lib/coins';
 
-export interface RecipientConfirmationData {
-  amount: string;
-  coinType: string;
-  recipient: ResolvedUserPreview;
-}
+export type RecipientConfirmationData =
+  | {
+      amount: string;
+      coinType: string;
+      recipientType: 'X_HANDLE';
+      recipient: ResolvedUserPreview;
+    }
+  | {
+      amount: string;
+      coinType: string;
+      recipientType: 'SUI_ADDRESS';
+      recipientAddress: string;
+    };
 
 interface RecipientConfirmationModalProps {
   data: RecipientConfirmationData | null;
@@ -36,13 +45,17 @@ export function RecipientConfirmationModal({
     return null;
   }
 
+  const isAddressSend = data.recipientType === 'SUI_ADDRESS';
+
   return (
     <Dialog open={!!data} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Confirm Recipient</DialogTitle>
           <DialogDescription>
-            Review the resolved X account before opening your wallet.
+            {isAddressSend
+              ? 'Review the Sui address before opening your wallet.'
+              : 'Review the resolved X account before opening your wallet.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -54,11 +67,27 @@ export function RecipientConfirmationModal({
             </span>
           </div>
 
-          <ResolvedUserCard user={data.recipient} />
+          {isAddressSend ? (
+            <Card>
+              <CardContent>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Sui Address
+                  </p>
+                  <p className="break-all font-mono text-sm text-foreground">
+                    {data.recipientAddress}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <ResolvedUserCard user={data.recipient} />
+          )}
 
           <p className="text-xs leading-5 text-muted-foreground">
-            Your wallet will still show the vault address. Confirm it matches the
-            resolved recipient above before approving the transaction.
+            {isAddressSend
+              ? 'Funds will be sent directly to this address. This cannot be reversed.'
+              : 'Your wallet will still show the vault address. Confirm it matches the resolved recipient above before approving the transaction.'}
           </p>
         </div>
 
