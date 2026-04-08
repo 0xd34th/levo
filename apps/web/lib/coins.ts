@@ -1,4 +1,4 @@
-import { fromBase58 } from '@mysten/sui/utils';
+import { fromBase58, normalizeSuiAddress } from '@mysten/sui/utils';
 
 const TEST_USDC_SUFFIX = '::test_usdc::TEST_USDC';
 const LEVO_USD_SUFFIX = '::levo_usd::LEVO_USD';
@@ -11,6 +11,22 @@ export const MAINNET_USDC_TYPE =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
 type SuiNetwork = 'testnet' | 'mainnet' | 'devnet';
+
+/**
+ * Normalize the address portion of a coin type to the full 64-char hex format.
+ * Sui RPCs may return shortened addresses (e.g. `0x62241b...`) that differ from
+ * the full form stored in env vars (`0x062241b...`). This ensures comparisons
+ * are stable regardless of leading-zero formatting.
+ */
+function normalizeCoinType(coinType: string): string {
+  const idx = coinType.indexOf('::');
+  if (idx === -1) return coinType;
+  try {
+    return normalizeSuiAddress(coinType.slice(0, idx)) + coinType.slice(idx);
+  } catch {
+    return coinType;
+  }
+}
 
 function getConfiguredNetwork(
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
@@ -90,9 +106,11 @@ export function normalizeCoinTypeForDisplay(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
 ): string {
+  const configuredLevoUsd = getConfiguredLevoUsdCoinType(packageId, levoUsdCoinType, network);
   if (
     getConfiguredNetwork(network) === 'mainnet' &&
-    coinType === getConfiguredLevoUsdCoinType(packageId, levoUsdCoinType, network)
+    configuredLevoUsd &&
+    normalizeCoinType(coinType) === normalizeCoinType(configuredLevoUsd)
   ) {
     return MAINNET_USDC_TYPE;
   }
@@ -109,15 +127,18 @@ export function isSupportedCoinType(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
 ): boolean {
+  const normalized = normalizeCoinType(coinType);
   const userFacingUsdcCoinType = getUserFacingUsdcCoinType(network, packageId);
-  return coinType === SUI_COIN_TYPE || coinType === userFacingUsdcCoinType;
+  return normalized === normalizeCoinType(SUI_COIN_TYPE) ||
+    (userFacingUsdcCoinType !== null && normalized === normalizeCoinType(userFacingUsdcCoinType));
 }
 
 function isConfiguredTestUsdcCoinType(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
 ): boolean {
-  return coinType === getTestUsdcCoinType(packageId);
+  const testUsdc = getTestUsdcCoinType(packageId);
+  return testUsdc !== null && normalizeCoinType(coinType) === normalizeCoinType(testUsdc);
 }
 
 export function getCoinLabel(
@@ -137,7 +158,7 @@ export function getCoinLabel(
     return 'USDC';
   }
 
-  if (coinType === SUI_COIN_TYPE) {
+  if (normalizeCoinType(coinType) === normalizeCoinType(SUI_COIN_TYPE)) {
     return 'SUI';
   }
 
@@ -161,7 +182,7 @@ export function isDisplaySupportedCoinType(
     levoUsdCoinType,
   );
   return (
-    displayCoinType === SUI_COIN_TYPE ||
+    normalizeCoinType(displayCoinType) === normalizeCoinType(SUI_COIN_TYPE) ||
     displayCoinType === MAINNET_USDC_TYPE ||
     isConfiguredTestUsdcCoinType(displayCoinType, packageId)
   );
@@ -180,7 +201,7 @@ export function getCoinDecimals(
     levoUsdCoinType,
   );
 
-  if (displayCoinType === SUI_COIN_TYPE) {
+  if (normalizeCoinType(displayCoinType) === normalizeCoinType(SUI_COIN_TYPE)) {
     return SUI_DECIMALS;
   }
 

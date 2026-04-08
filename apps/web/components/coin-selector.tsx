@@ -1,6 +1,6 @@
 'use client';
 
-import { Droplets, Waves } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   MAINNET_USDC_TYPE,
@@ -10,13 +10,23 @@ import {
 } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 
+interface CoinOption {
+  value: string;
+  label: string;
+  caption: string;
+  icon: {
+    alt: string;
+    src: string;
+  };
+}
+
 interface CoinSelectorProps {
   value: string;
   onValueChange: (value: string) => void;
   disabled?: boolean;
 }
 
-function getCoinOptions() {
+function getCoinOptions(): CoinOption[] {
   const userFacingUsdcCoinType = getUserFacingUsdcCoinType();
   const stablecoinLabel = userFacingUsdcCoinType === MAINNET_USDC_TYPE ? 'USDC' : 'TEST USDC';
 
@@ -25,7 +35,10 @@ function getCoinOptions() {
       value: userFacingUsdcCoinType ?? SUI_COIN_TYPE,
       label: userFacingUsdcCoinType ? stablecoinLabel : 'SUI',
       caption: userFacingUsdcCoinType ? 'Stablecoin' : 'Native',
-      icon: Droplets,
+      icon: {
+        alt: `${userFacingUsdcCoinType ? stablecoinLabel : 'SUI'} icon`,
+        src: userFacingUsdcCoinType ? '/USDC.svg' : '/sui.svg',
+      },
     },
     ...(userFacingUsdcCoinType
       ? [
@@ -33,7 +46,10 @@ function getCoinOptions() {
             value: SUI_COIN_TYPE,
             label: getCoinLabel(SUI_COIN_TYPE),
             caption: 'Native',
-            icon: Waves,
+            icon: {
+              alt: 'SUI icon',
+              src: '/sui.svg',
+            },
           },
         ]
       : []),
@@ -70,11 +86,19 @@ export function CoinSelector({ value, onValueChange, disabled = false }: CoinSel
             >
               <span
                 className={cn(
-                  'flex size-10 items-center justify-center rounded-2xl',
-                  active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground dark:bg-white/8 dark:text-muted-foreground',
+                  'flex size-10 items-center justify-center rounded-2xl border',
+                  active
+                    ? 'border-primary/20 bg-background shadow-sm dark:border-primary/25 dark:bg-white/8'
+                    : 'border-transparent bg-secondary dark:bg-white/8',
                 )}
               >
-                <option.icon className="size-4" />
+                <Image
+                  alt={option.icon.alt}
+                  className="size-4 object-contain"
+                  height={16}
+                  src={option.icon.src}
+                  width={16}
+                />
               </span>
               <span className="ml-3 flex flex-col">
                 <span className="font-semibold">{option.label}</span>
