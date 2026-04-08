@@ -13,6 +13,7 @@ import { SUI_COIN_TYPE, getUserFacingUsdcCoinType } from '@/lib/coins';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import { detectRecipientType } from '@/lib/recipient';
 import { sanitizeAmountForCoinType } from '@/lib/send-form';
+import { useCoinBalance } from '@/lib/use-coin-balance';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
@@ -26,8 +27,9 @@ export default function SendPage() {
     refetch: refetchEmbeddedWallet,
   } = useEmbeddedWallet();
   const [username, setUsername] = useState('');
-  const [amount, setAmount] = useState('');
   const [coinType, setCoinType] = useState(defaultCoinType);
+  const { balance: availableBalance } = useCoinBalance(embeddedWalletAddress, coinType);
+  const [amount, setAmount] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [txResult, setTxResult] = useState<TransactionResultData | null>(null);
@@ -143,6 +145,7 @@ export default function SendPage() {
             coinType={coinType}
             disabled={isSending}
             onAmountChange={setAmount}
+            availableBalance={availableBalance}
           />
 
           <CoinSelector
@@ -162,6 +165,7 @@ export default function SendPage() {
             coinType={coinType}
             recipientType={detectRecipientType(username)}
             embeddedWalletAddress={embeddedWalletAddress}
+            availableBalance={availableBalance}
             onConfirm={(data) => {
               setSendError(null);
               setTxResult(data);

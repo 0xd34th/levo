@@ -4,7 +4,7 @@ import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usesDollarAmountPrefix } from '@/lib/send-form';
-import { getCoinLabel, isValidAmountInput } from '@/lib/coins';
+import { formatAmount, getCoinLabel, isValidAmountInput } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 
 interface AmountInputProps {
@@ -12,9 +12,11 @@ interface AmountInputProps {
   onAmountChange: (amount: string) => void;
   coinType: string;
   disabled?: boolean;
+  /** Raw balance in base units (e.g. "5000000") for the selected coin type. */
+  availableBalance?: string | null;
 }
 
-export function AmountInput({ amount, onAmountChange, coinType, disabled = false }: AmountInputProps) {
+export function AmountInput({ amount, onAmountChange, coinType, disabled = false, availableBalance }: AmountInputProps) {
   const inputId = useId();
   const showsDollarPrefix = usesDollarAmountPrefix(coinType);
 
@@ -25,14 +27,25 @@ export function AmountInput({ amount, onAmountChange, coinType, disabled = false
     }
   };
 
+  const balanceDisplay = availableBalance != null
+    ? `${formatAmount(availableBalance, coinType)} ${getCoinLabel(coinType)}`
+    : null;
+
   return (
     <div className="space-y-3">
-      <Label
-        htmlFor={inputId}
-        className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
-      >
-        Amount
-      </Label>
+      <div className="flex items-baseline justify-between">
+        <Label
+          htmlFor={inputId}
+          className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+        >
+          Amount
+        </Label>
+        {balanceDisplay ? (
+          <span className="text-xs text-muted-foreground">
+            Balance: {balanceDisplay}
+          </span>
+        ) : null}
+      </div>
       <div className="relative">
         {showsDollarPrefix ? (
           <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-foreground">

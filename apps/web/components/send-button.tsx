@@ -14,7 +14,7 @@ import {
 } from '@/components/recipient-confirmation-modal';
 import { Button } from '@/components/ui/button';
 import type { TransactionResultData } from '@/components/transaction-result';
-import { getCoinDecimals, isValidAmountInput } from '@/lib/coins';
+import { formatAmount, getCoinDecimals, getCoinLabel, isValidAmountInput } from '@/lib/coins';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   privyAuthenticatedFetch,
@@ -31,6 +31,8 @@ interface SendButtonProps {
   recipientType: RecipientType | null;
   /** Privy embedded wallet address. Required for sending. */
   embeddedWalletAddress?: string | null;
+  /** Raw balance in base units for the selected coin type. */
+  availableBalance?: string | null;
   onError: (error: string | null) => void;
   onConfirm: (data: TransactionResultData) => void;
   onSendingChange?: (sending: boolean) => void;
@@ -230,6 +232,7 @@ export function SendButton({
   coinType,
   recipientType,
   embeddedWalletAddress,
+  availableBalance,
   onError,
   onConfirm,
   onSendingChange,
@@ -316,6 +319,13 @@ export function SendButton({
     }
 
     const baseAmount = toBaseUnits(amount, getCoinDecimals(coinType));
+
+    if (availableBalance != null && BigInt(availableBalance) < baseAmount) {
+      const displayBalance = formatAmount(availableBalance, coinType);
+      onError(`Insufficient ${getCoinLabel(coinType)} balance. Available: ${displayBalance}`);
+      return;
+    }
+
     const controller = new AbortController();
     const isAborted = () => controller.signal.aborted || !mountedRef.current;
 
