@@ -94,10 +94,10 @@ export function CoinSelector({ value, onValueChange, disabled = false }: CoinSel
               >
                 <Image
                   alt={option.icon.alt}
-                  className="size-6 object-contain"
-                  height={24}
+                  className="size-10 object-contain"
+                  height={40}
                   src={option.icon.src}
-                  width={24}
+                  width={40}
                 />
               </span>
               <span className="ml-3 flex flex-col">
