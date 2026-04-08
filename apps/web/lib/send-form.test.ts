@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getTestUsdcCoinType, SUI_COIN_TYPE } from '@/lib/coins';
 import {
   MAX_X_HANDLE_LENGTH,
+  normalizeRecipientInput,
   normalizeUsernameInput,
   sanitizeAmountForCoinType,
   usesDollarAmountPrefix,
@@ -16,6 +17,12 @@ describe('send-form helpers', () => {
     expect(normalizeUsernameInput('@abcdefghijklmno')).toBe('abcdefghijklmno');
     expect(normalizeUsernameInput(' @abc def ')).toBe('abcdef');
     expect(normalizeUsernameInput('@abcdefghijklmnop')).toHaveLength(MAX_X_HANDLE_LENGTH);
+  });
+
+  it('keeps non-hex 0x handles on the username path', () => {
+    expect(normalizeRecipientInput('@0xMert')).toBe('0xMert');
+    expect(normalizeRecipientInput('0xFoobar')).toBe('0xFoobar');
+    expect(normalizeRecipientInput('0xABCD')).toBe('0xabcd');
   });
 
   it('clears amounts that become invalid for the selected asset', () => {
