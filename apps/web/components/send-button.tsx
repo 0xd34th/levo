@@ -14,6 +14,7 @@ import {
 } from '@/components/recipient-confirmation-modal';
 import { Button } from '@/components/ui/button';
 import type { TransactionResultData } from '@/components/transaction-result';
+import { emitClaimDataRefresh } from '@/lib/claim-refresh';
 import { formatAmount, getCoinDecimals, getCoinLabel, isValidAmountInput } from '@/lib/coins';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
@@ -504,6 +505,7 @@ export function SendButton({
         }
       }
 
+      emitClaimDataRefresh();
       onConfirm({
         amount,
         coinType,

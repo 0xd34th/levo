@@ -61,7 +61,8 @@ export function BalanceDisplay({ address }: BalanceDisplayProps) {
 
   useEffect(() => {
     return subscribeClaimDataRefresh(() => {
-      void fetchBalances();
+      // Delay to let the Sui fullnode index the new balance after claim/send
+      setTimeout(() => void fetchBalances(), 1500);
     });
   }, [fetchBalances]);
 

@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
 import { getSuiClient } from '@/lib/sui';
 
 /**
  * Fetches the raw balance (base units as string) for a specific coin type.
- * Re-fetches when address or coinType changes.
+ * Re-fetches when address or coinType changes, and after claim/send events.
  */
 export function useCoinBalance(
   address: string | null | undefined,
@@ -45,6 +46,12 @@ export function useCoinBalance(
   useEffect(() => {
     void fetchBalance();
     return () => abortRef.current?.abort();
+  }, [fetchBalance]);
+
+  useEffect(() => {
+    return subscribeClaimDataRefresh(() => {
+      setTimeout(() => void fetchBalance(), 1500);
+    });
   }, [fetchBalance]);
 
   return { balance, loading, refetch: fetchBalance };
