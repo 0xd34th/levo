@@ -87,7 +87,7 @@ export function RecipientConfirmationModal({
           <p className="text-xs leading-5 text-muted-foreground">
             {isAddressSend
               ? 'Funds will be sent directly to this address. This cannot be reversed.'
-              : 'Your wallet will still show the vault address. Confirm it matches the resolved recipient above before approving the transaction.'}
+              : 'Funds will be sent directly to the resolved canonical wallet for this X account. Confirm it matches before approving the transaction.'}
           </p>
         </div>
 

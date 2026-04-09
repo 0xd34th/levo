@@ -49,7 +49,7 @@ export function ResolvedUserCard({ user }: ResolvedUserCardProps) {
               )}
             </div>
             <p className="text-xs text-muted-foreground font-mono mt-0.5">
-              {truncateAddress(user.vaultAddress)}
+              {truncateAddress(user.recipientAddress)}
             </p>
           </div>
         </div>

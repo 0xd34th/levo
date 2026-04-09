@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
+import { subscribeAccountDataRefresh } from '@/lib/account-refresh';
 import { getSuiClient } from '@/lib/sui';
 import { SUI_COIN_TYPE, formatAmount, getCoinLabel, isDisplaySupportedCoinType } from '@/lib/coins';
 
@@ -60,7 +60,7 @@ export function BalanceDisplay({ address }: BalanceDisplayProps) {
   }, [fetchBalances]);
 
   useEffect(() => {
-    return subscribeClaimDataRefresh(() => {
+    return subscribeAccountDataRefresh(() => {
       // Delay to let the Sui fullnode index the new balance after claim/send
       setTimeout(() => void fetchBalances(), 1500);
     });

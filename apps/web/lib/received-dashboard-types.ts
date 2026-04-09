@@ -1,12 +1,3 @@
-export const RECEIVED_CLAIM_STATUS_MODEL = 'vault_owner_balance_v2';
-
-export type ReceivedClaimStatus =
-  | 'UNCLAIMED'
-  | 'CLAIMED'
-  | 'PREVIOUSLY_CLAIMED';
-
-export type ReceivedClaimAction = 'NONE' | 'CLAIM' | 'WITHDRAW';
-
 export interface ReceivedBalance {
   coinType: string;
   symbol: string;
@@ -38,24 +29,21 @@ export interface ReceivedDashboardUser {
   isBlueVerified: boolean;
 }
 
-export interface ReceivedVaultSummary {
+export interface ReceivedRecipientSummary {
   derivationVersion: number;
-  vaultAddress: string;
-  vaultExists: boolean;
-  claimStatus: ReceivedClaimStatus;
-  claimAction: ReceivedClaimAction;
-  claimStatusModel: typeof RECEIVED_CLAIM_STATUS_MODEL;
+  recipientAddress: string | null;
+  walletReady: boolean;
   pendingBalances: ReceivedBalance[];
   recordedTotals: ReceivedBalance[];
 }
 
 export interface PublicLookupResponse
-  extends ReceivedDashboardUser, ReceivedVaultSummary {
+  extends ReceivedDashboardUser, ReceivedRecipientSummary {
   recentIncomingPayments: IncomingPaymentItem[];
 }
 
 export interface IncomingPaymentsResponse
-  extends ReceivedDashboardUser, ReceivedVaultSummary {
+  extends ReceivedDashboardUser, ReceivedRecipientSummary {
   items: IncomingPaymentItem[];
   nextCursor: string | null;
 }

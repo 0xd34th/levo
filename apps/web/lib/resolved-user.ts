@@ -2,7 +2,7 @@ export type ResolvedUserPreview = {
   username: string;
   profilePicture: string | null;
   isBlueVerified: boolean;
-  vaultAddress: string;
+  recipientAddress: string;
 };
 
 export type ResolvedAddressPreview = {

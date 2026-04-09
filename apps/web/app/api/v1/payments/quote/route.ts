@@ -13,15 +13,17 @@ import {
   isSupportedCoinType,
   requiresPackageIdForCoinType,
 } from '@/lib/coins';
-import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
 import { signQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { prisma } from '@/lib/prisma';
-import { verifyPrivyXAuth } from '@/lib/privy-auth';
+import { getPrivyClient, verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
-import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
+import {
+  ensureRecipientWallet,
+  isRecipientWalletConflictError,
+} from '@/lib/recipient-wallet';
+import { acquireRedisLock } from '@/lib/redis-lock';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
-import { getVaultOwnershipState } from '@/lib/vault-ownership';
 
 const RequestSchema = z.object({
   username: z.string().regex(X_USERNAME_INPUT_RE, 'Invalid username').optional(),
@@ -250,8 +252,6 @@ export async function POST(req: NextRequest) {
     where: { xUserId: userInfo.xUserId },
     select: {
       accountStatus: true,
-      privyUserId: true,
-      suiAddress: true,
     },
   });
   if (
@@ -264,51 +264,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Derive vault address
-  const registryId = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
-  if (!registryId) {
+  let privy;
+  try {
+    privy = getPrivyClient();
+  } catch (error) {
+    console.error('Missing Privy configuration for recipient provisioning', error);
     return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
     );
   }
 
-  const vaultAddress = deriveVaultAddress(registryId, BigInt(userInfo.xUserId));
-  const derivationVersion = 1;
-  const trustedProfilePicture =
-    userInfo.profilePicture && isTrustedProfilePictureUrl(userInfo.profilePicture)
-      ? userInfo.profilePicture
-      : null;
-
-  try {
-    const ownership = await getVaultOwnershipState({
-      client: getSuiClient(),
-      vaultAddress,
-      canonicalAddress: existingUser?.suiAddress ?? null,
-    });
-
-    if (existingUser?.privyUserId && !existingUser.suiAddress && ownership.vaultExists) {
-      return noStoreJson(
-        { error: 'Recipient wallet binding is incomplete and cannot safely receive new funds.' },
-        { status: 409 },
-      );
-    }
-
-    if (ownership.kind === 'OWNED_BY_OTHER') {
-      return noStoreJson(
-        { error: 'Recipient vault is controlled by a different wallet and cannot safely receive new funds.' },
-        { status: 409 },
-      );
-    }
-  } catch (error) {
-    console.error('Failed to verify recipient vault ownership', error);
-    return noStoreJson({ error: 'Failed to verify recipient vault ownership' }, { status: 500 });
+  const provisionLock = await acquireRedisLock(`recipient-provision:${userInfo.xUserId}`, 30);
+  if (provisionLock.status !== 'acquired') {
+    return noStoreJson(
+      { error: 'Recipient wallet provisioning in progress. Please retry in a moment.' },
+      { status: provisionLock.status === 'busy' ? 409 : 503 },
+    );
   }
 
+  let recipientWallet;
+  try {
+    recipientWallet = await ensureRecipientWallet(privy, {
+      xUserId: userInfo.xUserId,
+      username: userInfo.username,
+      profilePicture: userInfo.profilePicture,
+      isBlueVerified: userInfo.isBlueVerified,
+    });
+  } catch (error) {
+    if (isRecipientWalletConflictError(error)) {
+      return noStoreJson({ error: error.message }, { status: 409 });
+    }
+
+    console.error('Failed to provision recipient wallet', error);
+    return noStoreJson({ error: 'Failed to prepare recipient wallet' }, { status: 503 });
+  } finally {
+    await provisionLock.release();
+  }
+
+  const derivationVersion = 1;
   const payload: QuotePayload = {
+    recipientType: 'X_HANDLE',
     xUserId: userInfo.xUserId,
     derivationVersion,
-    vaultAddress,
+    vaultAddress: recipientWallet.suiAddress,
     coinType,
     amount,
     senderAddress,
@@ -318,32 +317,15 @@ export async function POST(req: NextRequest) {
 
   const quoteToken = signQuoteToken(payload, hmacSecret);
 
-  // Upsert XUser row
-  await prisma.xUser.upsert({
-    where: { xUserId: userInfo.xUserId },
-    update: {
-      username: userInfo.username,
-      profilePicture: trustedProfilePicture,
-      isBlueVerified: userInfo.isBlueVerified,
-    },
-    create: {
-      xUserId: userInfo.xUserId,
-      username: userInfo.username,
-      profilePicture: trustedProfilePicture,
-      isBlueVerified: userInfo.isBlueVerified,
-      derivationVersion,
-    },
-  });
-
   // Write PaymentQuote row
   await prisma.paymentQuote.create({
     data: {
       senderAddress,
       recipientType: 'X_HANDLE',
       xUserId: userInfo.xUserId,
-      usernameAtQuote: userInfo.username,
+      usernameAtQuote: recipientWallet.username,
       derivationVersion,
-      vaultAddress,
+      vaultAddress: recipientWallet.suiAddress,
       coinType,
       amount: BigInt(amount),
       expiresAt,
@@ -355,12 +337,10 @@ export async function POST(req: NextRequest) {
   return noStoreJson({
     recipientType: 'X_HANDLE',
     xUserId: userInfo.xUserId,
-    username: userInfo.username,
-    profilePicture: trustedProfilePicture,
-    isBlueVerified: userInfo.isBlueVerified,
-    vaultAddress,
-    coinType,
-    amount,
+    username: recipientWallet.username,
+    profilePicture: recipientWallet.profilePicture,
+    isBlueVerified: recipientWallet.isBlueVerified,
+    recipientAddress: recipientWallet.suiAddress,
     quoteToken,
     expiresAt: expiresAt.toISOString(),
   });

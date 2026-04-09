@@ -9,14 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  claimActionLabel,
-  claimStatusLabel,
   explorerUrl,
   formatPendingBalances,
   normalizeHandle,
   receivedPaymentDisplay,
   truncateAddress,
   untrackedBalanceNote,
+  walletReadyLabel,
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
@@ -49,7 +48,7 @@ export default function LookupPage() {
 
     if (!username) {
       setLoading(false);
-      setError('Enter an X handle to check the vault.');
+      setError('Enter an X handle to check the recipient wallet.');
       setResult(null);
       return;
     }
@@ -67,7 +66,9 @@ export default function LookupPage() {
         signal: controller.signal,
       });
 
-      if (lookupRequestIdRef.current !== lookupRequestId) return;
+      if (lookupRequestIdRef.current !== lookupRequestId) {
+        return;
+      }
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({ error: 'Lookup failed' }));
@@ -75,12 +76,18 @@ export default function LookupPage() {
       }
 
       const payload = (await response.json()) as PublicLookupResponse;
-      if (lookupRequestIdRef.current !== lookupRequestId) return;
+      if (lookupRequestIdRef.current !== lookupRequestId) {
+        return;
+      }
 
       setResult(payload);
     } catch (lookupError) {
-      if (controller.signal.aborted) return;
-      if (lookupRequestIdRef.current !== lookupRequestId) return;
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (lookupRequestIdRef.current !== lookupRequestId) {
+        return;
+      }
       setResult(null);
       setError(lookupError instanceof Error ? lookupError.message : 'Lookup failed');
     } finally {
@@ -95,10 +102,9 @@ export default function LookupPage() {
 
   return (
     <div className="min-h-screen">
-      <MobileTopBar title="Vault Lookup" backHref="/tools" />
+      <MobileTopBar title="Wallet Lookup" backHref="/tools" />
 
       <main className="mx-auto flex w-full max-w-lg flex-col px-4 pb-16 pt-6 md:max-w-4xl">
-
         <section className="mx-auto mt-8 w-full max-w-3xl">
           <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">
             <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
@@ -134,33 +140,37 @@ export default function LookupPage() {
           <>
             <section className="mt-8 grid gap-4 md:grid-cols-3">
               <div className="metric-card">
-                <p className="section-eyebrow">Vault exists</p>
+                <p className="section-eyebrow">Wallet ready</p>
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {result.vaultExists ? 'Yes' : 'No'}
+                  {walletReadyLabel(result.walletReady)}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">{truncateAddress(result.vaultAddress)}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {result.recipientAddress
+                    ? truncateAddress(result.recipientAddress)
+                    : 'Canonical recipient wallet has not been provisioned yet.'}
+                </p>
               </div>
               <div className="metric-card">
-                <p className="section-eyebrow">Pending balance</p>
+                <p className="section-eyebrow">Current wallet balance</p>
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
                   {formatPendingBalances(result.pendingBalances)}
                 </p>
-                {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus) ? (
+                {untrackedBalanceNote(result.pendingBalances, result.recordedTotals) ? (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus)}
+                    {untrackedBalanceNote(result.pendingBalances, result.recordedTotals)}
                   </p>
                 ) : null}
-                <p className="mt-2 text-sm text-muted-foreground">Available after X login and wallet connection.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Current on-chain balance for the canonical recipient wallet.
+                </p>
               </div>
               <div className="metric-card">
-                <p className="section-eyebrow">Claim status</p>
-                <p className="mt-3">
-                  <Badge className="rounded-full bg-secondary text-secondary-foreground dark:bg-white/8 dark:text-foreground">
-                    {claimStatusLabel(result.claimStatus)}
-                  </Badge>
+                <p className="section-eyebrow">Indexed received</p>
+                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                  {formatPendingBalances(result.recordedTotals)}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Next action: {claimActionLabel(result.claimAction)}
+                  Confirmed transfers indexed for @{result.username}.
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">Public status for @{result.username}</p>
               </div>
@@ -172,7 +182,7 @@ export default function LookupPage() {
                   <div>
                     <p className="text-lg font-semibold tracking-[-0.03em]">Recent incoming payments</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Latest confirmed transfers routed into the deterministic vault.
+                      Latest confirmed transfers sent directly to the canonical wallet.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -191,18 +201,16 @@ export default function LookupPage() {
                 <PaymentTable
                   counterpartyColumnLabel="Sender"
                   emptyDescription="No confirmed incoming transfers were found for this handle yet."
-                  emptyTitle="Nothing pending yet"
+                  emptyTitle="Nothing received yet"
                   rows={result.recentIncomingPayments.map((payment) => ({
                     id: payment.id,
                     counterpartyLabel: truncateAddress(payment.senderAddress),
                     counterpartySubLabel: 'Sender wallet',
                     amount: receivedPaymentDisplay(payment),
                     status: 'Confirmed',
-                    claimStatus: claimStatusLabel(result.claimStatus),
                     date: payment.createdAt,
                     txUrl: explorerUrl(NETWORK, payment.txDigest),
                   }))}
-                  showClaimStatus
                   showTxLink
                 />
               </div>
@@ -212,23 +220,19 @@ export default function LookupPage() {
               <div className="metric-card">
                 <p className="section-eyebrow">How it works</p>
                 <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
-                  The vault address is derived from the X user id, so funds can arrive before a wallet exists.
+                  New transfers resolve a canonical Privy-backed Sui wallet for the X account and send there directly.
                 </p>
               </div>
               <div className="metric-card">
                 <p className="section-eyebrow">Next step</p>
                 <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
-                  {result.claimAction === 'WITHDRAW'
-                    ? 'The recipient signs in with X and withdraws newly arrived funds from the claimed vault.'
-                    : result.claimStatus === 'CLAIMED'
-                        ? 'This vault is already owned on-chain and there is no pending balance to withdraw right now.'
-                        : result.claimStatus === 'PREVIOUSLY_CLAIMED'
-                          ? 'This vault was claimed previously and there is no active vault object to act on right now.'
-                          : 'The recipient signs in with X, connects a Sui wallet, and claims the balance.'}
+                  {result.walletReady
+                    ? 'The canonical wallet is live and can receive assets immediately.'
+                    : 'The wallet will be provisioned automatically the first time someone sends to this handle or when the user signs in.'}
                 </p>
                 <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
                   <Wallet className="size-4 text-primary" />
-                  Claim UX lives at <span className="font-medium text-foreground">/claim</span>
+                  Direct wallet delivery replaces the old claim flow.
                 </p>
               </div>
             </section>

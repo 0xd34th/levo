@@ -22,7 +22,6 @@ export interface PaymentTableRow {
   counterpartyAvatarUrl?: string | null;
   amount: string;
   status: string;
-  claimStatus?: string;
   date: string;
   txUrl?: string | null;
 }
@@ -33,7 +32,6 @@ interface PaymentTableProps {
   emptyTitle: string;
   emptyDescription: string;
   enableVirtualization?: boolean;
-  showClaimStatus?: boolean;
   showTxLink?: boolean;
 }
 
@@ -92,7 +90,6 @@ export function PaymentTable({
   emptyTitle,
   emptyDescription,
   enableVirtualization = false,
-  showClaimStatus = false,
   showTxLink = false,
 }: PaymentTableProps) {
   const [mobileScrollTop, setMobileScrollTop] = useState(0);
@@ -130,7 +127,7 @@ export function PaymentTable({
   const visibleDesktopRows = desktopWindow
     ? rows.slice(desktopWindow.startIndex, desktopWindow.endIndex)
     : rows;
-  const desktopColSpan = 4 + (showClaimStatus ? 1 : 0);
+  const desktopColSpan = 4;
 
   const renderStatusBadge = (row: PaymentTableRow) => {
     const badge = (
@@ -203,17 +200,6 @@ export function PaymentTable({
       <TableCell>
         {renderStatusBadge(row)}
       </TableCell>
-      {showClaimStatus ? (
-        <TableCell>
-          {row.claimStatus ? (
-            <Badge variant={badgeVariant(row.claimStatus)} className="rounded-full">
-              {row.claimStatus}
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </TableCell>
-      ) : null}
       <TableCell className="text-muted-foreground">
         {dateFormatter.format(new Date(row.date))}
       </TableCell>
@@ -260,7 +246,6 @@ export function PaymentTable({
                 <TableHead>{counterpartyColumnLabel}</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
-                {showClaimStatus ? <TableHead>Claim Status</TableHead> : null}
                 <TableHead>Date</TableHead>
               </TableRow>
             </TableHeader>

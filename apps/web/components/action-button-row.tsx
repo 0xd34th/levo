@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowDownLeft, ArrowUpRight, Sparkles } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ActionItem {
@@ -13,19 +13,13 @@ interface ActionItem {
 
 interface ActionButtonRowProps {
   depositHref?: string;
-  showClaim?: boolean;
-  onClaim?: () => void;
 }
 
-export function ActionButtonRow({ depositHref, showClaim, onClaim }: ActionButtonRowProps) {
+export function ActionButtonRow({ depositHref }: ActionButtonRowProps) {
   const actions: ActionItem[] = [
     { icon: ArrowDownLeft, label: 'Deposit', href: depositHref },
     { icon: ArrowUpRight, label: 'Send', href: '/send' },
   ];
-
-  if (showClaim) {
-    actions.push({ icon: Sparkles, label: 'Claim', onClick: onClaim });
-  }
 
   return (
     <div className="flex items-center justify-center gap-6">

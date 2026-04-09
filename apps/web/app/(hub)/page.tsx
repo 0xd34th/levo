@@ -6,11 +6,10 @@ import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
 import { Wallet } from 'lucide-react';
 import { ActionButtonRow } from '@/components/action-button-row';
 import { BalanceDisplay } from '@/components/balance-display';
-import { ClaimCard } from '@/components/claim-card';
 import { PaymentTable } from '@/components/payment-table';
 import { PromoCard } from '@/components/promo-card';
 import { Button } from '@/components/ui/button';
-import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
+import { subscribeAccountDataRefresh } from '@/lib/account-refresh';
 import {
   getExplorerTransactionUrl,
 } from '@/lib/coins';
@@ -34,7 +33,6 @@ export default function AccountPage() {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
   } = useEmbeddedWallet();
-  const [hasPending, setHasPending] = useState(false);
   const twitterSubject = user?.twitter?.subject ?? null;
 
   // Recent transactions
@@ -114,7 +112,7 @@ export default function AccountPage() {
   }, [ready, authenticated, embeddedWalletAddress, fetchRecent]);
 
   useEffect(() => {
-    return subscribeClaimDataRefresh(() => {
+    return subscribeAccountDataRefresh(() => {
       if (ready && authenticated && embeddedWalletAddress) {
         void fetchRecent();
       }
@@ -160,17 +158,7 @@ export default function AccountPage() {
       {/* Full-width hero: Balance + Actions */}
       <BalanceDisplay address={embeddedWalletAddress} />
 
-      <ActionButtonRow
-        depositHref={embeddedWalletAddress ? '/deposit' : undefined}
-        showClaim={hasPending}
-        onClaim={() => {
-          document.getElementById('claim-card')?.scrollIntoView({ behavior: 'smooth' });
-        }}
-      />
-
-      <div id="claim-card">
-        <ClaimCard onPendingChange={setHasPending} />
-      </div>
+      <ActionButtonRow depositHref={embeddedWalletAddress ? '/deposit' : undefined} />
 
       {embeddedWalletAddress ? (
         <PromoCard

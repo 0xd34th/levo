@@ -24,13 +24,6 @@ import {
   signSuiTransaction,
 } from '@/lib/privy-wallet';
 import { getRedis, rateLimit } from '@/lib/rate-limit';
-import {
-  MAINNET_USDC_TYPE,
-  getConfiguredLevoUsdCoinType,
-  getSettlementCoinType,
-  isStableLayerEnabled,
-} from '@/lib/coins';
-import { buildMintIntoVaultTx } from '@/lib/stable-layer';
 import { getSuiClient } from '@/lib/sui';
 import { parseXUserId } from '@/lib/twitter';
 
@@ -107,35 +100,6 @@ function pendingSendResponse(
     vaultAddress,
     txDigest,
   });
-}
-
-function isStableLayerMintConfigurationError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return (
-    (
-      error.message.includes('dynamic_field::borrow_child_object_mut')
-      && error.message.includes('abort code: 2')
-    ) || error.message.includes('sheet::err_invalid_entity_for_credit')
-  );
-}
-
-function buildStableLayerMintFailureResponse(error: unknown) {
-  console.error('Failed to compose StableLayer mint transaction', error);
-
-  if (isStableLayerMintConfigurationError(error)) {
-    return noStoreJson(
-      { error: 'StableLayer mainnet mint is misconfigured for LevoUSD. Contact support.' },
-      { status: 503 },
-    );
-  }
-
-  return noStoreJson(
-    { error: 'Payment service temporarily unavailable. Please retry.' },
-    { status: 503 },
-  );
 }
 
 async function confirmBroadcastedQuote(
@@ -476,11 +440,7 @@ export async function POST(req: NextRequest) {
   // 8. Build or load the Sui transaction
   const client = getSuiClient();
   const amount = BigInt(quotePayload.amount);
-  const isDirectAddressSend = quotePayload.recipientType === 'SUI_ADDRESS';
-  // Direct address sends transfer the original coin (no StableLayer minting)
-  const settlementCoinType = isDirectAddressSend
-    ? quotePayload.coinType
-    : getSettlementCoinType(quotePayload.coinType);
+  const settlementCoinType = quotePayload.coinType;
 
   let gasKeypair: ReturnType<typeof getGasStationKeypair>;
   try {
@@ -516,18 +476,6 @@ export async function POST(req: NextRequest) {
       tx.setGasOwner(gasKeypair.toSuiAddress());
     }
 
-    if (
-      !isDirectAddressSend &&
-      process.env.NEXT_PUBLIC_SUI_NETWORK === 'mainnet' &&
-      quotePayload.coinType === MAINNET_USDC_TYPE &&
-      !isStableLayerEnabled()
-    ) {
-      return noStoreJson(
-        { error: 'StableLayer is not configured for mainnet USDC sends' },
-        { status: 500 },
-      );
-    }
-
     const coin = tx.add(
       coinWithBalance({
         type: quotePayload.coinType,
@@ -535,41 +483,12 @@ export async function POST(req: NextRequest) {
       }),
     );
 
-    if (settlementCoinType !== quotePayload.coinType) {
-      const stableCoinType = getConfiguredLevoUsdCoinType();
-      if (!stableCoinType) {
-        return noStoreJson({ error: 'Server configuration error' }, { status: 500 });
-      }
-
-      try {
-        await buildMintIntoVaultTx({
-          tx,
-          senderAddress: xUser.suiAddress,
-          stableCoinType,
-          usdcCoin: coin,
-          amount,
-          vaultAddress: quotePayload.vaultAddress,
-        });
-      } catch (error) {
-        return buildStableLayerMintFailureResponse(error);
-      }
-    } else {
-      tx.transferObjects([coin], quotePayload.vaultAddress);
-    }
+    tx.transferObjects([coin], quotePayload.vaultAddress);
 
     try {
       txBytes = await tx.build({ client });
     } catch (error) {
       console.error('Failed to build transaction', error);
-      if (
-        settlementCoinType !== quotePayload.coinType
-        && isStableLayerMintConfigurationError(error)
-      ) {
-        return noStoreJson(
-          { error: 'StableLayer mainnet mint is misconfigured for LevoUSD. Contact support.' },
-          { status: 503 },
-        );
-      }
       return noStoreJson(
         { error: 'Insufficient balance or invalid transaction parameters' },
         { status: 400 },

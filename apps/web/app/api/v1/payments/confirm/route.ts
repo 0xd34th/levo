@@ -6,7 +6,6 @@ import {
   invalidInputResponse,
   verifySameOrigin,
 } from '@/lib/api';
-import { getSettlementCoinType } from '@/lib/coins';
 import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
@@ -22,10 +21,10 @@ type QuoteVerificationData = Pick<
   'senderAddress' | 'xUserId' | 'vaultAddress' | 'coinType' | 'amount'
 > & { recipientType?: 'X_HANDLE' | 'SUI_ADDRESS' };
 
-class QuoteClaimError extends Error {
+class QuoteUpdateConflictError extends Error {
   constructor() {
-    super('Quote is no longer claimable');
-    this.name = 'QuoteClaimError';
+    super('Quote is no longer updateable');
+    this.name = 'QuoteUpdateConflictError';
   }
 }
 
@@ -272,11 +271,7 @@ export async function POST(req: NextRequest) {
   }
 
   const quotedAmount = BigInt(quoteData.amount);
-  const isDirectAddressSend = quoteData.recipientType === 'SUI_ADDRESS';
-  // Direct address sends transfer the original coin (no StableLayer)
-  const settlementCoinType = isDirectAddressSend
-    ? quoteData.coinType
-    : getSettlementCoinType(quoteData.coinType);
+  const settlementCoinType = quoteData.coinType;
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -412,7 +407,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (claim.count !== 1) {
-        throw new QuoteClaimError();
+        throw new QuoteUpdateConflictError();
       }
 
       await txClient.paymentLedger.create({
@@ -430,7 +425,7 @@ export async function POST(req: NextRequest) {
       });
     });
   } catch (err: unknown) {
-    if (err instanceof QuoteClaimError) {
+    if (err instanceof QuoteUpdateConflictError) {
       const currentQuote = await prisma.paymentQuote.findFirst({
         where: { hmacToken: quoteToken },
         select: {

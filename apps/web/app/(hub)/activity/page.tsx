@@ -6,13 +6,12 @@ import { ArrowUpRight, Download } from 'lucide-react';
 import { PaymentTable } from '@/components/payment-table';
 import { Button } from '@/components/ui/button';
 import {
-  claimActionLabel,
-  claimStatusLabel,
   explorerUrl,
   formatPendingBalances,
   getIncomingPaymentSenderDisplay,
   receivedPaymentDisplay,
   truncateAddress,
+  walletReadyLabel,
   type IncomingPaymentsResponse,
 } from '@/lib/received-dashboard-client';
 import {
@@ -289,7 +288,7 @@ export default function ActivityPage() {
               {receivedData.pendingBalances.length > 0 ? (
                 <div className="mb-3 rounded-2xl border border-accent/20 bg-accent/5 p-3 text-sm dark:bg-accent/8">
                   <span className="font-semibold">{formatPendingBalances(receivedData.pendingBalances)}</span>
-                  {' '}pending &middot; {claimStatusLabel(receivedData.claimStatus)} &middot; {claimActionLabel(receivedData.claimAction)}
+                  {' '}available on-chain &middot; {walletReadyLabel(receivedData.walletReady)}
                 </div>
               ) : null}
 

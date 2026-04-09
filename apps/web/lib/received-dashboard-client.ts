@@ -3,8 +3,6 @@ import { normalizeUsernameInput } from '@/lib/send-form';
 import type {
   IncomingPaymentItem,
   ReceivedBalance,
-  ReceivedClaimAction,
-  ReceivedClaimStatus,
 } from '@/lib/received-dashboard-types';
 
 export type {
@@ -12,10 +10,8 @@ export type {
   IncomingPaymentsResponse,
   PublicLookupResponse,
   ReceivedBalance,
-  ReceivedClaimAction,
-  ReceivedClaimStatus,
   ReceivedDashboardUser,
-  ReceivedVaultSummary,
+  ReceivedRecipientSummary,
 } from '@/lib/received-dashboard-types';
 
 export function normalizeHandle(value: string) {
@@ -34,28 +30,8 @@ export function truncateAddress(address: string | null | undefined) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export function claimStatusLabel(status: ReceivedClaimStatus) {
-  if (status === 'CLAIMED') {
-    return 'Claimed';
-  }
-
-  if (status === 'PREVIOUSLY_CLAIMED') {
-    return 'Previously claimed';
-  }
-
-  return 'Unclaimed';
-}
-
-export function claimActionLabel(action: ReceivedClaimAction) {
-  if (action === 'WITHDRAW') {
-    return 'Withdraw now';
-  }
-
-  if (action === 'CLAIM') {
-    return 'Claim now';
-  }
-
-  return 'No action';
+export function walletReadyLabel(walletReady: boolean) {
+  return walletReady ? 'Ready' : 'Not ready';
 }
 
 export function formatPendingBalances(balances: ReceivedBalance[]) {
@@ -96,15 +72,9 @@ export function explorerUrl(network: string, txDigest: string) {
 export function untrackedBalanceNote(
   pendingBalances: ReceivedBalance[],
   recordedTotals: ReceivedBalance[],
-  claimStatus: ReceivedClaimStatus,
 ): string | null {
-  // Exact "direct transfer" deltas are only reliable before the vault is claimed.
-  if (claimStatus !== 'UNCLAIMED') {
-    return null;
-  }
-
   const recordedMap = new Map(
-    recordedTotals.map((r) => [r.coinType, BigInt(r.amount)]),
+    recordedTotals.map((row) => [row.coinType, BigInt(row.amount)]),
   );
 
   const parts: string[] = [];
@@ -119,6 +89,9 @@ export function untrackedBalanceNote(
     }
   }
 
-  if (parts.length === 0) return null;
-  return `Includes ${parts.join(', ')} from direct transfers`;
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return `Includes ${parts.join(', ')} not yet reflected in indexed history`;
 }

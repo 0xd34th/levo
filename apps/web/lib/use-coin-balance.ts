@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeClaimDataRefresh } from '@/lib/claim-refresh';
+import { subscribeAccountDataRefresh } from '@/lib/account-refresh';
 import { getSuiClient } from '@/lib/sui';
 
 /**
@@ -49,7 +49,7 @@ export function useCoinBalance(
   }, [fetchBalance]);
 
   useEffect(() => {
-    return subscribeClaimDataRefresh(() => {
+    return subscribeAccountDataRefresh(() => {
       setTimeout(() => void fetchBalance(), 1500);
     });
   }, [fetchBalance]);

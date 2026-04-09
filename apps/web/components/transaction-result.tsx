@@ -32,7 +32,7 @@ export function TransactionResult({ data, network, onReset }: TransactionResultP
   const isAddressSend = data.recipientType === 'SUI_ADDRESS';
   const recipientDisplay = isAddressSend
     ? `sent to ${data.username}`
-    : `is now waiting for @${data.username}`;
+    : `sent to @${data.username}`;
 
   return (
     <div className="rounded-[28px] border border-accent/20 bg-accent/8 p-5 shadow-[0_20px_44px_rgba(0,200,150,0.12)]">

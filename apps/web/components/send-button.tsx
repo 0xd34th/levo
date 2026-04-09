@@ -14,7 +14,7 @@ import {
 } from '@/components/recipient-confirmation-modal';
 import { Button } from '@/components/ui/button';
 import type { TransactionResultData } from '@/components/transaction-result';
-import { emitClaimDataRefresh } from '@/lib/claim-refresh';
+import { emitAccountDataRefresh } from '@/lib/account-refresh';
 import { formatAmount, getCoinDecimals, getCoinLabel, isValidAmountInput } from '@/lib/coins';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
@@ -126,15 +126,15 @@ function parseQuoteResponse(payload: unknown, expectedType: RecipientType): Quot
     profilePicture,
     quoteToken,
     username,
-    vaultAddress,
+    recipientAddress,
   } = obj as Partial<XHandleQuoteResponse>;
   if (
     typeof quoteToken !== 'string' ||
     quoteToken === '' ||
     typeof username !== 'string' ||
     username === '' ||
-    typeof vaultAddress !== 'string' ||
-    vaultAddress === '' ||
+    typeof recipientAddress !== 'string' ||
+    recipientAddress === '' ||
     typeof isBlueVerified !== 'boolean' ||
     (profilePicture !== null && typeof profilePicture !== 'string')
   ) {
@@ -146,7 +146,7 @@ function parseQuoteResponse(payload: unknown, expectedType: RecipientType): Quot
     profilePicture,
     quoteToken,
     username,
-    vaultAddress,
+    recipientAddress,
   };
 }
 
@@ -505,7 +505,7 @@ export function SendButton({
         }
       }
 
-      emitClaimDataRefresh();
+      emitAccountDataRefresh();
       onConfirm({
         amount,
         coinType,

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
-import { Activity, CreditCard, LogOut, Search, Sparkles } from 'lucide-react';
+import { Activity, CreditCard, LogOut, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,6 @@ const navigation = [
     requiresAuth: true,
   },
   { href: '/lookup', label: 'Lookup', icon: Search, matchPrefix: '/lookup' },
-  { href: '/claim', label: 'Claim', icon: Sparkles, matchPrefix: '/claim' },
 ];
 
 export function Navbar() {
