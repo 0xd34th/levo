@@ -76,7 +76,7 @@ describe('getPrivyUserJwt', () => {
 
   it('prefers the Privy identity token header from the request', async () => {
     const token = await getPrivyUserJwt(
-      new Request('http://localhost/api/v1/payments/claim', {
+      new Request('http://localhost/api/v1/payments/send', {
         headers: { 'X-Privy-Identity-Token': 'privy-identity-token' },
       }),
     );

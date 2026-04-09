@@ -1,6 +1,6 @@
-1. 更新本轮 Spec/Plan，固定验收：主网 contracts 与独立 Levo USD 重新发布，StableLayer 重新注册，claim 改为零剩余赎回，不保留旧 brokenLevoUsd live 状态。
-2. 先写/改失败测试：调整 claim StableLayer 用例为 `withdraw_all` 语义；更新 deployment history / live state 预期；补 contracts 主网发布脚本的源文件排除测试。
-3. 运行针对性测试看红，确认测试确实覆盖 dust reserve、brokenLevoUsd live 状态、contracts 发布脚本旧假设。
-4. 实现最小充分改动：删除 contracts 内嵌 `levo_usd.move`，调整主网发布/bootstrap/state 逻辑，改 claim 为整额 withdraw_all + burn，清理注释与样例状态。
-5. 跑相关测试、`sui move build`、以及必要的 web test/build，修正回归直到满足 SPEC。
-6. 更新主网部署状态样例与说明文件，复核变更面后交付。
+1. 更新本轮 Spec/Plan，固定验收：X_HANDLE 新单一律走 Privy canonical wallet 直发，不保留 vault/claim 主链路。
+2. 先补失败测试：recipient provisioning helper、`payments/quote` 的 X_HANDLE 直解析、`payments/send` 的 X_HANDLE 直发；确认旧 vault/StableLayer 假设被打红。
+3. 实现 recipient provisioning helper，复用 Privy Twitter subject + Sui wallet 能力，并把 canonical wallet 映射回写到 `xUser`。
+4. 重构 `payments/quote` 与 `payments/send`：X_HANDLE 报价时确保 recipient wallet，发送时复用现有 direct-address transfer 路径。
+5. 重构 `lookup` / `received` 读模型与前端类型/页面，替换 claim/vault 语义；清理 `/claim` 及相关组件、文案、入口和主链路依赖。
+6. 跑针对性测试与必要构建验证，修复回归直到满足 `SPEC.md`。

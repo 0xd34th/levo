@@ -319,8 +319,9 @@ describe('POST /api/v1/payments/send', () => {
     });
   });
 
-  it('builds mainnet USDC sends through StableLayer mint before staging authorization', async () => {
+  it('builds mainnet USDC X-handle sends as direct transfers without StableLayer minting', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    delete process.env.LEVO_USD_COIN_TYPE;
 
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'privy-user',
@@ -347,22 +348,16 @@ describe('POST /api/v1/payments/send', () => {
 
     const res = await POST(req);
 
-    expect(buildMintIntoVaultTxMock).toHaveBeenCalledWith({
-      tx: expect.any(Object),
-      senderAddress: '0xwallet',
-      stableCoinType: '0xlevo::levo_usd::LEVO_USD',
-      usdcCoin: 'coin-object',
-      amount: 1000000n,
-      vaultAddress: '0xvault',
-    });
+    expect(buildMintIntoVaultTxMock).not.toHaveBeenCalled();
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
       status: 'authorization_required',
     });
   });
 
-  it('returns a temporary unavailable error when StableLayer mint composition fails before tx.build', async () => {
+  it('does not require StableLayer configuration for mainnet USDC X-handle sends', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    delete process.env.LEVO_USD_COIN_TYPE;
 
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'privy-user',
@@ -380,7 +375,6 @@ describe('POST /api/v1/payments/send', () => {
       nonce: 'nonce',
       expiresAt: Math.floor(Date.now() / 1000) + 300,
     });
-    buildMintIntoVaultTxMock.mockRejectedValueOnce(new Error('rpc timeout'));
 
     const req = new NextRequest('http://localhost/api/v1/payments/send', {
       method: 'POST',
@@ -390,88 +384,10 @@ describe('POST /api/v1/payments/send', () => {
 
     const res = await POST(req);
 
-    expect(txBuildMock).not.toHaveBeenCalled();
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({
-      error: 'Payment service temporarily unavailable. Please retry.',
-    });
-  });
-
-  it('returns a StableLayer configuration error when mainnet mint fails with a factory type mismatch', async () => {
-    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
-
-    findUniqueMock.mockResolvedValueOnce({
-      privyUserId: 'privy-user',
-      privyWalletId: 'wallet-id',
-      suiAddress: '0xwallet',
-      suiPublicKey: 'public-key',
-    });
-    verifyQuoteTokenMock.mockReturnValueOnce({
-      xUserId: '99999',
-      derivationVersion: 1,
-      vaultAddress: '0xvault',
-      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-      amount: '1000000',
-      senderAddress: '0xwallet',
-      nonce: 'nonce',
-      expiresAt: Math.floor(Date.now() / 1000) + 300,
-    });
-    txBuildMock.mockRejectedValueOnce(
-      new Error(
-        "Transaction resolution failed: MoveAbort in 2nd command, abort code: 2, in '0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::borrow_child_object_mut' (instruction 0)",
-      ),
-    );
-
-    const req = new NextRequest('http://localhost/api/v1/payments/send', {
-      method: 'POST',
-      body: JSON.stringify({ quoteToken: 'quote-token' }),
-      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
-    });
-
-    const res = await POST(req);
-
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({
-      error: 'StableLayer mainnet mint is misconfigured for LevoUSD. Contact support.',
-    });
-  });
-
-  it('returns a StableLayer configuration error when mainnet mint fails with an invalid credit entity', async () => {
-    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
-
-    findUniqueMock.mockResolvedValueOnce({
-      privyUserId: 'privy-user',
-      privyWalletId: 'wallet-id',
-      suiAddress: '0xwallet',
-      suiPublicKey: 'public-key',
-    });
-    verifyQuoteTokenMock.mockReturnValueOnce({
-      xUserId: '99999',
-      derivationVersion: 1,
-      vaultAddress: '0xvault',
-      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
-      amount: '1000000',
-      senderAddress: '0xwallet',
-      nonce: 'nonce',
-      expiresAt: Math.floor(Date.now() / 1000) + 300,
-    });
-    txBuildMock.mockRejectedValueOnce(
-      new Error(
-        "Transaction resolution failed: MoveAbort in 2nd command, abort code: 502, in '0xe2d49d67ff42dc500275f2d84841bf35632aa6c1abdb70af66a10e1de93a4400::sheet::err_invalid_entity_for_credit' (instruction 1)",
-      ),
-    );
-
-    const req = new NextRequest('http://localhost/api/v1/payments/send', {
-      method: 'POST',
-      body: JSON.stringify({ quoteToken: 'quote-token' }),
-      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
-    });
-
-    const res = await POST(req);
-
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({
-      error: 'StableLayer mainnet mint is misconfigured for LevoUSD. Contact support.',
+    expect(buildMintIntoVaultTxMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
     });
   });
 });

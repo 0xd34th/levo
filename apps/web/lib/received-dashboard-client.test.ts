@@ -42,12 +42,11 @@ describe('untrackedBalanceNote', () => {
             amount: '1000000000',
           },
         ],
-        'UNCLAIMED',
       ),
-    ).toBe('Includes 0.5 SUI from direct transfers');
+    ).toBe('Includes 0.5 SUI not yet reflected in indexed history');
   });
 
-  it('suppresses the note once the vault has been claimed', () => {
+  it('suppresses the note when indexed totals already match on-chain balances', () => {
     expect(
       untrackedBalanceNote(
         pendingBalances,
@@ -56,10 +55,9 @@ describe('untrackedBalanceNote', () => {
             coinType: '0x2::sui::SUI',
             symbol: 'SUI',
             decimals: 9,
-            amount: '1000000000',
+            amount: '1500000000',
           },
         ],
-        'CLAIMED',
       ),
     ).toBeNull();
   });

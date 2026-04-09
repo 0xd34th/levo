@@ -4,17 +4,13 @@ const MAINNET_USDC_TYPE =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
 const {
-  deriveVaultAddress,
   getAllBalances,
-  getObject,
   paymentLedgerFindMany,
   paymentLedgerGroupBy,
   xUserFindMany,
   xUserFindUnique,
   xUserUpsert,
 } = vi.hoisted(() => ({
-  deriveVaultAddress: vi.fn(() => '0xvault'),
-  getObject: vi.fn(),
   getAllBalances: vi.fn(),
   xUserUpsert: vi.fn(),
   xUserFindUnique: vi.fn(),
@@ -38,65 +34,41 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 vi.mock('@/lib/sui', () => ({
-  deriveVaultAddress,
   getSuiClient: () => ({
-    getObject,
     getAllBalances,
   }),
 }));
 
 import { decodeTransactionHistoryCursor } from './transaction-history-cursor';
-import { RECEIVED_CLAIM_STATUS_MODEL } from './received-dashboard-types';
 import {
   buildIncomingPaymentsResponse,
   getIncomingPaymentsPage,
-  getReceivedVaultSummary,
+  getReceivedRecipientSummary,
   persistReceivedDashboardXUser,
 } from './received-dashboard';
 
-describe('getReceivedVaultSummary', () => {
+describe('getReceivedRecipientSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
   });
 
-  it('derives claimed status from the vault object and maps on-chain balances', async () => {
+  it('returns a direct-wallet summary when a canonical recipient address exists', async () => {
     xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: '0xvault-owner',
-      privyUserId: 'privy-user',
-    });
-    getObject.mockResolvedValueOnce({
-      data: {
-        objectId: '0xvault',
-        content: {
-          dataType: 'moveObject',
-          fields: {
-            owner: '0xvault-owner',
-            recovery_counter: '0',
-          },
-        },
-      },
+      suiAddress: '0xwallet',
     });
     getAllBalances.mockResolvedValueOnce([
       { coinType: '0x2::sui::SUI', totalBalance: '4200000000' },
       { coinType: '0xabc::test_usdc::TEST_USDC', totalBalance: '0' },
     ]);
 
-    const result = await getReceivedVaultSummary('123', '0xregistry', 7);
+    const result = await getReceivedRecipientSummary('123', 7);
 
-    expect(deriveVaultAddress).toHaveBeenCalledWith('0xregistry', 123n);
-    expect(getObject).toHaveBeenCalledWith({
-      id: '0xvault',
-      options: { showType: true, showContent: true },
-    });
-    expect(getAllBalances).toHaveBeenCalledWith({ owner: '0xvault' });
+    expect(getAllBalances).toHaveBeenCalledWith({ owner: '0xwallet' });
     expect(result).toEqual({
       derivationVersion: 7,
-      vaultAddress: '0xvault',
-      vaultExists: true,
-      claimStatus: 'CLAIMED',
-      claimAction: 'WITHDRAW',
-      claimStatusModel: RECEIVED_CLAIM_STATUS_MODEL,
+      recipientAddress: '0xwallet',
+      walletReady: true,
       pendingBalances: [
         {
           coinType: '0x2::sui::SUI',
@@ -109,46 +81,28 @@ describe('getReceivedVaultSummary', () => {
     });
   });
 
-  it('treats a missing vault object as unclaimed', async () => {
+  it('returns walletReady false when the recipient has no canonical wallet yet', async () => {
     xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: '0xwallet',
-      privyUserId: 'privy-user',
+      suiAddress: null,
     });
-    getObject.mockResolvedValueOnce({
-      error: { code: 'notExists' },
+
+    const result = await getReceivedRecipientSummary('456');
+
+    expect(getAllBalances).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      derivationVersion: 1,
+      recipientAddress: null,
+      walletReady: false,
+      pendingBalances: [],
+      recordedTotals: [],
     });
-    getAllBalances.mockResolvedValueOnce([]);
-
-    const result = await getReceivedVaultSummary('456', '0xregistry');
-
-    expect(result.vaultExists).toBe(false);
-    expect(result.claimStatus).toBe('UNCLAIMED');
-    expect(result.claimAction).toBe('NONE');
-    expect(result.pendingBalances).toEqual([]);
   });
 
-  it('treats a deleted vault object as previously claimed', async () => {
-    xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: '0xwallet',
-      privyUserId: 'privy-user',
-    });
-    getObject.mockResolvedValueOnce({
-      error: { code: 'deleted' },
-    });
-    getAllBalances.mockResolvedValueOnce([]);
-
-    const result = await getReceivedVaultSummary('456', '0xregistry');
-
-    expect(result.vaultExists).toBe(false);
-    expect(result.claimStatus).toBe('PREVIOUSLY_CLAIMED');
-    expect(result.claimAction).toBe('NONE');
-  });
-
-  it('rejects malformed x user ids before deriving the vault address', async () => {
-    await expect(getReceivedVaultSummary('not-a-number', '0xregistry')).rejects.toThrow(
+  it('rejects malformed x user ids before querying balances', async () => {
+    await expect(getReceivedRecipientSummary('not-a-number')).rejects.toThrow(
       'Invalid X user id',
     );
-    expect(deriveVaultAddress).not.toHaveBeenCalled();
+    expect(getAllBalances).not.toHaveBeenCalled();
   });
 
   it('normalizes mainnet LevoUSD balances to a user-facing USDC display payload', async () => {
@@ -156,26 +110,13 @@ describe('getReceivedVaultSummary', () => {
     vi.stubEnv('LEVO_USD_COIN_TYPE', '0xlevo::levo_usd::LEVO_USD');
 
     xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: '0xvault-owner',
-      privyUserId: 'privy-user',
-    });
-    getObject.mockResolvedValueOnce({
-      data: {
-        objectId: '0xvault',
-        content: {
-          dataType: 'moveObject',
-          fields: {
-            owner: '0xvault-owner',
-            recovery_counter: '0',
-          },
-        },
-      },
+      suiAddress: '0xwallet',
     });
     getAllBalances.mockResolvedValueOnce([
       { coinType: '0xlevo::levo_usd::LEVO_USD', totalBalance: '1250000' },
     ]);
 
-    const result = await getReceivedVaultSummary('123', '0xregistry', 7);
+    const result = await getReceivedRecipientSummary('123', 7);
 
     expect(result.pendingBalances).toEqual([
       {
@@ -185,60 +126,6 @@ describe('getReceivedVaultSummary', () => {
         amount: '1250000',
       },
     ]);
-  });
-
-  it('treats owner mismatches as non-actionable claimed vaults in the received summary', async () => {
-    xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: '0xcanonical',
-      privyUserId: 'privy-user',
-    });
-    getObject.mockResolvedValueOnce({
-      data: {
-        objectId: '0xvault',
-        content: {
-          dataType: 'moveObject',
-          fields: {
-            owner: '0xlegacy',
-            recovery_counter: '2',
-          },
-        },
-      },
-    });
-    getAllBalances.mockResolvedValueOnce([
-      { coinType: '0x2::sui::SUI', totalBalance: '42' },
-    ]);
-
-    const result = await getReceivedVaultSummary('456', '0xregistry');
-
-    expect(result.claimStatus).toBe('CLAIMED');
-    expect(result.claimAction).toBe('NONE');
-  });
-
-  it('treats a claimed vault with missing canonical wallet binding as a non-actionable claimed vault', async () => {
-    xUserFindUnique.mockResolvedValueOnce({
-      suiAddress: null,
-      privyUserId: 'privy-user',
-    });
-    getObject.mockResolvedValueOnce({
-      data: {
-        objectId: '0xvault',
-        content: {
-          dataType: 'moveObject',
-          fields: {
-            owner: '0xlegacy',
-            recovery_counter: '2',
-          },
-        },
-      },
-    });
-    getAllBalances.mockResolvedValueOnce([
-      { coinType: '0x2::sui::SUI', totalBalance: '42' },
-    ]);
-
-    const result = await getReceivedVaultSummary('456', '0xregistry');
-
-    expect(result.claimStatus).toBe('CLAIMED');
-    expect(result.claimAction).toBe('NONE');
   });
 });
 
@@ -582,9 +469,14 @@ describe('buildIncomingPaymentsResponse', () => {
     vi.clearAllMocks();
   });
 
-  it('reuses a fresh vault summary across paginated requests for the same x user', async () => {
-    getObject.mockResolvedValue({
-      error: { code: 'notExists' },
+  it('reuses a fresh recipient summary across paginated requests for the same x user', async () => {
+    xUserFindUnique.mockResolvedValue({
+      suiAddress: '0xwallet',
+      derivationVersion: 4,
+      updatedAt: new Date(),
+      username: 'cache_test',
+      profilePicture: null,
+      isBlueVerified: false,
     });
     getAllBalances.mockResolvedValue([]);
     paymentLedgerFindMany
@@ -598,10 +490,9 @@ describe('buildIncomingPaymentsResponse', () => {
       isBlueVerified: false,
     };
 
-    await buildIncomingPaymentsResponse(userInfo, '0xcache', 20, null, 4);
+    await buildIncomingPaymentsResponse(userInfo, 20, null, 4);
     await buildIncomingPaymentsResponse(
       userInfo,
-      '0xcache',
       20,
       {
         createdAt: '2026-03-15T04:00:00.000Z',
@@ -610,7 +501,6 @@ describe('buildIncomingPaymentsResponse', () => {
       4,
     );
 
-    expect(getObject).toHaveBeenCalledTimes(1);
     expect(getAllBalances).toHaveBeenCalledTimes(1);
     expect(paymentLedgerFindMany).toHaveBeenCalledTimes(2);
   });

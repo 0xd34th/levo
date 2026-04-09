@@ -65,7 +65,7 @@ describe('Navbar', () => {
     expect(markup).not.toContain('/activity');
     expect(markup).toContain('Send');
     expect(markup).toContain('Lookup');
-    expect(markup).toContain('Claim');
+    expect(markup).not.toContain('Claim');
   });
 
   it('shows Activity linking to /activity when the viewer is authenticated', () => {

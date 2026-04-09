@@ -535,7 +535,7 @@ describe('POST /api/v1/payments/confirm', () => {
     await expect(res.json()).resolves.toEqual({ error: 'Invalid input' });
   });
 
-  it('accepts mainnet LevoUSD vault settlement while the quoted asset remains USDC', async () => {
+  it('accepts mainnet USDC direct-wallet settlement for X-handle quotes', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
 
     const quotePayload = {
@@ -555,13 +555,13 @@ describe('POST /api/v1/payments/confirm', () => {
         {
           type: 'created',
           owner: { AddressOwner: quotePayload.vaultAddress },
-          objectType: '0x2::coin::Coin<0xlevo::levo_usd::LEVO_USD>',
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
         },
       ],
       balanceChanges: [
         {
           owner: { AddressOwner: quotePayload.vaultAddress },
-          coinType: '0xlevo::levo_usd::LEVO_USD',
+          coinType: quotePayload.coinType,
           amount: quotePayload.amount,
         },
       ],

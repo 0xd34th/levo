@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  emitClaimDataRefresh,
-  subscribeClaimDataRefresh,
-} from './claim-refresh';
+  emitAccountDataRefresh,
+  subscribeAccountDataRefresh,
+} from './account-refresh';
 
-describe('claim refresh events', () => {
+describe('account refresh events', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('notifies listeners when claim data changes', () => {
+  it('notifies listeners when account data changes', () => {
     const fakeWindow = new EventTarget();
     vi.stubGlobal('window', fakeWindow);
     const listener = vi.fn();
 
-    const unsubscribe = subscribeClaimDataRefresh(listener);
-    emitClaimDataRefresh();
+    const unsubscribe = subscribeAccountDataRefresh(listener);
+    emitAccountDataRefresh();
 
     expect(listener).toHaveBeenCalledTimes(1);
 
@@ -27,9 +27,9 @@ describe('claim refresh events', () => {
     vi.stubGlobal('window', fakeWindow);
     const listener = vi.fn();
 
-    const unsubscribe = subscribeClaimDataRefresh(listener);
+    const unsubscribe = subscribeAccountDataRefresh(listener);
     unsubscribe();
-    emitClaimDataRefresh();
+    emitAccountDataRefresh();
 
     expect(listener).not.toHaveBeenCalled();
   });
@@ -38,8 +38,8 @@ describe('claim refresh events', () => {
     const listener = vi.fn();
 
     expect(() => {
-      const unsubscribe = subscribeClaimDataRefresh(listener);
-      emitClaimDataRefresh();
+      const unsubscribe = subscribeAccountDataRefresh(listener);
+      emitAccountDataRefresh();
       unsubscribe();
     }).not.toThrow();
     expect(listener).not.toHaveBeenCalled();

@@ -59,7 +59,6 @@ describe('GET /api/v1/lookup/x-username', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     process.env.TWITTER_API_KEY = 'test-api-key';
-    process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID = 'test-registry';
     rateLimitMock.mockResolvedValue({ allowed: true });
   });
 
@@ -80,5 +79,43 @@ describe('GET /api/v1/lookup/x-username', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'X lookup is temporarily rate limited. Please try again in a minute.',
     });
+  });
+
+  it('builds public lookup responses without requiring vault registry configuration', async () => {
+    resolveFreshXUserMock.mockResolvedValueOnce({
+      xUserId: '12345',
+      username: 'testuser',
+      profilePicture: 'https://pbs.twimg.com/profile_images/testuser.jpg',
+      isBlueVerified: true,
+    });
+    persistReceivedDashboardXUserMock.mockResolvedValueOnce(1);
+    buildPublicLookupResponseMock.mockResolvedValueOnce({
+      xUserId: '12345',
+      username: 'testuser',
+      profilePicture: 'https://pbs.twimg.com/profile_images/testuser.jpg',
+      isBlueVerified: true,
+      derivationVersion: 1,
+      recipientAddress: `0x${'1'.repeat(64)}`,
+      walletReady: true,
+      pendingBalances: [],
+      recordedTotals: [],
+      recentIncomingPayments: [],
+    });
+
+    delete process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
+
+    const req = new NextRequest('http://localhost/api/v1/lookup/x-username?username=testuser');
+    const res = await GET(req);
+
+    expect(buildPublicLookupResponseMock).toHaveBeenCalledWith(
+      {
+        xUserId: '12345',
+        username: 'testuser',
+        profilePicture: 'https://pbs.twimg.com/profile_images/testuser.jpg',
+        isBlueVerified: true,
+      },
+      1,
+    );
+    expect(res.status).toBe(200);
   });
 });
