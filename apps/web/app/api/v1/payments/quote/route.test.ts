@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const {
+  acquireRedisLockMock,
   countMock,
   createMock,
   findUniqueMock,
@@ -14,6 +15,7 @@ const {
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
+  acquireRedisLockMock: vi.fn(),
   countMock: vi.fn(),
   createMock: vi.fn(),
   findUniqueMock: vi.fn(),
@@ -66,6 +68,10 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimit: rateLimitMock,
 }));
 
+vi.mock('@/lib/redis-lock', () => ({
+  acquireRedisLock: acquireRedisLockMock,
+}));
+
 vi.mock('@/lib/privy-auth', () => ({
   getPrivyClient: getPrivyClientMock,
   verifyPrivyXAuth: verifyPrivyXAuthMock,
@@ -98,6 +104,10 @@ describe('POST /api/v1/payments/quote', () => {
     vi.stubEnv('HMAC_SECRET', 'x'.repeat(32));
 
     rateLimitMock.mockResolvedValue({ allowed: true });
+    acquireRedisLockMock.mockResolvedValue({
+      status: 'acquired',
+      release: vi.fn().mockResolvedValue(undefined),
+    });
     getPrivyClientMock.mockReturnValue({});
     verifySameOriginMock.mockReturnValue({ ok: true });
     updateManyMock.mockResolvedValue({ count: 0 });
