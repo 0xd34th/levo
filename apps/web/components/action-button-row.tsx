@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ActionItem {
@@ -19,6 +19,7 @@ export function ActionButtonRow({ depositHref }: ActionButtonRowProps) {
   const actions: ActionItem[] = [
     { icon: ArrowDownLeft, label: 'Deposit', href: depositHref },
     { icon: ArrowUpRight, label: 'Send', href: '/send' },
+    { icon: Sparkles, label: 'Earn', href: '/earn' },
   ];
 
   return (

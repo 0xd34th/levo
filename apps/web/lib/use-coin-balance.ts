@@ -6,7 +6,7 @@ import { getSuiClient } from '@/lib/sui';
 
 /**
  * Fetches the raw balance (base units as string) for a specific coin type.
- * Re-fetches when address or coinType changes, and after claim/send events.
+ * Re-fetches when address or coinType changes, and after send/earn events.
  */
 export function useCoinBalance(
   address: string | null | undefined,

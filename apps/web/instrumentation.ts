@@ -11,12 +11,6 @@ export async function register() {
       throw new Error('HMAC_SECRET must be at least 32 characters');
     }
 
-    if (!hasValidHmacSecret(process.env.NAUTILUS_SIGNER_SECRET)) {
-      console.warn(
-        '[nautilus] Claim signing disabled (NAUTILUS_SIGNER_SECRET missing or too short)',
-      );
-    }
-
     const { getGasStationAddress } = await import('@/lib/gas-station');
     try {
       const address = getGasStationAddress();

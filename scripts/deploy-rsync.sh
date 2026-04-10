@@ -8,7 +8,6 @@ DEFAULT_PORT="10122"
 DEFAULT_USER="root"
 DEFAULT_REMOTE_DIR="/opt/levo"
 DEFAULT_WEB_ENV_FILE="$ROOT_DIR/apps/web/.env"
-DEFAULT_SIGNER_ENV_FILE="$ROOT_DIR/apps/nautilus-signer/.env"
 DEFAULT_HEALTHCHECK_URL="http://127.0.0.1:10101/"
 
 HOST="${LEVO_DEPLOY_HOST:-$DEFAULT_HOST}"
@@ -16,7 +15,6 @@ PORT="${LEVO_DEPLOY_PORT:-$DEFAULT_PORT}"
 USER_NAME="${LEVO_DEPLOY_USER:-$DEFAULT_USER}"
 REMOTE_DIR="${LEVO_DEPLOY_REMOTE_DIR:-$DEFAULT_REMOTE_DIR}"
 WEB_ENV_FILE="${LEVO_DEPLOY_WEB_ENV_FILE:-$DEFAULT_WEB_ENV_FILE}"
-SIGNER_ENV_FILE="${LEVO_DEPLOY_SIGNER_ENV_FILE:-$DEFAULT_SIGNER_ENV_FILE}"
 DRY_RUN=0
 SKIP_ENV=0
 HEALTHCHECK_URL="${LEVO_DEPLOY_HEALTHCHECK_URL:-$DEFAULT_HEALTHCHECK_URL}"
@@ -31,8 +29,6 @@ Options:
   --user <user>           SSH user (default: root)
   --remote-dir <path>     Remote deploy dir (default: /opt/levo)
   --web-env-file <path>   Web env file to upload (default: apps/web/.env)
-  --signer-env-file <path>
-                          Signer env file to upload (default: apps/nautilus-signer/.env)
   --healthcheck-url <url>  Remote healthcheck URL (default: http://127.0.0.1:10101/)
   --skip-env              Skip env file validation and upload (use existing remote .env)
   --dry-run               Print rsync actions without modifying remote files
@@ -117,10 +113,6 @@ while [[ $# -gt 0 ]]; do
       WEB_ENV_FILE="$2"
       shift 2
       ;;
-    --signer-env-file)
-      SIGNER_ENV_FILE="$2"
-      shift 2
-      ;;
     --healthcheck-url)
       HEALTHCHECK_URL="$2"
       shift 2
@@ -150,7 +142,6 @@ require_command ssh
 require_file "$ROOT_DIR/scripts/rsync-excludes.txt"
 if [[ "$SKIP_ENV" -eq 0 ]]; then
   require_file "$WEB_ENV_FILE"
-  require_file "$SIGNER_ENV_FILE"
   validate_web_env_file
 fi
 
@@ -177,10 +168,9 @@ fi
 
 echo "[deploy-rsync] target: ${SSH_TARGET}:${REMOTE_DIR}"
 echo "[deploy-rsync] web env: ${WEB_ENV_FILE}"
-echo "[deploy-rsync] signer env: ${SIGNER_ENV_FILE}"
 echo "[deploy-rsync] healthcheck: ${HEALTHCHECK_URL}"
 
-"${SSH_CMD[@]}" "$SSH_TARGET" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/apps/web' '$REMOTE_DIR/apps/nautilus-signer'"
+"${SSH_CMD[@]}" "$SSH_TARGET" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/apps/web'"
 
 echo "[deploy-rsync] syncing source tree"
 rsync "${RSYNC_ARGS[@]}" "$ROOT_DIR/" "${SSH_TARGET}:${REMOTE_DIR}/"
@@ -188,7 +178,6 @@ rsync "${RSYNC_ARGS[@]}" "$ROOT_DIR/" "${SSH_TARGET}:${REMOTE_DIR}/"
 if [[ "$SKIP_ENV" -eq 0 ]]; then
   echo "[deploy-rsync] syncing runtime env files"
   rsync "${ENV_RSYNC_ARGS[@]}" "$WEB_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/web/.env"
-  rsync "${ENV_RSYNC_ARGS[@]}" "$SIGNER_ENV_FILE" "${SSH_TARGET}:${REMOTE_DIR}/apps/nautilus-signer/.env"
 else
   echo "[deploy-rsync] skipping env sync (using remote .env)"
 fi
@@ -210,8 +199,8 @@ cd apps/web
 npx prisma migrate deploy
 cd ../..
 
-supervisorctl restart levo-signer levo-web
-supervisorctl status levo-signer levo-web
+supervisorctl restart levo-web
+supervisorctl status levo-web
 
 curl -fsS \"$HEALTHCHECK_URL\" >/dev/null
 '"

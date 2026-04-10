@@ -27,10 +27,6 @@ apps/web/out/
 apps/web/.env
 apps/web/lib/generated/
 
-apps/nautilus-signer/.env
-
-packages/contracts/build/
-
 *.key
 *.log
 *.tsbuildinfo
