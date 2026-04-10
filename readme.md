@@ -89,7 +89,6 @@ cp apps/web/.env.example apps/web/.env
 | `SUI_RPC_URL` | Mainnet fullnode URL, for example `https://fullnode.mainnet.sui.io:443` |
 | `NEXT_PUBLIC_PACKAGE_ID` | Mainnet Levo package ID |
 | `LEVO_USD_COIN_TYPE` | Active settlement coin type, typically from the standalone `packages/levo-usd` publish |
-| `LEVO_TREASURY_ADDRESS` | Levo treasury address for Earn yield fees |
 | `GAS_STATION_SECRET_KEY` | `openssl rand -base64 32` (fund the derived address with mainnet SUI) |
 
 ### 2. Database and services

@@ -1,36 +1,37 @@
 ## Goal
 
-在已经完成 `Earn` 上线的基础上，继续把仓库里剩余的 `Nautilus / x_vault / claim / verifier` 历史痕迹彻底清掉，只保留当前 `StableLayer + LevoUSD + Privy` 主链路所需的代码、脚本、配置与文档。
+在现有 `StableLayer Earn` 主链路上补两项产品硬约束：
+
+1. 整个应用里用户可见的 `USDC` 一律显示到小数点后两位，且 `USDC` 输入也最多两位。
+2. `Earn` 不再依赖 `LEVO_TREASURY_ADDRESS`；用户通过 Levo 领取/提取时，收益只拿到 `90%`，剩余 `10%` 继续留在协议里，不转给任何 treasury 地址。
 
 ## Scope
 
-- 保留已经完成的 `Earn` 页面与 `summary / preview / execute / confirm` API，不回退其行为。
-- 删除 `packages/contracts` 中仅服务于 `x_vault / nautilus_verifier / test_vectors / test_usdc` 的整包资产。
-- 删除或重写仍指向旧 `x_vault / Nautilus` 的根脚本、发布脚本、测试和部署状态文件。
-- 精简 `scripts/mainnet-bootstrap-lib.ts`，只保留 `packages/levo-usd` 当前仍需要的通用解析/校验 helper。
-- 清理 README、旧设计/计划文档、示例配置、测试和注释中的 `Nautilus / x_vault / claim` 历史叙述。
+- 调整 `apps/web/lib/coins.ts` 及所有沿用它的前端显示/输入链路，让 `USDC` 与展示成 `USDC` 的 `LevoUSD` 在 UI 上固定两位显示，同时保留链上 6 位 base-unit 精度。
+- 改写 `apps/web/lib/stable-layer-earn.ts` 的 claim / withdraw 逻辑，移除 treasury split，改成把保留的 `10%` 存入一个隐藏的 retained Bucket account。
+- 新增本地持久化映射，记录每个 `xUserId` 对应的 retained account，避免重复创建和执行链抖动。
+- 更新 Earn API、页面、测试和示例环境变量，去掉 `treasuryFeeUsdc` 与 `LEVO_TREASURY_ADDRESS`。
 
 ## Non-Goals
 
-- 不做历史资金迁移，不处理历史 vault 余额。
-- 不做数据库 schema migration；现有 `vaultAddress` 字段继续保留存储名。
-- 不删除链上已发布的历史合约对象，只清理仓库源码、脚本、文档与运行时引用。
-- 不移除 `NEXT_PUBLIC_PACKAGE_ID` 这类当前 testnet / fallback 仍在使用的通用配置位。
+- 不改变 `X_HANDLE` 直发钱包主链路。
+- 不改变链上 `USDC` / `LevoUSD` 的真实 decimals；两位只作用于用户输入与显示。
+- 不做新的 treasury、fee recipient 或额外运维地址配置。
+- 不保证脱离 Levo UI 直接操作底层协议时仍能强制维持 90%；本轮约束作用于 Levo 应用链路。
 
 ## Constraints
 
-- 用户只看到 `USDC`；不得暴露 `USDB`、`Bucket`、`PSM`、`saving pool` 等内部名词。
-- 不展示 APR，只展示实时 `Claimable Yield`。
-- `90 / 10` 分成只作用于收益腿，不作用于本金腿。
-- `Earn` 的产品与实现主语是 `StableLayer`，交易构造优先使用 `stable-layer-sdk`；若公开 API 不足，可在本地适配层补 PTB 细节。
-- 既然新方案已经替代旧方案，本轮必须把 `Nautilus / x_vault` 的源码、脚本、测试、部署状态和主文档入口一起清掉，不能只停留在 web/runtime 层。
-- 对仍被 `packages/levo-usd` 使用的通用 helper，要保留行为并补足测试，不能为了删旧代码把现有发布链路一起破坏。
+- 用户只看到 `USDC`；不得暴露 `USDB`、`Bucket`、`PSM`、`saving pool`、shadow account 等内部名词。
+- `claimableYieldUsdc`、preview 和最终到账口径都必须是用户净到手的 `90%`。
+- `principal` 仍然 `100%` 返还，只有收益腿走 `90 / 10`。
+- 由于 `stable-layer-sdk` 的公开 `buildClaimTx()` 只能整笔 claim，本轮必须在本地 Earn adapter 中补 retained-account 逻辑，而不是继续依赖 treasury split。
+- 既然新规则已经替代旧规则，本轮必须同时移除 `LEVO_TREASURY_ADDRESS` 配置、preview fee 字段和对应 UI 文案，不能保留旧口径残留。
 
 ## Acceptance
 
-1. `/earn` 页面和 `Earn` API 保持可用；`apps/web` 的相关单测、类型检查和构建继续通过。
-2. `packages/contracts` 整包及其 `x_vault / nautilus_verifier / test_vectors / test_usdc` 资产从仓库中移除。
-3. 根脚本和发布入口里不再保留 `publish:contracts:mainnet`、`generate:test-vectors`、`bootstrap-mainnet`、`register-enclave-pubkey` 这类旧流程。
-4. `scripts/mainnet-bootstrap-lib.ts` 与对应测试不再包含 `Nautilus / x_vault / signer` 专属逻辑，只保留 `LevoUSD` 当前仍在使用的通用 helper。
-5. README、示例 env、部署脚本、rsync excludes 和历史设计/计划文档中，不再保留会误导当前产品方向的 `Nautilus / x_vault / claim` 叙述。
-6. 重新扫描仓库时，不再在当前源码、脚本、文档里出现剩余的 `Nautilus / x_vault` 主路径痕迹；若保留极少量历史字样，必须只存在于无法安全删除的链上事实或测试 fixture 说明中，并在结果里明确说明。
+1. `USDC` 与展示成 `USDC` 的 `LevoUSD` 在全应用固定显示两位小数；`SUI` 等其他资产保持原有显示规则。
+2. `USDC` 输入在发送页和 Earn 页都最多两位小数，但链上 base-unit 计算仍使用 6 位精度。
+3. `GET /api/v1/earn/summary` 与 `POST /api/v1/earn/preview` 返回的 `claimableYieldUsdc / userReceivesUsdc` 都是用户净口径，不再返回 `treasuryFeeUsdc`。
+4. `Earn` 的 claim / withdraw 不再读取 `LEVO_TREASURY_ADDRESS`，剩余 `10%` 会留在协议中的隐藏 retained account，而不是转给外部地址。
+5. Prisma 新增 retained-account 映射表与 migration；执行链成功后会稳定复用同一个 retained account。
+6. `apps/web` 的相关单测、类型检查和构建继续通过。

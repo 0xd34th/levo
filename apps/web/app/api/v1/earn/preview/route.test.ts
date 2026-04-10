@@ -55,8 +55,7 @@ describe('POST /api/v1/earn/preview', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
-      userReceivesUsdc: '81000',
-      treasuryFeeUsdc: '9000',
+      userReceivesUsdc: '90000',
     });
   });
 
@@ -87,8 +86,7 @@ describe('POST /api/v1/earn/preview', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
-      userReceivesUsdc: '81000',
-      treasuryFeeUsdc: '9000',
+      userReceivesUsdc: '90000',
     });
   });
 });

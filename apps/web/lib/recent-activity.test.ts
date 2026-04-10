@@ -63,7 +63,7 @@ describe('buildRecentActivityItems', () => {
         id: 'received-middle',
         txDigest: 'received-middle-digest',
         createdAt: '2026-04-06T10:00:00.000Z',
-        amount: '0.5 USDC',
+        amount: '0.50 USDC',
         direction: 'Received',
         counterpartyLabel: '@bob',
         counterpartySubLabel: 'X sender',

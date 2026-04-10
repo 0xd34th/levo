@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getConfiguredLevoUsdCoinType,
   getCoinDecimals,
+  getInputDecimals,
   getCoinLabel,
   getExplorerTransactionUrl,
   getTestUsdcCoinType,
@@ -11,6 +12,8 @@ import {
   normalizeCoinTypeForDisplay,
   isDisplaySupportedCoinType,
   isStableLayerEnabled,
+  formatAmount,
+  isValidAmountInput,
   SUI_COIN_TYPE,
 } from './coins';
 
@@ -90,5 +93,24 @@ describe('coin helpers', () => {
     expect(normalizeCoinTypeForDisplay(levoUsdCoinType, 'mainnet', configuredPackageId, levoUsdCoinType)).toBe(
       MAINNET_USDC_TYPE,
     );
+  });
+
+  it('keeps USDC chain precision but constrains user-facing precision to two decimals', () => {
+    const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
+
+    expect(getCoinDecimals(MAINNET_USDC_TYPE)).toBe(6);
+    expect(getInputDecimals(MAINNET_USDC_TYPE)).toBe(2);
+    expect(getInputDecimals(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe(2);
+    expect(isValidAmountInput('1.23', MAINNET_USDC_TYPE)).toBe(true);
+    expect(isValidAmountInput('1.234', MAINNET_USDC_TYPE)).toBe(false);
+  });
+
+  it('formats USDC-family balances with fixed two-decimal display', () => {
+    const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
+
+    expect(formatAmount('1200000', MAINNET_USDC_TYPE)).toBe('1.20');
+    expect(formatAmount('1', MAINNET_USDC_TYPE)).toBe('0.00');
+    expect(formatAmount('1234567', levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe('1.23');
+    expect(formatAmount('1234567890', SUI_COIN_TYPE)).toBe('1.23456789');
   });
 });

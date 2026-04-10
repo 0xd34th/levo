@@ -44,7 +44,8 @@ describe('send-form helpers', () => {
 
     expect(sanitizeAmountForCoinType('1.123456789', SUI_COIN_TYPE)).toBe('1.123456789');
     expect(sanitizeAmountForCoinType('1.123456789', testUsdcCoinType)).toBe('');
-    expect(sanitizeAmountForCoinType('1.123456', testUsdcCoinType)).toBe('1.123456');
+    expect(sanitizeAmountForCoinType('1.12', testUsdcCoinType)).toBe('1.12');
+    expect(sanitizeAmountForCoinType('1.123456', testUsdcCoinType)).toBe('');
   });
 
   it('only uses a dollar prefix for dollar-denominated assets', () => {
