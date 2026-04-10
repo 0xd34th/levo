@@ -113,4 +113,15 @@ describe('coin helpers', () => {
     expect(formatAmount('1234567', levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe('1.23');
     expect(formatAmount('1234567890', SUI_COIN_TYPE)).toBe('1.23456789');
   });
+
+  it('truncates USDC sub-cent balances — never overstates spendable amount', () => {
+    expect(formatAmount('1', MAINNET_USDC_TYPE)).toBe('0.00');
+    expect(formatAmount('4999', MAINNET_USDC_TYPE)).toBe('0.00');
+    expect(formatAmount('5000', MAINNET_USDC_TYPE)).toBe('0.00');
+    expect(formatAmount('9999', MAINNET_USDC_TYPE)).toBe('0.00');
+    expect(formatAmount('10000', MAINNET_USDC_TYPE)).toBe('0.01');
+    expect(formatAmount('15000', MAINNET_USDC_TYPE)).toBe('0.01');
+    expect(formatAmount('19999', MAINNET_USDC_TYPE)).toBe('0.01');
+    expect(formatAmount('20000', MAINNET_USDC_TYPE)).toBe('0.02');
+  });
 });
