@@ -100,7 +100,6 @@ describe('POST /api/v1/payments/quote', () => {
     vi.clearAllMocks();
     findUniqueMock.mockReset();
     vi.stubEnv('TWITTER_API_KEY', 'test-api-key');
-    vi.stubEnv('NEXT_PUBLIC_VAULT_REGISTRY_ID', 'test-registry-id');
     vi.stubEnv('HMAC_SECRET', 'x'.repeat(32));
 
     rateLimitMock.mockResolvedValue({ allowed: true });

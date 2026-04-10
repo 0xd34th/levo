@@ -1,33 +1,36 @@
 ## Goal
 
-把 `X_HANDLE` 收款主链路从“vault + claim”切到“Privy canonical Sui wallet + direct transfer”，新单不再经过 deterministic vault，也不再需要 claim。
+在已经完成 `Earn` 上线的基础上，继续把仓库里剩余的 `Nautilus / x_vault / claim / verifier` 历史痕迹彻底清掉，只保留当前 `StableLayer + LevoUSD + Privy` 主链路所需的代码、脚本、配置与文档。
 
 ## Scope
 
-- 在 `apps/web` 内新增/复用 recipient provisioning 能力：基于 `x_user_id` 确保 canonical `Privy user + Sui wallet`，并把映射落回 `xUser`。
-- 改造 `POST /api/v1/payments/quote` 的 `X_HANDLE` 分支：报价时即解析并确保 recipient wallet，返回 resolved recipient address。
-- 改造 `POST /api/v1/payments/send`：`X_HANDLE` 与 `SUI_ADDRESS` 都走直发地址路径，不再走 StableLayer mint into vault。
-- 改造 `lookup` / `received` 相关读接口与前端消费类型，移除 claim/vault 语义，改为 recipient wallet readiness / direct delivery 语义。
-- 清理产品主链路中的 claim/vault 入口、文案、状态模型和显式依赖。
+- 保留已经完成的 `Earn` 页面与 `summary / preview / execute / confirm` API，不回退其行为。
+- 删除 `packages/contracts` 中仅服务于 `x_vault / nautilus_verifier / test_vectors / test_usdc` 的整包资产。
+- 删除或重写仍指向旧 `x_vault / Nautilus` 的根脚本、发布脚本、测试和部署状态文件。
+- 精简 `scripts/mainnet-bootstrap-lib.ts`，只保留 `packages/levo-usd` 当前仍需要的通用解析/校验 helper。
+- 清理 README、旧设计/计划文档、示例配置、测试和注释中的 `Nautilus / x_vault / claim` 历史叙述。
 
 ## Non-Goals
 
-- 不做历史资金迁移，不处理旧 vault 余额，不为旧 claim 数据做回填。
-- 不做数据库 schema migration；现有 `vaultAddress` 持久化字段本轮仅语义改作 “resolved recipient address”。
-- 不做链上 `x_vault` 包删除、历史合约下线或数据归档。
+- 不做历史资金迁移，不处理历史 vault 余额。
+- 不做数据库 schema migration；现有 `vaultAddress` 字段继续保留存储名。
+- 不删除链上已发布的历史合约对象，只清理仓库源码、脚本、文档与运行时引用。
+- 不移除 `NEXT_PUBLIC_PACKAGE_ID` 这类当前 testnet / fallback 仍在使用的通用配置位。
 
 ## Constraints
 
-- 新方案已确认替代旧方案，本轮必须收干净新单主链路，不能继续保留 `X_HANDLE -> vault -> claim` 作为运行时 fallback。
-- 改动需贴合现有 `apps/web` 结构，优先复用已有 direct-address send / payment confirm / history 逻辑。
-- 所有新写入必须以 `x_user_id` 作为 canonical identity key；`username` 只做解析入口和展示快照。
-- 如果 Privy recipient provisioning 失败，请明确失败，不降级到旧 vault 链路。
+- 用户只看到 `USDC`；不得暴露 `USDB`、`Bucket`、`PSM`、`saving pool` 等内部名词。
+- 不展示 APR，只展示实时 `Claimable Yield`。
+- `90 / 10` 分成只作用于收益腿，不作用于本金腿。
+- `Earn` 的产品与实现主语是 `StableLayer`，交易构造优先使用 `stable-layer-sdk`；若公开 API 不足，可在本地适配层补 PTB 细节。
+- 既然新方案已经替代旧方案，本轮必须把 `Nautilus / x_vault` 的源码、脚本、测试、部署状态和主文档入口一起清掉，不能只停留在 web/runtime 层。
+- 对仍被 `packages/levo-usd` 使用的通用 helper，要保留行为并补足测试，不能为了删旧代码把现有发布链路一起破坏。
 
 ## Acceptance
 
-1. 新增或复用的 recipient provisioning helper 能按 `x_user_id` 命中或创建 canonical Privy user，并确保存在 Sui wallet，随后把 `privyUserId / privyWalletId / suiAddress / suiPublicKey` 回写到 `xUser`。
-2. `POST /api/v1/payments/quote` 的 `X_HANDLE` 分支不再读取 `NEXT_PUBLIC_VAULT_REGISTRY_ID`、不再导出 vault 地址，而是返回 canonical recipient wallet address。
-3. `POST /api/v1/payments/send` 的 `X_HANDLE` 分支不再调用 StableLayer mint-into-vault 路径；`X_HANDLE` 与 `SUI_ADDRESS` 都直接转账到 `quotePayload.vaultAddress`（现语义为 resolved recipient address）。
-4. `GET /api/v1/lookup/x-username` 与 `GET /api/v1/payments/received` 及其前端消费处不再依赖 claim/vault 状态模型，而是返回/展示 recipient wallet readiness 与 direct-delivery 信息。
-5. `/claim` 页面、`/api/v1/payments/claim`、claim card、claim status 文案和主链路引用已清理，不再作为新方案入口。
-6. 相关单测通过；至少覆盖 recipient provisioning、`quote` X_HANDLE 直解析、`send` X_HANDLE 直发、以及 lookup/received 新返回模型。
+1. `/earn` 页面和 `Earn` API 保持可用；`apps/web` 的相关单测、类型检查和构建继续通过。
+2. `packages/contracts` 整包及其 `x_vault / nautilus_verifier / test_vectors / test_usdc` 资产从仓库中移除。
+3. 根脚本和发布入口里不再保留 `publish:contracts:mainnet`、`generate:test-vectors`、`bootstrap-mainnet`、`register-enclave-pubkey` 这类旧流程。
+4. `scripts/mainnet-bootstrap-lib.ts` 与对应测试不再包含 `Nautilus / x_vault / signer` 专属逻辑，只保留 `LevoUSD` 当前仍在使用的通用 helper。
+5. README、示例 env、部署脚本、rsync excludes 和历史设计/计划文档中，不再保留会误导当前产品方向的 `Nautilus / x_vault / claim` 叙述。
+6. 重新扫描仓库时，不再在当前源码、脚本、文档里出现剩余的 `Nautilus / x_vault` 主路径痕迹；若保留极少量历史字样，必须只存在于无法安全删除的链上事实或测试 fixture 说明中，并在结果里明确说明。

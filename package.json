@@ -3,17 +3,11 @@
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "generate:test-vectors": "tsx packages/contracts/scripts/generate-test-vectors.ts",
-    "bootstrap:mainnet": "tsx scripts/bootstrap-mainnet.ts",
-    "publish:contracts:mainnet": "tsx packages/contracts/scripts/publish-mainnet.ts",
     "publish:levo-usd:mainnet": "tsx packages/levo-usd/scripts/publish-mainnet.ts",
     "onboard:levo-usd:mainnet": "tsx packages/levo-usd/scripts/onboard-mainnet.ts",
-    "add-entity:levo-usd:mainnet": "tsx packages/levo-usd/scripts/add-entity-mainnet.ts",
-    "derive:key-info": "pnpm --dir apps/nautilus-signer exec tsx scripts/derive-key-info.ts",
-    "register:enclave-pubkey": "tsx packages/contracts/scripts/register-enclave-pubkey.ts"
+    "add-entity:levo-usd:mainnet": "tsx packages/levo-usd/scripts/add-entity-mainnet.ts"
   },
   "devDependencies": {
-    "@noble/curves": "^2.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

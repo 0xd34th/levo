@@ -81,7 +81,7 @@ describe('GET /api/v1/lookup/x-username', () => {
     });
   });
 
-  it('builds public lookup responses without requiring vault registry configuration', async () => {
+  it('builds public lookup responses without requiring any legacy recipient config', async () => {
     resolveFreshXUserMock.mockResolvedValueOnce({
       xUserId: '12345',
       username: 'testuser',
@@ -101,9 +101,6 @@ describe('GET /api/v1/lookup/x-username', () => {
       recordedTotals: [],
       recentIncomingPayments: [],
     });
-
-    delete process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
-
     const req = new NextRequest('http://localhost/api/v1/lookup/x-username?username=testuser');
     const res = await GET(req);
 

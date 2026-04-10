@@ -30,7 +30,7 @@ describe('untrackedBalanceNote', () => {
     },
   ];
 
-  it('reports the delta for unclaimed vaults', () => {
+  it('reports the delta when on-chain balance is ahead of indexed history', () => {
     expect(
       untrackedBalanceNote(
         pendingBalances,
