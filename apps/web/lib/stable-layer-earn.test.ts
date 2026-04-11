@@ -68,7 +68,14 @@ describe('stable-layer earn helpers', () => {
           'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
         );
       },
-    })).resolves.toBe(0n);
+    })).resolves.toEqual({ amount: 0n, yieldSettlementSkipped: true });
+  });
+
+  it('returns resolved reward with yieldSettlementSkipped false on success', async () => {
+    await expect(resolveClaimableRewardUsdb({
+      action: 'claim',
+      fetchClaimRewardUsdbAmount: async () => 500n,
+    })).resolves.toEqual({ amount: 500n, yieldSettlementSkipped: false });
   });
 
   it('still throws claim reward dry-run inference failures during claim', async () => {
