@@ -44,6 +44,7 @@ interface EarnPreviewResponse extends EarnSummaryResponse {
   action: EarnAction;
   amount: string;
   userReceivesUsdc: string;
+  yieldSettlementSkipped?: boolean;
 }
 
 type ExecuteEarnResponse =
@@ -569,6 +570,12 @@ export default function EarnPage() {
                   <span>{formatAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
                 </div>
               </div>
+
+              {preview.yieldSettlementSkipped ? (
+                <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  Yield settlement is temporarily unavailable. This withdrawal will return your principal only. Accrued yield can be claimed separately once settlement resumes.
+                </div>
+              ) : null}
 
               <div className="mt-5 flex gap-3">
                 <Button

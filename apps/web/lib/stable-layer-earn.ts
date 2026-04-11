@@ -38,6 +38,7 @@ export interface EarnPreview extends EarnSummary {
   action: EarnAction;
   amount: string;
   userReceivesUsdc: string;
+  yieldSettlementSkipped?: boolean;
 }
 
 export type EarnExecuteResult =
@@ -109,6 +110,7 @@ const StagedPreviewSchema = z.object({
   xUserId: z.string().min(1),
   action: z.enum(['stake', 'claim', 'withdraw']),
   amount: z.string().regex(/^\d+$/),
+  yieldSettlementSkipped: z.boolean().optional(),
 });
 
 const StagedAuthorizationSchema = z.object({
@@ -116,6 +118,7 @@ const StagedAuthorizationSchema = z.object({
   txBytesBase64: z.string().min(1),
   walletId: z.string().min(1),
   storedPublicKey: z.string().min(1),
+  sponsored: z.boolean().default(false),
 });
 
 const PendingEarnBundleSchema = z.object({
@@ -261,18 +264,23 @@ function isClaimRewardDryRunInferenceFailure(error: unknown) {
   return error instanceof Error && error.message.includes(CLAIM_REWARD_DRY_RUN_FAILURE);
 }
 
+export interface ResolvedClaimableReward {
+  amount: bigint;
+  yieldSettlementSkipped: boolean;
+}
+
 export async function resolveClaimableRewardUsdb(params: {
   action: EarnAction;
   fetchClaimRewardUsdbAmount: () => Promise<bigint>;
-}) {
+}): Promise<ResolvedClaimableReward> {
   try {
-    return await params.fetchClaimRewardUsdbAmount();
+    return { amount: await params.fetchClaimRewardUsdbAmount(), yieldSettlementSkipped: false };
   } catch (error) {
     if (params.action === 'withdraw' && isClaimRewardDryRunInferenceFailure(error)) {
       console.warn('StableLayer claim reward dry-run failed during withdraw; continuing without yield settlement', {
         error,
       });
-      return 0n;
+      return { amount: 0n, yieldSettlementSkipped: true };
     }
 
     throw error;
@@ -376,6 +384,29 @@ async function persistEarnAccounting(params: {
       ...updateData,
     },
   });
+}
+
+const BOOKKEEPING_MAX_RETRIES = 2;
+
+async function persistEarnAccountingWithRetry(params: {
+  xUserId: string;
+  retainedAccountId?: string | null;
+  lastSettledTxDigest?: string | null;
+}) {
+  for (let attempt = 1; attempt <= BOOKKEEPING_MAX_RETRIES; attempt++) {
+    try {
+      await persistEarnAccounting(params);
+      return;
+    } catch (error) {
+      if (attempt === BOOKKEEPING_MAX_RETRIES) {
+        throw error;
+      }
+      console.warn(`Earn bookkeeping attempt ${attempt} failed; retrying`, {
+        xUserId: params.xUserId,
+        error,
+      });
+    }
+  }
 }
 
 async function resolveRetainedAccountId(params: {
@@ -500,10 +531,32 @@ async function buildEarnTransaction(params: {
   const tx = new Transaction();
   tx.setSender(senderAddress);
 
+  let sponsorApplied = false;
   if (sponsored) {
     const gasKeypair = getGasStationKeypair();
     if (gasKeypair) {
-      tx.setGasOwner(gasKeypair.toSuiAddress());
+      const gasAddress = gasKeypair.toSuiAddress();
+      let gasBalance: bigint | null = null;
+      try {
+        const r = await getSuiClient().getBalance({ owner: gasAddress });
+        gasBalance = BigInt(r.totalBalance);
+      } catch (error) {
+        console.warn('Gas station balance probe failed; keeping sponsorship enabled', {
+          gasAddress,
+          error,
+        });
+      }
+      // If the balance probe failed (null), optimistically keep sponsorship — the
+      // chain will reject if the gas station is truly unfunded, which is recoverable.
+      if (gasBalance === null || gasBalance >= 100_000_000n) {
+        tx.setGasOwner(gasAddress);
+        sponsorApplied = true;
+      } else {
+        console.warn('Gas station SUI balance too low for sponsorship', {
+          gasAddress,
+          balance: gasBalance.toString(),
+        });
+      }
     }
   }
 
@@ -538,21 +591,23 @@ async function buildEarnTransaction(params: {
       autoTransfer: true,
     });
 
-    return tx;
+    return { tx, sponsorApplied, yieldSettlementSkipped: false };
   }
 
   let rewardUsdcCoin: TransactionObjectArgument | null = null;
+  let yieldSettlementSkipped = false;
 
-  const claimableRewardUsdb = await resolveClaimableRewardUsdb({
+  const claimableReward = await resolveClaimableRewardUsdb({
     action,
     fetchClaimRewardUsdbAmount: () => stableLayerClient.getClaimRewardUsdbAmount({
       stableCoinType,
       sender: senderAddress,
     }),
   });
+  yieldSettlementSkipped = claimableReward.yieldSettlementSkipped;
 
-  if (claimableRewardUsdb > 0n) {
-    const { retainedUsdb, userClaimUsdb } = splitRetainedYieldUsdb(claimableRewardUsdb);
+  if (claimableReward.amount > 0n) {
+    const { retainedUsdb, userClaimUsdb } = splitRetainedYieldUsdb(claimableReward.amount);
     const rewardUsdbCoin = await stableLayerClient.buildClaimTx({
       tx,
       sender: senderAddress,
@@ -646,7 +701,7 @@ async function buildEarnTransaction(params: {
     tx.transferObjects([principalUsdcCoin as TransactionObjectArgument], senderAddress);
   }
 
-  return tx;
+  return { tx, sponsorApplied, yieldSettlementSkipped };
 }
 
 async function buildEarnTransactionBytes(params: {
@@ -657,8 +712,9 @@ async function buildEarnTransactionBytes(params: {
   amount: bigint;
   sponsored: boolean;
 }) {
-  const tx = await buildEarnTransaction(params);
-  return tx.build({ client: getSuiClient() });
+  const { tx, sponsorApplied, yieldSettlementSkipped } = await buildEarnTransaction(params);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return { txBytes, sponsorApplied, yieldSettlementSkipped };
 }
 
 async function simulateEarnAction(params: {
@@ -668,7 +724,7 @@ async function simulateEarnAction(params: {
   stableCoinType: string;
   amount: bigint;
 }) {
-  const txBytes = await buildEarnTransactionBytes({
+  const { txBytes, yieldSettlementSkipped } = await buildEarnTransactionBytes({
     ...params,
     sponsored: false,
   });
@@ -684,6 +740,7 @@ async function simulateEarnAction(params: {
       ownerAddress: params.senderAddress,
       coinType: MAINNET_USDC_TYPE,
     }),
+    yieldSettlementSkipped,
   };
 }
 
@@ -785,49 +842,115 @@ async function clearAuthorization(previewToken: string) {
 }
 
 async function stagePendingEarn(txDigest: string, payload: PendingEarnBundle) {
-  const redis = getRedis();
-  if (redis.status !== 'ready') {
-    throw new Error('Earn pending store unavailable');
-  }
+  // Write to DB first (durable), then Redis (fast cache).
+  await prisma.pendingEarn.upsert({
+    where: { txDigest },
+    update: {
+      xUserId: payload.xUserId,
+      action: payload.action,
+      txBytesBase64: payload.txBytesBase64,
+      signatures: payload.signatures,
+      createdAt: new Date(),
+    },
+    create: {
+      txDigest,
+      xUserId: payload.xUserId,
+      action: payload.action,
+      txBytesBase64: payload.txBytesBase64,
+      signatures: payload.signatures,
+    },
+  });
 
-  await redis.set(
-    getPendingEarnKey(txDigest),
-    JSON.stringify(payload),
-    'EX',
-    PENDING_EARN_TTL_SEC,
-  );
+  // Opportunistically purge all expired rows so abandoned flows don't
+  // leave signed transaction payloads in Postgres indefinitely.
+  prisma.pendingEarn.deleteMany({
+    where: { createdAt: { lt: new Date(Date.now() - PENDING_EARN_TTL_SEC * 1000) } },
+  }).catch(() => {});
+
+  try {
+    const redis = getRedis();
+    if (redis.status === 'ready') {
+      await redis.set(
+        getPendingEarnKey(txDigest),
+        JSON.stringify(payload),
+        'EX',
+        PENDING_EARN_TTL_SEC,
+      );
+    }
+  } catch (error) {
+    console.warn('Failed to cache pending Earn in Redis (DB record persisted)', { txDigest, error });
+  }
 }
 
 async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | null> {
-  const redis = getRedis();
-  if (redis.status !== 'ready') {
-    return null;
+  // Opportunistically purge all expired rows so abandoned flows don't
+  // leave signed transaction payloads in Postgres indefinitely.
+  // Complements the same cleanup in stagePendingEarn() to cover read-only paths.
+  prisma.pendingEarn.deleteMany({
+    where: { createdAt: { lt: new Date(Date.now() - PENDING_EARN_TTL_SEC * 1000) } },
+  }).catch(() => {});
+
+  // Try Redis first (fast), fall back to DB (durable).
+  try {
+    const redis = getRedis();
+    if (redis.status === 'ready') {
+      const raw = await redis.get(getPendingEarnKey(txDigest));
+      if (raw) {
+        const parsed = PendingEarnBundleSchema.safeParse(JSON.parse(raw));
+        if (parsed.success) {
+          return parsed.data;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load pending Earn from Redis; falling back to DB', { txDigest, error });
   }
 
+  // DB fallback — enforce the same TTL as Redis to prevent indefinite replay.
   try {
-    const raw = await redis.get(getPendingEarnKey(txDigest));
-    if (!raw) {
+    const row = await prisma.pendingEarn.findUnique({ where: { txDigest } });
+    if (!row) {
       return null;
     }
 
-    const parsed = PendingEarnBundleSchema.safeParse(JSON.parse(raw));
+    const ageSeconds = (Date.now() - row.createdAt.getTime()) / 1000;
+    if (ageSeconds > PENDING_EARN_TTL_SEC) {
+      console.warn('Pending Earn DB record expired, cleaning up', { txDigest, ageSeconds });
+      await prisma.pendingEarn.delete({ where: { txDigest } }).catch(() => {});
+      return null;
+    }
+
+    const parsed = PendingEarnBundleSchema.safeParse({
+      xUserId: row.xUserId,
+      action: row.action,
+      txBytesBase64: row.txBytesBase64,
+      signatures: row.signatures,
+    });
     return parsed.success ? parsed.data : null;
   } catch (error) {
-    console.warn('Failed to load pending Earn bundle', { txDigest, error });
+    console.warn('Failed to load pending Earn from DB', { txDigest, error });
     return null;
   }
 }
 
 async function clearPendingEarn(txDigest: string) {
-  const redis = getRedis();
-  if (redis.status !== 'ready') {
-    return;
+  // Clear from both stores.
+  try {
+    await prisma.pendingEarn.delete({ where: { txDigest } });
+  } catch (error) {
+    // Record may not exist (already cleared or never persisted).
+    if (!(error instanceof Error && 'code' in error && (error as { code: string }).code === 'P2025')) {
+      console.warn('Failed to clear pending Earn from DB', { txDigest, error });
+    }
   }
 
   try {
-    await redis.del(getPendingEarnKey(txDigest));
+    const redis = getRedis();
+    if (redis.status === 'ready') {
+      await redis.del(getPendingEarnKey(txDigest));
+    }
   } catch (error) {
-    console.warn('Failed to clear pending Earn bundle', { txDigest, error });
+    console.warn('Failed to clear pending Earn from Redis', { txDigest, error });
   }
 }
 
@@ -902,6 +1025,7 @@ export async function previewEarnAction(params: {
 
   let previewValues = {
     userReceivesUsdc: 0n,
+    yieldSettlementSkipped: false,
   };
 
   if (action === 'claim' || action === 'withdraw') {
@@ -918,6 +1042,7 @@ export async function previewEarnAction(params: {
     xUserId,
     action,
     amount: amount.toString(),
+    ...(previewValues.yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
   });
 
   return {
@@ -926,6 +1051,7 @@ export async function previewEarnAction(params: {
     action,
     amount: amount.toString(),
     userReceivesUsdc: previewValues.userReceivesUsdc.toString(),
+    ...(previewValues.yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
   };
 }
 
@@ -952,7 +1078,7 @@ export async function executeEarnAction(params: {
   let action = preview.action;
 
   if (!params.authorizationSignature) {
-    txBytes = await buildEarnTransactionBytes({
+    const buildResult = await buildEarnTransactionBytes({
       xUserId: params.xUserId,
       action,
       senderAddress: walletBinding.suiAddress,
@@ -960,12 +1086,21 @@ export async function executeEarnAction(params: {
       amount: BigInt(preview.amount),
       sponsored: true,
     });
+    txBytes = buildResult.txBytes;
+
+    // Reject if settlement mode diverged from preview — the user reviewed a
+    // different yield/principal breakdown than what this build produced.
+    if (buildResult.yieldSettlementSkipped !== (preview.yieldSettlementSkipped ?? false)) {
+      await clearPreview(params.previewToken);
+      throw new Error('Settlement conditions changed since preview. Please review the action again.');
+    }
 
     await stageAuthorization(params.previewToken, {
       action,
       txBytesBase64: Buffer.from(txBytes).toString('base64'),
       walletId: walletBinding.privyWalletId,
       storedPublicKey: walletBinding.suiPublicKey,
+      sponsored: buildResult.sponsorApplied,
     });
 
     return {
@@ -997,10 +1132,12 @@ export async function executeEarnAction(params: {
   );
   signatures.push(userSignature);
 
-  const gasKeypair = getGasStationKeypair();
-  if (gasKeypair) {
-    const gasSignature = await gasKeypair.signTransaction(txBytes);
-    signatures.push(gasSignature.signature);
+  if (authorization.sponsored) {
+    const gasKeypair = getGasStationKeypair();
+    if (gasKeypair) {
+      const gasSignature = await gasKeypair.signTransaction(txBytes);
+      signatures.push(gasSignature.signature);
+    }
   }
 
   const txDigest = TransactionDataBuilder.getDigestFromBytes(txBytes);
@@ -1029,13 +1166,13 @@ export async function executeEarnAction(params: {
           result.objectChanges,
           frameworkPackageId,
         );
-        await persistEarnAccounting({
+        await persistEarnAccountingWithRetry({
           xUserId: params.xUserId,
           retainedAccountId: createdRetainedAccountId,
           lastSettledTxDigest: result.digest || txDigest,
         });
       } catch (bookkeepingError) {
-        console.error('Earn bookkeeping failed after successful settlement', bookkeepingError);
+        console.error('Earn bookkeeping failed after successful settlement (retries exhausted)', bookkeepingError);
       }
       await clearPendingEarn(txDigest);
       await clearPreview(params.previewToken);
@@ -1045,8 +1182,20 @@ export async function executeEarnAction(params: {
         txDigest: result.digest || txDigest,
       };
     }
+
+    // Transaction was executed on-chain but failed — retrying won't help.
+    await clearPendingEarn(txDigest);
+    await clearPreview(params.previewToken);
+    const onChainError = result.effects?.status.error || 'Transaction failed on-chain';
+    throw new Error(`Earn transaction failed on-chain: ${onChainError}`);
   } catch (error) {
-    console.error('Failed to execute Earn transaction', error);
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
+    // Network/timeout error — transaction may or may not have been submitted.
+    // Return pending so the client can poll confirm, which will retry submission
+    // from the Redis-stored bundle if needed.
+    console.error('Failed to execute Earn transaction; returning pending for confirm recovery', error);
   }
 
   return {
@@ -1080,13 +1229,13 @@ export async function confirmEarnAction(params: {
           const createdRetainedAccountId = frameworkPackageId
             ? extractCreatedEarnRetainedAccountId(tx.objectChanges, frameworkPackageId)
             : null;
-          await persistEarnAccounting({
+          await persistEarnAccountingWithRetry({
             xUserId: pending.xUserId,
             retainedAccountId: createdRetainedAccountId,
             lastSettledTxDigest: tx.digest || params.txDigest,
           });
         } catch (bookkeepingError) {
-          console.error('Earn bookkeeping failed after confirmed transaction', bookkeepingError);
+          console.error('Earn bookkeeping failed after confirmed transaction (retries exhausted)', bookkeepingError);
         }
       }
       await clearPendingEarn(params.txDigest);
@@ -1095,8 +1244,18 @@ export async function confirmEarnAction(params: {
         txDigest: params.txDigest,
       };
     }
-  } catch {
-    // Fall through to pending recovery.
+
+    // Transaction found on-chain but failed — retrying won't help.
+    if (tx.effects?.status.status === 'failure') {
+      await clearPendingEarn(params.txDigest);
+      throw new Error(`Earn transaction failed on-chain: ${tx.effects.status.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    // Re-throw known on-chain failures so the route returns 400 instead of 202.
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
+    // Network/RPC error — fall through to pending recovery.
   }
 
   if (!pending) {
@@ -1125,13 +1284,13 @@ export async function confirmEarnAction(params: {
         const createdRetainedAccountId = frameworkPackageId
           ? extractCreatedEarnRetainedAccountId(result.objectChanges, frameworkPackageId)
           : null;
-        await persistEarnAccounting({
+        await persistEarnAccountingWithRetry({
           xUserId: pending.xUserId,
           retainedAccountId: createdRetainedAccountId,
           lastSettledTxDigest: result.digest || params.txDigest,
         });
       } catch (bookkeepingError) {
-        console.error('Earn bookkeeping failed after confirmed retry', bookkeepingError);
+        console.error('Earn bookkeeping failed after confirmed retry (retries exhausted)', bookkeepingError);
       }
       await clearPendingEarn(params.txDigest);
       return {
@@ -1139,7 +1298,15 @@ export async function confirmEarnAction(params: {
         txDigest: result.digest || params.txDigest,
       };
     }
+
+    // Retry submitted but failed on-chain — stop retrying.
+    await clearPendingEarn(params.txDigest);
+    throw new Error(`Earn transaction failed on-chain: ${result.effects?.status.error || 'unknown error'}`);
   } catch (error) {
+    // Re-throw known on-chain failures.
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
     console.warn('Earn confirmation retry is still pending', {
       txDigest: params.txDigest,
       error,

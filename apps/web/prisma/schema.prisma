@@ -112,3 +112,15 @@ model EarnAccounting {
 
   @@map("earn_accounting")
 }
+
+model PendingEarn {
+  txDigest      String   @id @map("tx_digest")
+  xUserId       String   @map("x_user_id")
+  action        String
+  txBytesBase64 String   @map("tx_bytes_base64")
+  signatures    String[] @default([])
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([xUserId])
+  @@map("pending_earn")
+}
