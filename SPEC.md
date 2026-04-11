@@ -1,37 +1,38 @@
 ## Goal
 
-在现有 `StableLayer Earn` 主链路上补两项产品硬约束：
-
-1. 整个应用里用户可见的 `USDC` 一律显示到小数点后两位，且 `USDC` 输入也最多两位。
-2. `Earn` 不再依赖 `LEVO_TREASURY_ADDRESS`；用户通过 Levo 领取/提取时，收益只拿到 `90%`，剩余 `10%` 继续留在协议里，不转给任何 treasury 地址。
+在不替换现有 sponsor 架构的前提下，为 `gas station` 补一套可执行的运维缓解能力，缩短 sponsor 因 `SUI` 余额不足或碎片失控导致的故障恢复时间。
 
 ## Scope
 
-- 调整 `apps/web/lib/coins.ts` 及所有沿用它的前端显示/输入链路，让 `USDC` 与展示成 `USDC` 的 `LevoUSD` 在 UI 上固定两位显示，同时保留链上 6 位 base-unit 精度。
-- 改写 `apps/web/lib/stable-layer-earn.ts` 的 claim / withdraw 逻辑，移除 treasury split，改成把保留的 `10%` 存入一个隐藏的 retained Bucket account。
-- 新增本地持久化映射，记录每个 `xUserId` 对应的 retained account，避免重复创建和执行链抖动。
-- 更新 Earn API、页面、测试和示例环境变量，去掉 `treasuryFeeUsdc` 与 `LEVO_TREASURY_ADDRESS`。
+- 保留当前 `GAS_STATION_SECRET_KEY`、服务端 sponsor 双签链路与 `setGasOwner(...)` 逻辑。
+- 为 `apps/web` 新增 gas station 维护脚本，至少支持：
+  - 查看当前 gas station 地址、总 `SUI` 余额、`Coin<SUI>` 数量、最大 coin、最小 coin。
+  - 手动合并 gas station 名下多个 `Coin<SUI>` 为一个主 coin。
+- 强化 `apps/web/instrumentation.ts` 启动日志，输出更有用的 gas station 健康信息和阈值告警。
+- 收口 sponsor 失败错误文案，让错误直接提示运维检查余额或执行 merge 脚本。
+- 更新示例环境变量与必要文档，说明这套能力是运维缓解，不是 sponsor 根治方案。
 
 ## Non-Goals
 
-- 不改变 `X_HANDLE` 直发钱包主链路。
-- 不改变链上 `USDC` / `LevoUSD` 的真实 decimals；两位只作用于用户输入与显示。
-- 不做新的 treasury、fee recipient 或额外运维地址配置。
-- 不保证脱离 Levo UI 直接操作底层协议时仍能强制维持 90%；本轮约束作用于 Levo 应用链路。
+- 不接入 Aftermath。
+- 不删除或替换现有 `GAS_STATION_SECRET_KEY` sponsor 方案。
+- 不新增运行时 gas coin 池管理、自动选 coin、自动 merge、自愈后台任务或定时调度。
+- 不把 merge 行为接入请求主链路，也不在 `payments/send` / `Earn` 执行过程中自动触发链上维护操作。
+- 不承诺彻底解决高并发 sponsor 下的所有 gas 竞争问题。
 
 ## Constraints
 
-- 用户只看到 `USDC`；不得暴露 `USDB`、`Bucket`、`PSM`、`saving pool`、shadow account 等内部名词。
-- `claimableYieldUsdc`、preview 和最终到账口径都必须是用户净到手的 `90%`。
-- `principal` 仍然 `100%` 返还，只有收益腿走 `90 / 10`。
-- 由于 `stable-layer-sdk` 的公开 `buildClaimTx()` 只能整笔 claim，本轮必须在本地 Earn adapter 中补 retained-account 逻辑，而不是继续依赖 treasury split。
-- 既然新规则已经替代旧规则，本轮必须同时移除 `LEVO_TREASURY_ADDRESS` 配置、preview fee 字段和对应 UI 文案，不能保留旧口径残留。
+- 必须坚持“运维缓解”边界：链上 merge 只能作为人工执行脚本，不得偷偷变成运行时自动行为。
+- 现有 `payments/send`、`Earn` 的 sponsor 主逻辑和对外 API 契约不得被重构成新方案。
+- 新脚本应优先复用现有 `SuiClient`、`gas station keypair` 和项目环境变量，而不是引入新的钱包体系。
+- merge 脚本必须显式要求 gas station 已配置，并在输入不足时返回清晰错误。
+- 错误提示必须是人话，并给出明确下一步动作。
 
 ## Acceptance
 
-1. `USDC` 与展示成 `USDC` 的 `LevoUSD` 在全应用固定显示两位小数；`SUI` 等其他资产保持原有显示规则。
-2. `USDC` 输入在发送页和 Earn 页都最多两位小数，但链上 base-unit 计算仍使用 6 位精度。
-3. `GET /api/v1/earn/summary` 与 `POST /api/v1/earn/preview` 返回的 `claimableYieldUsdc / userReceivesUsdc` 都是用户净口径，不再返回 `treasuryFeeUsdc`。
-4. `Earn` 的 claim / withdraw 不再读取 `LEVO_TREASURY_ADDRESS`，剩余 `10%` 会留在协议中的隐藏 retained account，而不是转给外部地址。
-5. Prisma 新增 retained-account 映射表与 migration；执行链成功后会稳定复用同一个 retained account。
-6. `apps/web` 的相关单测、类型检查和构建继续通过。
+1. 仓库内存在可执行的 gas station 维护脚本，能够输出地址、总 `SUI` 余额、`Coin<SUI>` 数量、最大 coin、最小 coin，并支持手动 merge。
+2. `apps/web/instrumentation.ts` 在 `nodejs` 启动时会输出 gas station 地址及健康摘要；当余额或 coin 状态异常时，会给出明确告警。
+3. sponsor 相关 “No valid gas coins found for the transaction.” 类错误会补充可执行运维提示，而不只是附带地址。
+4. `apps/web/.env.example` 与相应文档/说明已更新，明确脚本用途和运维边界。
+5. 本轮不接入 Aftermath，不新增显式 gas coin 池管理，不改变 `payments/send` 与 `Earn` 的 sponsor 架构。
+6. `apps/web` 相关单测通过，且新增测试覆盖健康检查、错误提示和脚本核心逻辑。

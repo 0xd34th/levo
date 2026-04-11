@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "prisma generate",
-    "pregenerate-wallets": "tsx scripts/pregenerate-wallets.ts"
+    "pregenerate-wallets": "tsx scripts/pregenerate-wallets.ts",
+    "gas-station:status": "tsx scripts/gas-station-maintenance.ts status",
+    "gas-station:merge": "tsx scripts/gas-station-maintenance.ts merge"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

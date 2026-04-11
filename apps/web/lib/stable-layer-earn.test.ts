@@ -299,7 +299,7 @@ describe('stable-layer earn helpers', () => {
       previewToken: 'preview-token',
       authorizationSignature: 'auth-signature',
     })).rejects.toThrow(
-      'Earn transaction failed on-chain: No valid gas coins found for the transaction. Gas station address: 0xgasstation',
+      'Earn transaction failed on-chain: No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     );
   });
 

@@ -1,6 +1,6 @@
-1. 更新本轮 Spec/Plan，固定验收：X_HANDLE 新单一律走 Privy canonical wallet 直发，不保留 vault/claim 主链路。
-2. 先补失败测试：recipient provisioning helper、`payments/quote` 的 X_HANDLE 直解析、`payments/send` 的 X_HANDLE 直发；确认旧 vault/StableLayer 假设被打红。
-3. 实现 recipient provisioning helper，复用 Privy Twitter subject + Sui wallet 能力，并把 canonical wallet 映射回写到 `xUser`。
-4. 重构 `payments/quote` 与 `payments/send`：X_HANDLE 报价时确保 recipient wallet，发送时复用现有 direct-address transfer 路径。
-5. 重构 `lookup` / `received` 读模型与前端类型/页面，替换 claim/vault 语义；清理 `/claim` 及相关组件、文案、入口和主链路依赖。
+1. 更新本轮 `SPEC.md / PLAN.md`，固定范围为 gas station 运维缓解包：保留现有 sponsor 架构，不接 Aftermath，不新增显式 gas coin 池管理。
+2. 先补失败测试：gas station 健康摘要与启动日志、sponsor 错误提示增强、维护脚本的 `status / merge` 核心逻辑。
+3. 抽取 gas station 运维 helper，统一地址解析、余额/coin 汇总与维护建议生成。
+4. 实现维护脚本，支持查看状态和手动 merge；补充 `package.json` 脚本入口与示例环境说明。
+5. 更新 `instrumentation.ts` 和 `sui-transaction-errors.ts`，输出更可执行的健康/告警/错误信息。
 6. 跑针对性测试与必要构建验证，修复回归直到满足 `SPEC.md`。

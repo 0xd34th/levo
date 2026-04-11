@@ -455,7 +455,7 @@ describe('POST /api/v1/payments/confirm', () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
-      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
       txDigest: VALID_TX_DIGEST,
     });
   });
