@@ -20,6 +20,7 @@ const {
       upsert: vi.fn(),
       findUnique: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
   };
 
@@ -123,6 +124,7 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.upsert.mockReset();
     prismaMock.pendingEarn.findUnique.mockReset();
     prismaMock.pendingEarn.delete.mockReset();
+    prismaMock.pendingEarn.deleteMany.mockReset();
     executeTransactionBlockMock.mockReset();
     getTransactionBlockMock.mockReset();
     signSuiTransactionMock.mockReset();
@@ -136,6 +138,7 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.upsert.mockResolvedValue(undefined);
     prismaMock.pendingEarn.findUnique.mockResolvedValue(null);
     prismaMock.pendingEarn.delete.mockResolvedValue(undefined);
+    prismaMock.pendingEarn.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.earnAccounting.findUnique.mockResolvedValue(null);
     prismaMock.earnAccounting.upsert.mockResolvedValue(undefined);
     signSuiTransactionMock.mockResolvedValue('user-signature');
