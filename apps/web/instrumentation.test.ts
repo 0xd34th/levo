@@ -58,6 +58,12 @@ describe('register', () => {
 
     await expect(register()).resolves.toBeUndefined();
 
+    // Address is logged synchronously during startup
+    expect(console.log).toHaveBeenCalledWith('[gas-station] Sui address: 0xgasstation');
+
+    // Health probe is fire-and-forget — flush microtask queue
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     expect(getGasStationHealthSummaryMock).toHaveBeenCalledWith('0xgasstation');
     expect(formatGasStationHealthSummaryMock).toHaveBeenCalled();
     expect(console.log).toHaveBeenCalledWith('[gas-station] Address: 0xgasstation');
