@@ -1,10 +1,101 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  redisStore,
+  prismaMock,
+  executeTransactionBlockMock,
+  getTransactionBlockMock,
+  signSuiTransactionMock,
+} = vi.hoisted(() => {
+  const redisStore = new Map<string, string>();
+  const prismaMock = {
+    xUser: {
+      findUnique: vi.fn(),
+    },
+    earnAccounting: {
+      upsert: vi.fn(),
+      findUnique: vi.fn(),
+    },
+    pendingEarn: {
+      upsert: vi.fn(),
+      findUnique: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+
+  return {
+    redisStore,
+    prismaMock,
+    executeTransactionBlockMock: vi.fn(),
+    getTransactionBlockMock: vi.fn(),
+    signSuiTransactionMock: vi.fn(),
+  };
+});
+
+vi.mock('@mysten/sui/transactions', () => ({
+  Transaction: class {},
+  TransactionDataBuilder: {
+    getDigestFromBytes: vi.fn(() => '0xtestdigest'),
+  },
+  coinWithBalance: vi.fn(),
+}));
+
+vi.mock('@mysten/sui/utils', () => ({
+  normalizeSuiAddress: (value: string) => value.toLowerCase(),
+}));
+
+vi.mock('@/lib/coins', () => ({
+  MAINNET_USDC_TYPE: '0xusdc',
+  getConfiguredLevoUsdCoinType: vi.fn(() => '0xstable'),
+  getUserFacingUsdcCoinType: vi.fn(() => '0xusdc'),
+}));
+
+vi.mock('@/lib/gas-station', () => ({
+  getGasStationKeypair: vi.fn(() => null),
+}));
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: {},
+  prisma: prismaMock,
 }));
+
+vi.mock('@/lib/privy-auth', () => ({
+  getPrivyClient: vi.fn(() => ({})),
+}));
+
+vi.mock('@/lib/privy-wallet', () => ({
+  buildPrivyRawSignAuthorizationRequest: vi.fn(),
+  signSuiTransaction: signSuiTransactionMock,
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  getRedis: vi.fn(() => ({
+    status: 'ready',
+    set: vi.fn(async (key: string, value: string) => {
+      redisStore.set(key, value);
+      return 'OK';
+    }),
+    get: vi.fn(async (key: string) => redisStore.get(key) ?? null),
+    del: vi.fn(async (key: string) => {
+      redisStore.delete(key);
+      return 1;
+    }),
+  })),
+}));
+
+vi.mock('@/lib/stable-layer', () => ({
+  getStableLayerClient: vi.fn(),
+}));
+
+vi.mock('@/lib/sui', () => ({
+  getSuiClient: vi.fn(() => ({
+    executeTransactionBlock: executeTransactionBlockMock,
+    getTransactionBlock: getTransactionBlockMock,
+  })),
+}));
+
 import {
   EARN_RETAINED_ACCOUNT_ALIAS,
+  executeEarnAction,
   extractCreatedEarnRetainedAccountId,
   findEarnRetainedAccountId,
   resolveClaimableRewardUsdb,
@@ -14,7 +105,42 @@ import {
 const RETAINED_ACCOUNT_ID = '0x00000000000000000000000000000000000000000000000000000000000000aa';
 const OTHER_ACCOUNT_ID = '0x00000000000000000000000000000000000000000000000000000000000000bb';
 
+function stagePreview(previewToken: string, payload: Record<string, unknown>) {
+  redisStore.set(`earn-preview:${previewToken}`, JSON.stringify(payload));
+}
+
+function stageAuthorization(previewToken: string, payload: Record<string, unknown>) {
+  redisStore.set(`earn-authorization:${previewToken}`, JSON.stringify(payload));
+}
+
 describe('stable-layer earn helpers', () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    redisStore.clear();
+    prismaMock.xUser.findUnique.mockReset();
+    prismaMock.earnAccounting.upsert.mockReset();
+    prismaMock.earnAccounting.findUnique.mockReset();
+    prismaMock.pendingEarn.upsert.mockReset();
+    prismaMock.pendingEarn.findUnique.mockReset();
+    prismaMock.pendingEarn.delete.mockReset();
+    executeTransactionBlockMock.mockReset();
+    getTransactionBlockMock.mockReset();
+    signSuiTransactionMock.mockReset();
+
+    prismaMock.xUser.findUnique.mockResolvedValue({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xsender',
+      suiPublicKey: 'stored-public-key',
+    });
+    prismaMock.pendingEarn.upsert.mockResolvedValue(undefined);
+    prismaMock.pendingEarn.findUnique.mockResolvedValue(null);
+    prismaMock.pendingEarn.delete.mockResolvedValue(undefined);
+    prismaMock.earnAccounting.findUnique.mockResolvedValue(null);
+    prismaMock.earnAccounting.upsert.mockResolvedValue(undefined);
+    signSuiTransactionMock.mockResolvedValue('user-signature');
+  });
+
   it('splits yield into user and retained portions with a strict 90/10 floor', () => {
     expect(splitRetainedYieldUsdb(0n)).toEqual({
       retainedUsdb: 0n,
@@ -98,5 +224,68 @@ describe('stable-layer earn helpers', () => {
         throw new Error('RPC unavailable');
       },
     })).rejects.toThrow('RPC unavailable');
+  });
+
+  it('rethrows on-chain execute failures instead of downgrading them to pending', async () => {
+    stagePreview('preview-token', {
+      xUserId: 'x-user-1',
+      action: 'claim',
+      amount: '0',
+    });
+    stageAuthorization('preview-token', {
+      action: 'claim',
+      txBytesBase64: Buffer.from('tx-bytes').toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'stored-public-key',
+      sponsored: false,
+    });
+    executeTransactionBlockMock.mockResolvedValue({
+      digest: '0xfailed',
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'insufficient balance',
+        },
+      },
+    });
+
+    await expect(executeEarnAction({
+      xUserId: 'x-user-1',
+      privyUserId: 'privy-user',
+      previewToken: 'preview-token',
+      authorizationSignature: 'auth-signature',
+    })).rejects.toThrow('Earn transaction failed on-chain: insufficient balance');
+
+    expect(prismaMock.pendingEarn.upsert).toHaveBeenCalled();
+    expect(prismaMock.pendingEarn.delete).toHaveBeenCalledWith({
+      where: { txDigest: '0xtestdigest' },
+    });
+  });
+
+  it('still returns pending when execute submission fails before on-chain status is known', async () => {
+    stagePreview('preview-token', {
+      xUserId: 'x-user-1',
+      action: 'claim',
+      amount: '0',
+    });
+    stageAuthorization('preview-token', {
+      action: 'claim',
+      txBytesBase64: Buffer.from('tx-bytes').toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'stored-public-key',
+      sponsored: false,
+    });
+    executeTransactionBlockMock.mockRejectedValue(new Error('RPC timeout'));
+
+    await expect(executeEarnAction({
+      xUserId: 'x-user-1',
+      privyUserId: 'privy-user',
+      previewToken: 'preview-token',
+      authorizationSignature: 'auth-signature',
+    })).resolves.toEqual({
+      status: 'pending',
+      action: 'claim',
+      txDigest: '0xtestdigest',
+    });
   });
 });
