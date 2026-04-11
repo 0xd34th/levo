@@ -5,6 +5,7 @@ const {
   prismaMock,
   executeTransactionBlockMock,
   getTransactionBlockMock,
+  getGasStationAddressMock,
   signSuiTransactionMock,
 } = vi.hoisted(() => {
   const redisStore = new Map<string, string>();
@@ -29,6 +30,7 @@ const {
     prismaMock,
     executeTransactionBlockMock: vi.fn(),
     getTransactionBlockMock: vi.fn(),
+    getGasStationAddressMock: vi.fn(() => '0xgasstation'),
     signSuiTransactionMock: vi.fn(),
   };
 });
@@ -53,6 +55,7 @@ vi.mock('@/lib/coins', () => ({
 
 vi.mock('@/lib/gas-station', () => ({
   getGasStationKeypair: vi.fn(() => null),
+  getGasStationAddress: getGasStationAddressMock,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -127,6 +130,7 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.deleteMany.mockReset();
     executeTransactionBlockMock.mockReset();
     getTransactionBlockMock.mockReset();
+    getGasStationAddressMock.mockReset();
     signSuiTransactionMock.mockReset();
 
     prismaMock.xUser.findUnique.mockResolvedValue({
@@ -141,6 +145,7 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.earnAccounting.findUnique.mockResolvedValue(null);
     prismaMock.earnAccounting.upsert.mockResolvedValue(undefined);
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
     signSuiTransactionMock.mockResolvedValue('user-signature');
   });
 
@@ -263,6 +268,39 @@ describe('stable-layer earn helpers', () => {
     expect(prismaMock.pendingEarn.delete).toHaveBeenCalledWith({
       where: { txDigest: '0xtestdigest' },
     });
+  });
+
+  it('annotates gas coin execution failures with the gas station address', async () => {
+    stagePreview('preview-token', {
+      xUserId: 'x-user-1',
+      action: 'claim',
+      amount: '0',
+    });
+    stageAuthorization('preview-token', {
+      action: 'claim',
+      txBytesBase64: Buffer.from('tx-bytes').toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'stored-public-key',
+      sponsored: false,
+    });
+    executeTransactionBlockMock.mockResolvedValue({
+      digest: '0xfailed',
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'No valid gas coins found for the transaction.',
+        },
+      },
+    });
+
+    await expect(executeEarnAction({
+      xUserId: 'x-user-1',
+      privyUserId: 'privy-user',
+      previewToken: 'preview-token',
+      authorizationSignature: 'auth-signature',
+    })).rejects.toThrow(
+      'Earn transaction failed on-chain: No valid gas coins found for the transaction. Gas station address: 0xgasstation',
+    );
   });
 
   it('still returns pending when execute submission fails before on-chain status is known', async () => {

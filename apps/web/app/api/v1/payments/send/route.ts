@@ -25,6 +25,10 @@ import {
 } from '@/lib/privy-wallet';
 import { getRedis, rateLimit } from '@/lib/rate-limit';
 import { getSuiClient } from '@/lib/sui';
+import {
+  annotateNoValidGasCoinsError,
+  getAnnotatedTransactionErrorMessage,
+} from '@/lib/sui-transaction-errors';
 import { parseXUserId } from '@/lib/twitter';
 
 const RequestSchema = z.object({
@@ -303,7 +307,11 @@ async function recoverOrResumePendingQuote(
       },
     });
   } catch (error) {
-    console.error('Failed to resume staged send transaction', error);
+    const resumeError = getAnnotatedTransactionErrorMessage(error);
+    console.error(
+      'Failed to resume staged send transaction',
+      resumeError ? { error: resumeError, originalError: error } : error,
+    );
   }
 
   return recoverBroadcastedQuote(req, quoteToken, txDigest, amount, vaultAddress);
@@ -637,6 +645,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.effects?.status.status !== 'success') {
+      const rawOnChainError = result.effects?.status.error || 'Transaction failed on-chain';
+      const onChainError = annotateNoValidGasCoinsError(rawOnChainError);
+      console.error('Send transaction failed on-chain', {
+        txDigest: stagedTxDigest,
+        error: onChainError,
+      });
       await prisma.paymentQuote.updateMany({
         where: {
           hmacToken: quoteToken,
@@ -647,7 +661,7 @@ export async function POST(req: NextRequest) {
       });
       await clearPendingSend(stagedTxDigest);
       return noStoreJson(
-        { error: 'Transaction failed on-chain' },
+        { error: onChainError === rawOnChainError ? 'Transaction failed on-chain' : onChainError },
         { status: 409 },
       );
     }
@@ -765,7 +779,11 @@ export async function POST(req: NextRequest) {
       txDigest: confirmedTxDigest,
     });
   } catch (error) {
-    console.error('Failed to execute transaction', error);
+    const executeError = getAnnotatedTransactionErrorMessage(error);
+    console.error(
+      'Failed to execute transaction',
+      executeError ? { error: executeError, originalError: error } : error,
+    );
     return recoverOrResumePendingQuote(
       req,
       quoteToken,

@@ -4,10 +4,13 @@ import { NextRequest } from 'next/server';
 const {
   buildPrivyRawSignAuthorizationRequestMock,
   buildMintIntoVaultTxMock,
+  executeTransactionBlockMock,
   findFirstMock,
   findUniqueMock,
+  getGasStationAddressMock,
   getGasStationKeypairMock,
   getPrivyClientMock,
+  paymentQuoteUpdateManyMock,
   redisDelMock,
   redisGetMock,
   redisSetMock,
@@ -22,10 +25,13 @@ const {
 } = vi.hoisted(() => ({
   buildPrivyRawSignAuthorizationRequestMock: vi.fn(),
   buildMintIntoVaultTxMock: vi.fn(),
+  executeTransactionBlockMock: vi.fn(),
   findFirstMock: vi.fn(),
   findUniqueMock: vi.fn(),
+  getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   getGasStationKeypairMock: vi.fn(),
   getPrivyClientMock: vi.fn(),
+  paymentQuoteUpdateManyMock: vi.fn(),
   redisDelMock: vi.fn(),
   redisGetMock: vi.fn(),
   redisSetMock: vi.fn(),
@@ -70,6 +76,7 @@ vi.mock('@/lib/api', async () => {
 });
 
 vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
   getGasStationKeypair: getGasStationKeypairMock,
 }));
 
@@ -84,7 +91,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     paymentQuote: {
       findFirst: findFirstMock,
-      updateMany: vi.fn(),
+      updateMany: paymentQuoteUpdateManyMock,
     },
   },
 }));
@@ -137,11 +144,16 @@ describe('POST /api/v1/payments/send', () => {
       },
     });
     getPrivyClientMock.mockReturnValue({});
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
     getGasStationKeypairMock.mockReturnValue(null);
+    paymentQuoteUpdateManyMock.mockResolvedValue({ count: 1 });
     redisGetMock.mockResolvedValue(null);
     redisSetMock.mockResolvedValue('OK');
     redisDelMock.mockResolvedValue(1);
-    getSuiClientMock.mockReturnValue({});
+    executeTransactionBlockMock.mockReset();
+    getSuiClientMock.mockReturnValue({
+      executeTransactionBlock: executeTransactionBlockMock,
+    });
     txAddMock.mockReturnValue('coin-object');
     txBuildMock.mockResolvedValue(Uint8Array.from([1, 2, 3]));
     buildPrivyRawSignAuthorizationRequestMock.mockReturnValue({
@@ -388,6 +400,51 @@ describe('POST /api/v1/payments/send', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
       status: 'authorization_required',
+    });
+  });
+
+  it('returns the gas station address when sponsored execution fails due to missing gas coins', async () => {
+    const gasKeypair = {
+      toSuiAddress: vi.fn(() => '0xgasstation'),
+      signTransaction: vi.fn().mockResolvedValue({ signature: 'gas-signature' }),
+    };
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    getGasStationKeypairMock.mockReturnValueOnce(gasKeypair);
+    redisGetMock.mockResolvedValueOnce(JSON.stringify({
+      txBytesBase64: Buffer.from(Uint8Array.from([1, 2, 3])).toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'public-key',
+    }));
+    executeTransactionBlockMock.mockResolvedValueOnce({
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'No valid gas coins found for the transaction.',
+        },
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteToken: 'quote-token',
+        authorizationSignature: 'client-authorization-signature',
+      }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(paymentQuoteUpdateManyMock).toHaveBeenCalled();
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
     });
   });
 });

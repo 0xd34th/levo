@@ -10,6 +10,7 @@ import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { annotateNoValidGasCoinsError } from '@/lib/sui-transaction-errors';
 
 const RequestSchema = z.object({
   txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/, 'Invalid transaction digest format'),
@@ -304,6 +305,8 @@ export async function POST(req: NextRequest) {
 
   // 6b. If tx failed on-chain, mark quote FAILED and return 409
   if (tx.effects?.status.status !== 'success') {
+    const rawOnChainError = tx.effects?.status.error || 'Transaction failed on-chain';
+    const onChainError = annotateNoValidGasCoinsError(rawOnChainError);
     await prisma.paymentQuote.updateMany({
       where: {
         hmacToken: quoteToken,
@@ -313,7 +316,10 @@ export async function POST(req: NextRequest) {
       data: { status: 'FAILED' },
     });
     return NextResponse.json(
-      { error: 'Transaction failed on-chain', txDigest },
+      {
+        error: onChainError === rawOnChainError ? 'Transaction failed on-chain' : onChainError,
+        txDigest,
+      },
       { status: 409 },
     );
   }

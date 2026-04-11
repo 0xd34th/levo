@@ -23,6 +23,10 @@ import {
 import { getRedis } from '@/lib/rate-limit';
 import { getStableLayerClient } from '@/lib/stable-layer';
 import { getSuiClient } from '@/lib/sui';
+import {
+  annotateNoValidGasCoinsError,
+  getAnnotatedTransactionErrorMessage,
+} from '@/lib/sui-transaction-errors';
 
 export type EarnAction = 'stake' | 'claim' | 'withdraw';
 
@@ -1186,7 +1190,9 @@ export async function executeEarnAction(params: {
     // Transaction was executed on-chain but failed — retrying won't help.
     await clearPendingEarn(txDigest);
     await clearPreview(params.previewToken);
-    const onChainError = result.effects?.status.error || 'Transaction failed on-chain';
+    const onChainError = annotateNoValidGasCoinsError(
+      result.effects?.status.error || 'Transaction failed on-chain',
+    );
     throw new Error(`Earn transaction failed on-chain: ${onChainError}`);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
@@ -1195,7 +1201,13 @@ export async function executeEarnAction(params: {
     // Network/timeout error — transaction may or may not have been submitted.
     // Return pending so the client can poll confirm, which will retry submission
     // from the Redis-stored bundle if needed.
-    console.error('Failed to execute Earn transaction; returning pending for confirm recovery', error);
+    const executionError = getAnnotatedTransactionErrorMessage(error);
+    console.error(
+      'Failed to execute Earn transaction; returning pending for confirm recovery',
+      executionError
+        ? { error: executionError, originalError: error }
+        : error,
+    );
   }
 
   return {
@@ -1248,7 +1260,11 @@ export async function confirmEarnAction(params: {
     // Transaction found on-chain but failed — retrying won't help.
     if (tx.effects?.status.status === 'failure') {
       await clearPendingEarn(params.txDigest);
-      throw new Error(`Earn transaction failed on-chain: ${tx.effects.status.error || 'unknown error'}`);
+      throw new Error(
+        `Earn transaction failed on-chain: ${annotateNoValidGasCoinsError(
+          tx.effects.status.error || 'unknown error',
+        )}`,
+      );
     }
   } catch (error) {
     // Re-throw known on-chain failures so the route returns 400 instead of 202.
@@ -1301,15 +1317,20 @@ export async function confirmEarnAction(params: {
 
     // Retry submitted but failed on-chain — stop retrying.
     await clearPendingEarn(params.txDigest);
-    throw new Error(`Earn transaction failed on-chain: ${result.effects?.status.error || 'unknown error'}`);
+    throw new Error(
+      `Earn transaction failed on-chain: ${annotateNoValidGasCoinsError(
+        result.effects?.status.error || 'unknown error',
+      )}`,
+    );
   } catch (error) {
     // Re-throw known on-chain failures.
     if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
       throw error;
     }
+    const retryError = getAnnotatedTransactionErrorMessage(error);
     console.warn('Earn confirmation retry is still pending', {
       txDigest: params.txDigest,
-      error,
+      error: retryError || error,
     });
   }
 

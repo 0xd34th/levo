@@ -5,6 +5,7 @@ const {
   rateLimitMock,
   verifyQuoteTokenMock,
   getTransactionBlockMock,
+  getGasStationAddressMock,
   findUniqueMock,
   findFirstMock,
   updateManyMock,
@@ -14,6 +15,7 @@ const {
   rateLimitMock: vi.fn(),
   verifyQuoteTokenMock: vi.fn(),
   getTransactionBlockMock: vi.fn(),
+  getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   findUniqueMock: vi.fn(),
   findFirstMock: vi.fn(),
   updateManyMock: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('@/lib/sui', () => ({
   getSuiClient: () => ({
     getTransactionBlock: getTransactionBlockMock,
   }),
+}));
+
+vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -88,6 +94,7 @@ describe('POST /api/v1/payments/confirm', () => {
     process.env.LEVO_USD_COIN_TYPE = '0xlevo::levo_usd::LEVO_USD';
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
   });
 
   it('rejects cross-origin confirmation requests before touching quote state', async () => {
@@ -418,6 +425,37 @@ describe('POST /api/v1/payments/confirm', () => {
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
       error: 'Transaction failed on-chain',
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
+  it('includes the gas station address when the on-chain failure is missing sponsor gas coins', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'No valid gas coins found for the transaction.',
+        },
+      },
+    });
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
       txDigest: VALID_TX_DIGEST,
     });
   });
