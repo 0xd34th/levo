@@ -7,6 +7,7 @@ import {
   EARN_RETAINED_ACCOUNT_ALIAS,
   extractCreatedEarnRetainedAccountId,
   findEarnRetainedAccountId,
+  resolveClaimableRewardUsdb,
   splitRetainedYieldUsdb,
 } from './stable-layer-earn';
 
@@ -57,5 +58,38 @@ describe('stable-layer earn helpers', () => {
       },
     ], '0xfeed')).toBe(RETAINED_ACCOUNT_ID);
     expect(extractCreatedEarnRetainedAccountId([], '0xfeed')).toBeNull();
+  });
+
+  it('treats claim reward dry-run inference failures as zero during withdraw', async () => {
+    await expect(resolveClaimableRewardUsdb({
+      action: 'withdraw',
+      fetchClaimRewardUsdbAmount: async () => {
+        throw new Error(
+          'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+        );
+      },
+    })).resolves.toBe(0n);
+  });
+
+  it('still throws claim reward dry-run inference failures during claim', async () => {
+    await expect(resolveClaimableRewardUsdb({
+      action: 'claim',
+      fetchClaimRewardUsdbAmount: async () => {
+        throw new Error(
+          'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+        );
+      },
+    })).rejects.toThrow(
+      'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+    );
+  });
+
+  it('rethrows unrelated reward lookup failures during withdraw', async () => {
+    await expect(resolveClaimableRewardUsdb({
+      action: 'withdraw',
+      fetchClaimRewardUsdbAmount: async () => {
+        throw new Error('RPC unavailable');
+      },
+    })).rejects.toThrow('RPC unavailable');
   });
 });

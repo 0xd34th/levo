@@ -91,6 +91,8 @@ type BucketUserAccount = {
 };
 
 export const EARN_RETAINED_ACCOUNT_ALIAS = 'levo-earn-retained';
+const CLAIM_REWARD_DRY_RUN_FAILURE =
+  'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.';
 
 const PREVIEW_TTL_SEC = 10 * 60;
 const AUTHORIZATION_TTL_SEC = 5 * 60;
@@ -253,6 +255,28 @@ export function extractCreatedEarnRetainedAccountId(
   }
 
   return null;
+}
+
+function isClaimRewardDryRunInferenceFailure(error: unknown) {
+  return error instanceof Error && error.message.includes(CLAIM_REWARD_DRY_RUN_FAILURE);
+}
+
+export async function resolveClaimableRewardUsdb(params: {
+  action: EarnAction;
+  fetchClaimRewardUsdbAmount: () => Promise<bigint>;
+}) {
+  try {
+    return await params.fetchClaimRewardUsdbAmount();
+  } catch (error) {
+    if (params.action === 'withdraw' && isClaimRewardDryRunInferenceFailure(error)) {
+      console.warn('StableLayer claim reward dry-run failed during withdraw; continuing without yield settlement', {
+        error,
+      });
+      return 0n;
+    }
+
+    throw error;
+  }
 }
 
 function getBalanceOwnerAddress(change: unknown): string | null {
@@ -519,9 +543,12 @@ async function buildEarnTransaction(params: {
 
   let rewardUsdcCoin: TransactionObjectArgument | null = null;
 
-  const claimableRewardUsdb = await stableLayerClient.getClaimRewardUsdbAmount({
-    stableCoinType,
-    sender: senderAddress,
+  const claimableRewardUsdb = await resolveClaimableRewardUsdb({
+    action,
+    fetchClaimRewardUsdbAmount: () => stableLayerClient.getClaimRewardUsdbAmount({
+      stableCoinType,
+      sender: senderAddress,
+    }),
   });
 
   if (claimableRewardUsdb > 0n) {
