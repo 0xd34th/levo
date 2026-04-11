@@ -14,11 +14,14 @@ import { emitAccountDataRefresh, subscribeAccountDataRefresh } from '@/lib/accou
 import {
   MAINNET_USDC_TYPE,
   formatAmount,
-  getCoinDecimals,
   getExplorerTransactionUrl,
   getUserFacingUsdcCoinType,
   isValidAmountInput,
 } from '@/lib/coins';
+import {
+  getEarnActionAvailability,
+  parseAmountInputToBaseUnits,
+} from '@/lib/earn-form';
 import {
   type PrivyAuthorizationRequest,
   parsePrivyAuthorizationRequiredResponse,
@@ -277,6 +280,21 @@ export default function EarnPage() {
     };
   }, [summary]);
 
+  const parsedAmountBaseUnits = useMemo(
+    () => parseAmountInputToBaseUnits(amount, USER_FACING_USDC_TYPE),
+    [amount],
+  );
+
+  const actionAvailability = useMemo(
+    () => getEarnActionAvailability({
+      amountInput: amount,
+      busy: executing || loadingAction !== null,
+      coinType: USER_FACING_USDC_TYPE,
+      summary,
+    }),
+    [amount, executing, loadingAction, summary],
+  );
+
   const requestPreview = useCallback(async (action: EarnAction) => {
     if (action !== 'claim' && !amount) {
       setError('Enter an amount first');
@@ -288,16 +306,27 @@ export default function EarnPage() {
       return;
     }
 
+    if (action !== 'claim' && parsedAmountBaseUnits === null) {
+      setError('Amount must be greater than zero');
+      return;
+    }
+
+    if (action === 'stake' && summary && parsedAmountBaseUnits !== null && parsedAmountBaseUnits > BigInt(summary.availableUsdc)) {
+      setError('Amount exceeds available USDC');
+      return;
+    }
+
+    if (action === 'withdraw' && summary && parsedAmountBaseUnits !== null && parsedAmountBaseUnits > BigInt(summary.depositedUsdc)) {
+      setError('Amount exceeds deposited USDC');
+      return;
+    }
+
     setError(null);
     setTxDigest(null);
     setLoadingAction(action);
 
     try {
-      const decimals = getCoinDecimals(USER_FACING_USDC_TYPE);
-      const [wholeRaw = '0', fractionalRaw = ''] = amount.split('.');
-      const baseUnits = action === 'claim'
-        ? undefined
-        : `${wholeRaw || '0'}${fractionalRaw.padEnd(decimals, '0')}`;
+      const baseUnits = action === 'claim' ? undefined : parsedAmountBaseUnits?.toString();
 
       const response = await privyAuthenticatedFetch(
         getAccessToken,
@@ -307,7 +336,7 @@ export default function EarnPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action,
-            ...(baseUnits ? { amount: baseUnits } : {}),
+            ...(baseUnits !== undefined ? { amount: baseUnits } : {}),
           }),
         },
         { identityToken },
@@ -330,7 +359,7 @@ export default function EarnPage() {
     } finally {
       setLoadingAction(null);
     }
-  }, [amount, getAccessToken, identityToken]);
+  }, [amount, getAccessToken, identityToken, parsedAmountBaseUnits, summary]);
 
   const executePreview = useCallback(async () => {
     if (!preview) {
@@ -501,7 +530,7 @@ export default function EarnPage() {
                 <Button
                   key={action}
                   className="h-12 rounded-[18px]"
-                  disabled={executing || loadingAction !== null || !summary?.walletReady}
+                  disabled={!actionAvailability[action]}
                   onClick={() => void requestPreview(action)}
                   variant={action === 'claim' ? 'default' : 'outline'}
                 >
