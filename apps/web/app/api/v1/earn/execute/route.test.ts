@@ -5,6 +5,7 @@ const {
   acquireRedisLockMock,
   buildEarnAuthorizationRequestMock,
   executeEarnActionMock,
+  getGasStationAddressMock,
   rateLimitMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
@@ -12,6 +13,7 @@ const {
   acquireRedisLockMock: vi.fn(),
   buildEarnAuthorizationRequestMock: vi.fn(),
   executeEarnActionMock: vi.fn(),
+  getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   rateLimitMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('@/lib/stable-layer-earn', () => ({
   executeEarnAction: executeEarnActionMock,
 }));
 
+vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
+}));
+
 import { POST } from './route';
 
 describe('POST /api/v1/earn/execute', () => {
@@ -58,6 +64,7 @@ describe('POST /api/v1/earn/execute', () => {
         xUserId: '12345',
       },
     });
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
     buildEarnAuthorizationRequestMock.mockReturnValue({
       version: 1,
       method: 'POST',
@@ -132,6 +139,30 @@ describe('POST /api/v1/earn/execute', () => {
       status: 'confirmed',
       action: 'withdraw',
       txDigest: '4VjVtWjfxk7M6j9U1k7vKJ5d2Ks5FZg7Q5W2E3xYwA1',
+    });
+  });
+
+  it('annotates raw sponsor gas errors at the route boundary', async () => {
+    executeEarnActionMock.mockRejectedValue(
+      new Error('No valid gas coins found for the transaction.'),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/earn/execute', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({
+        previewToken: 'preview-token',
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
     });
   });
 });

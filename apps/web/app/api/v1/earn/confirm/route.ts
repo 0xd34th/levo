@@ -4,6 +4,7 @@ import { getClientIp, invalidInputResponse, noStoreJson, verifySameOrigin } from
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { confirmEarnAction } from '@/lib/stable-layer-earn';
+import { getAnnotatedTransactionErrorMessage } from '@/lib/sui-transaction-errors';
 
 const RequestSchema = z.object({
   txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/),
@@ -39,7 +40,10 @@ export async function POST(req: NextRequest) {
     return noStoreJson(result, { status: result.status === 'pending' ? 202 : 200 });
   } catch (error) {
     return noStoreJson(
-      { error: error instanceof Error ? error.message : 'Earn confirmation failed' },
+      {
+        error: getAnnotatedTransactionErrorMessage(error) ??
+          (error instanceof Error ? error.message : 'Earn confirmation failed'),
+      },
       { status: 400 },
     );
   }

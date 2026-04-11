@@ -5,6 +5,7 @@ import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
 import { executeEarnAction } from '@/lib/stable-layer-earn';
+import { getAnnotatedTransactionErrorMessage } from '@/lib/sui-transaction-errors';
 import { parseXUserId } from '@/lib/twitter';
 
 const RequestSchema = z.object({
@@ -64,7 +65,10 @@ export async function POST(req: NextRequest) {
     }));
   } catch (error) {
     return noStoreJson(
-      { error: error instanceof Error ? error.message : 'Earn execution failed' },
+      {
+        error: getAnnotatedTransactionErrorMessage(error) ??
+          (error instanceof Error ? error.message : 'Earn execution failed'),
+      },
       { status: 400 },
     );
   } finally {

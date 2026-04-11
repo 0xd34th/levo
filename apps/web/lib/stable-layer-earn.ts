@@ -717,8 +717,14 @@ async function buildEarnTransactionBytes(params: {
   sponsored: boolean;
 }) {
   const { tx, sponsorApplied, yieldSettlementSkipped } = await buildEarnTransaction(params);
-  const txBytes = await tx.build({ client: getSuiClient() });
-  return { txBytes, sponsorApplied, yieldSettlementSkipped };
+  try {
+    const txBytes = await tx.build({ client: getSuiClient() });
+    return { txBytes, sponsorApplied, yieldSettlementSkipped };
+  } catch (error) {
+    throw new Error(
+      getAnnotatedTransactionErrorMessage(error) ?? 'Failed to build Earn transaction',
+    );
+  }
 }
 
 async function simulateEarnAction(params: {

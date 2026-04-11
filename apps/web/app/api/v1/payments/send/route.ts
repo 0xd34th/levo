@@ -496,7 +496,17 @@ export async function POST(req: NextRequest) {
     try {
       txBytes = await tx.build({ client });
     } catch (error) {
-      console.error('Failed to build transaction', error);
+      const buildError = getAnnotatedTransactionErrorMessage(error);
+      console.error(
+        'Failed to build transaction',
+        buildError ? { error: buildError, originalError: error } : error,
+      );
+      if (buildError && buildError.includes('Gas station address:')) {
+        return noStoreJson(
+          { error: buildError },
+          { status: 503 },
+        );
+      }
       return noStoreJson(
         { error: 'Insufficient balance or invalid transaction parameters' },
         { status: 400 },

@@ -447,4 +447,35 @@ describe('POST /api/v1/payments/send', () => {
       error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
     });
   });
+
+  it('returns the gas station address when sponsored transaction build fails for missing gas coins', async () => {
+    const gasKeypair = {
+      toSuiAddress: vi.fn(() => '0xgasstation'),
+      signTransaction: vi.fn(),
+    };
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    getGasStationKeypairMock.mockReturnValueOnce(gasKeypair);
+    txBuildMock.mockRejectedValueOnce(
+      new Error('No valid gas coins found for the transaction.'),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation',
+    });
+  });
 });
