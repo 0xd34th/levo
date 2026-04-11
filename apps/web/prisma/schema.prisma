@@ -26,6 +26,7 @@ model XUser {
 
   quotes PaymentQuote[]
   ledger PaymentLedger[]
+  earnAccounting EarnAccounting?
 
   @@map("x_user")
 }
@@ -98,4 +99,16 @@ enum LedgerSource {
 enum RecipientType {
   X_HANDLE
   SUI_ADDRESS
+}
+
+model EarnAccounting {
+  xUserId            String   @id @map("x_user_id")
+  retainedAccountId  String?  @unique @map("retained_account_id")
+  lastSettledTxDigest String? @map("last_settled_tx_digest")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+
+  @@map("earn_accounting")
 }

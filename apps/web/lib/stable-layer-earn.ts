@@ -38,7 +38,6 @@ export interface EarnPreview extends EarnSummary {
   action: EarnAction;
   amount: string;
   userReceivesUsdc: string;
-  treasuryFeeUsdc: string;
 }
 
 export type EarnExecuteResult =
@@ -59,6 +58,15 @@ export interface EarnConfirmResult {
 
 type StableLayerEarnInternals = {
   bucketClient: {
+    buildDepositToSavingPoolTransaction: (
+      tx: Transaction,
+      params: {
+        address: string;
+        accountObjectOrId?: string | TransactionArgument;
+        lpType: string;
+        depositCoinOrAmount: number | TransactionArgument;
+      },
+    ) => Promise<void>;
     buildPSMSwapOutTransaction: (
       tx: Transaction,
       params: {
@@ -66,8 +74,23 @@ type StableLayerEarnInternals = {
         usdbCoinOrAmount: number | bigint | TransactionArgument;
       },
     ) => Promise<TransactionObjectArgument>;
+    getConfig: () => Promise<{
+      FRAMEWORK_PACKAGE_ID: string;
+    }>;
+    getUserAccounts: (params: {
+      address: string;
+    }) => Promise<BucketUserAccount[]>;
   };
 };
+
+type BucketUserAccount = {
+  id: {
+    id: string;
+  };
+  alias: string | null;
+};
+
+export const EARN_RETAINED_ACCOUNT_ALIAS = 'levo-earn-retained';
 
 const PREVIEW_TTL_SEC = 10 * 60;
 const AUTHORIZATION_TTL_SEC = 5 * 60;
@@ -94,6 +117,7 @@ const StagedAuthorizationSchema = z.object({
 });
 
 const PendingEarnBundleSchema = z.object({
+  xUserId: z.string().min(1),
   action: z.enum(['stake', 'claim', 'withdraw']),
   txBytesBase64: z.string().min(1),
   signatures: z.array(z.string().min(1)).min(1),
@@ -138,13 +162,6 @@ function assertEarnConfig() {
   if (!stableCoinType) {
     throw new Error('StableLayer Earn is not configured');
   }
-
-  const treasuryAddressRaw = process.env.LEVO_TREASURY_ADDRESS?.trim();
-  if (!treasuryAddressRaw) {
-    throw new Error('LEVO_TREASURY_ADDRESS is required');
-  }
-
-  const treasuryAddress = normalizeSuiAddress(treasuryAddressRaw);
   const userFacingUsdcType = getUserFacingUsdcCoinType(
     process.env.NEXT_PUBLIC_SUI_NETWORK,
     process.env.NEXT_PUBLIC_PACKAGE_ID,
@@ -156,7 +173,6 @@ function assertEarnConfig() {
 
   return {
     stableCoinType,
-    treasuryAddress,
     userFacingUsdcType,
   };
 }
@@ -178,14 +194,65 @@ function parseBaseUnitAmount(amount: string | undefined, action: EarnAction): bi
   return parsedAmount;
 }
 
-function splitYieldAmount(amount: bigint) {
-  const treasuryFeeUsdc = amount / 10n;
-  const userReceivesUsdc = amount - treasuryFeeUsdc;
+export function splitRetainedYieldUsdb(amount: bigint) {
+  const userClaimUsdb = (amount * 9n) / 10n;
+  const retainedUsdb = amount - userClaimUsdb;
 
   return {
-    userReceivesUsdc,
-    treasuryFeeUsdc,
+    userClaimUsdb,
+    retainedUsdb,
   };
+}
+
+function normalizeObjectTypeTag(typeTag: string): string {
+  const separatorIndex = typeTag.indexOf('::');
+  if (separatorIndex === -1) {
+    return typeTag;
+  }
+
+  try {
+    return normalizeSuiAddress(typeTag.slice(0, separatorIndex)) + typeTag.slice(separatorIndex);
+  } catch {
+    return typeTag;
+  }
+}
+
+export function findEarnRetainedAccountId(accounts: BucketUserAccount[]): string | null {
+  const retainedAccount = accounts.find((account) => account.alias === EARN_RETAINED_ACCOUNT_ALIAS);
+  return retainedAccount ? normalizeSuiAddress(retainedAccount.id.id) : null;
+}
+
+export function extractCreatedEarnRetainedAccountId(
+  objectChanges: unknown[] | null | undefined,
+  frameworkPackageId: string,
+): string | null {
+  const normalizedFrameworkPackageId = normalizeSuiAddress(frameworkPackageId);
+
+  for (const change of objectChanges ?? []) {
+    if (typeof change !== 'object' || change === null) {
+      continue;
+    }
+
+    const candidate = change as {
+      objectId?: string;
+      objectType?: string;
+      type?: string;
+    };
+
+    if (candidate.type !== 'created') {
+      continue;
+    }
+
+    if (
+      typeof candidate.objectId === 'string' &&
+      typeof candidate.objectType === 'string' &&
+      normalizeObjectTypeTag(candidate.objectType) === `${normalizedFrameworkPackageId}::account::Account`
+    ) {
+      return normalizeSuiAddress(candidate.objectId);
+    }
+  }
+
+  return null;
 }
 
 function getBalanceOwnerAddress(change: unknown): string | null {
@@ -253,6 +320,113 @@ async function getWalletBinding(xUserId: string) {
   return parsed.success ? parsed.data : null;
 }
 
+async function persistEarnAccounting(params: {
+  xUserId: string;
+  retainedAccountId?: string | null;
+  lastSettledTxDigest?: string | null;
+}) {
+  const updateData: {
+    retainedAccountId?: string;
+    lastSettledTxDigest?: string;
+  } = {};
+
+  if (params.retainedAccountId) {
+    updateData.retainedAccountId = normalizeSuiAddress(params.retainedAccountId);
+  }
+
+  if (params.lastSettledTxDigest) {
+    updateData.lastSettledTxDigest = params.lastSettledTxDigest;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return;
+  }
+
+  await prisma.earnAccounting.upsert({
+    where: {
+      xUserId: params.xUserId,
+    },
+    update: updateData,
+    create: {
+      xUserId: params.xUserId,
+      ...updateData,
+    },
+  });
+}
+
+async function resolveRetainedAccountId(params: {
+  xUserId: string;
+  senderAddress: string;
+  bucketClient: StableLayerEarnInternals['bucketClient'];
+}) {
+  const accounting = await prisma.earnAccounting.findUnique({
+    where: {
+      xUserId: params.xUserId,
+    },
+    select: {
+      retainedAccountId: true,
+    },
+  });
+
+  try {
+    const accounts = await params.bucketClient.getUserAccounts({
+      address: params.senderAddress,
+    });
+
+    const normalizedStoredAccountId = accounting?.retainedAccountId
+      ? normalizeSuiAddress(accounting.retainedAccountId)
+      : null;
+
+    if (
+      normalizedStoredAccountId &&
+      accounts.some((account) => normalizeSuiAddress(account.id.id) === normalizedStoredAccountId)
+    ) {
+      return normalizedStoredAccountId;
+    }
+
+    const discoveredAccountId = findEarnRetainedAccountId(accounts);
+    if (discoveredAccountId) {
+      await persistEarnAccounting({
+        xUserId: params.xUserId,
+        retainedAccountId: discoveredAccountId,
+      });
+      return discoveredAccountId;
+    }
+  } catch (error) {
+    console.warn('Failed to resolve retained Earn account from Bucket', {
+      xUserId: params.xUserId,
+      senderAddress: params.senderAddress,
+      error,
+    });
+
+    if (accounting?.retainedAccountId) {
+      return normalizeSuiAddress(accounting.retainedAccountId);
+    }
+  }
+
+  // Stored ID exists but was not found in a successful Bucket response (stale/incomplete list).
+  // Trust the persisted ID to avoid creating a duplicate retained account.
+  if (accounting?.retainedAccountId) {
+    return normalizeSuiAddress(accounting.retainedAccountId);
+  }
+
+  return null;
+}
+
+async function getEarnFrameworkPackageId(senderAddress: string) {
+  const stableLayerClient = await getStableLayerClient(senderAddress);
+  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
+
+  if (typeof internals.bucketClient?.getConfig !== 'function') {
+    throw new Error(
+      'stable-layer-sdk internals changed; Earn retained account resolution is unavailable',
+    );
+  }
+
+  const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
+  return frameworkPackageId;
+}
+
 function assertWalletReady(
   walletBinding: z.infer<typeof WalletBindingSchema> | null,
 ): asserts walletBinding is {
@@ -291,14 +465,14 @@ async function getEarnBalances(senderAddress: string, stableCoinType: string) {
 }
 
 async function buildEarnTransaction(params: {
+  xUserId: string;
   action: EarnAction;
   senderAddress: string;
   stableCoinType: string;
-  treasuryAddress: string;
   amount: bigint;
   sponsored: boolean;
 }) {
-  const { action, amount, senderAddress, stableCoinType, treasuryAddress, sponsored } = params;
+  const { action, amount, senderAddress, stableCoinType, sponsored, xUserId } = params;
   const tx = new Transaction();
   tx.setSender(senderAddress);
 
@@ -313,7 +487,10 @@ async function buildEarnTransaction(params: {
   const internals = stableLayerClient as unknown as StableLayerEarnInternals;
 
   if (
-    typeof internals.bucketClient?.buildPSMSwapOutTransaction !== 'function'
+    typeof internals.bucketClient?.buildDepositToSavingPoolTransaction !== 'function' ||
+    typeof internals.bucketClient?.buildPSMSwapOutTransaction !== 'function' ||
+    typeof internals.bucketClient?.getConfig !== 'function' ||
+    typeof internals.bucketClient?.getUserAccounts !== 'function'
   ) {
     throw new Error(
       'stable-layer-sdk internals changed; Earn currently requires Bucket PSM access',
@@ -348,6 +525,7 @@ async function buildEarnTransaction(params: {
   });
 
   if (claimableRewardUsdb > 0n) {
+    const { retainedUsdb, userClaimUsdb } = splitRetainedYieldUsdb(claimableRewardUsdb);
     const rewardUsdbCoin = await stableLayerClient.buildClaimTx({
       tx,
       sender: senderAddress,
@@ -359,20 +537,70 @@ async function buildEarnTransaction(params: {
       throw new Error('StableLayer claim did not return a reward coin');
     }
 
-    rewardUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
-      coinType: MAINNET_USDC_TYPE,
-      usdbCoinOrAmount: rewardUsdbCoin,
-    });
+    let retainedAccountObject: TransactionObjectArgument | null = null;
+    let retainedAccountObjectOrId: string | TransactionArgument | undefined;
 
-    const { treasuryFeeUsdc } = splitYieldAmount(claimableRewardUsdb);
-    if (treasuryFeeUsdc > 0n) {
-      const [treasuryCoin] = tx.splitCoins(rewardUsdcCoin, [treasuryFeeUsdc]);
-      tx.transferObjects([treasuryCoin], treasuryAddress);
+    if (retainedUsdb > 0n) {
+      const existingRetainedAccountId = await resolveRetainedAccountId({
+        xUserId,
+        senderAddress,
+        bucketClient: internals.bucketClient,
+      });
+
+      if (existingRetainedAccountId) {
+        retainedAccountObjectOrId = existingRetainedAccountId;
+      } else {
+        const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
+        const aliasOption = tx.moveCall({
+          target: '0x1::option::some',
+          typeArguments: ['0x1::string::String'],
+          arguments: [tx.pure.string(EARN_RETAINED_ACCOUNT_ALIAS)],
+        });
+        retainedAccountObject = tx.moveCall({
+          target: `${frameworkPackageId}::account::new`,
+          arguments: [aliasOption],
+        });
+        retainedAccountObjectOrId = retainedAccountObject;
+      }
+
+      const retainedUsdbCoin = rewardUsdbCoin;
+
+      if (userClaimUsdb > 0n) {
+        const [userRewardUsdbCoin] = tx.splitCoins(rewardUsdbCoin, [userClaimUsdb]);
+        rewardUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
+          coinType: MAINNET_USDC_TYPE,
+          usdbCoinOrAmount: userRewardUsdbCoin,
+        });
+      }
+
+      await internals.bucketClient.buildDepositToSavingPoolTransaction(tx, {
+        address: senderAddress,
+        accountObjectOrId: retainedAccountObjectOrId,
+        lpType: stableLayerClient.getConstants().SAVING_TYPE,
+        depositCoinOrAmount: retainedUsdbCoin,
+      });
+
+      if (retainedAccountObject) {
+        tx.transferObjects([retainedAccountObject], senderAddress);
+      }
+    } else {
+      rewardUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
+        coinType: MAINNET_USDC_TYPE,
+        usdbCoinOrAmount: rewardUsdbCoin,
+      });
     }
 
-    tx.transferObjects([rewardUsdcCoin], senderAddress);
+    if (rewardUsdcCoin) {
+      tx.transferObjects([rewardUsdcCoin], senderAddress);
+    }
   } else if (action === 'claim') {
     throw new Error('No claimable yield available');
+  }
+
+  if (action === 'claim' && rewardUsdcCoin === null) {
+    throw new Error('No claimable yield available');
+  } else if (action === 'claim') {
+    // Claim path only settles yield; principal remains deposited.
   }
 
   if (action === 'withdraw') {
@@ -395,10 +623,10 @@ async function buildEarnTransaction(params: {
 }
 
 async function buildEarnTransactionBytes(params: {
+  xUserId: string;
   action: EarnAction;
   senderAddress: string;
   stableCoinType: string;
-  treasuryAddress: string;
   amount: bigint;
   sponsored: boolean;
 }) {
@@ -407,10 +635,10 @@ async function buildEarnTransactionBytes(params: {
 }
 
 async function simulateEarnAction(params: {
+  xUserId: string;
   action: EarnAction;
   senderAddress: string;
   stableCoinType: string;
-  treasuryAddress: string;
   amount: bigint;
 }) {
   const txBytes = await buildEarnTransactionBytes({
@@ -427,11 +655,6 @@ async function simulateEarnAction(params: {
     userReceivesUsdc: sumPositiveCoinBalanceChanges({
       balanceChanges,
       ownerAddress: params.senderAddress,
-      coinType: MAINNET_USDC_TYPE,
-    }),
-    treasuryFeeUsdc: sumPositiveCoinBalanceChanges({
-      balanceChanges,
-      ownerAddress: params.treasuryAddress,
       coinType: MAINNET_USDC_TYPE,
     }),
   };
@@ -588,7 +811,7 @@ export function buildEarnAuthorizationRequest(walletId: string, txBytes: Uint8Ar
 export async function getEarnSummary(params: {
   xUserId: string;
 }): Promise<EarnSummary> {
-  const { stableCoinType, treasuryAddress } = assertEarnConfig();
+  const { stableCoinType } = assertEarnConfig();
   const walletBinding = await getWalletBinding(params.xUserId);
 
   if (!walletBinding?.suiAddress) {
@@ -604,10 +827,10 @@ export async function getEarnSummary(params: {
   if (depositedUsdc > 0n) {
     try {
       const claimPreview = await simulateEarnAction({
+        xUserId: params.xUserId,
         action: 'claim',
         senderAddress: walletBinding.suiAddress,
         stableCoinType,
-        treasuryAddress,
         amount: 0n,
       });
       claimableYieldUsdc = claimPreview.userReceivesUsdc;
@@ -633,7 +856,7 @@ export async function previewEarnAction(params: {
   amount?: string;
 }): Promise<EarnPreview> {
   const { action, xUserId } = params;
-  const { stableCoinType, treasuryAddress } = assertEarnConfig();
+  const { stableCoinType } = assertEarnConfig();
   const amount = parseBaseUnitAmount(params.amount, action);
   const walletBinding = await getWalletBinding(xUserId);
   assertWalletReady(walletBinding);
@@ -652,15 +875,14 @@ export async function previewEarnAction(params: {
 
   let previewValues = {
     userReceivesUsdc: 0n,
-    treasuryFeeUsdc: 0n,
   };
 
   if (action === 'claim' || action === 'withdraw') {
     previewValues = await simulateEarnAction({
+      xUserId,
       action,
       senderAddress: walletBinding.suiAddress,
       stableCoinType,
-      treasuryAddress,
       amount,
     });
   }
@@ -677,7 +899,6 @@ export async function previewEarnAction(params: {
     action,
     amount: amount.toString(),
     userReceivesUsdc: previewValues.userReceivesUsdc.toString(),
-    treasuryFeeUsdc: previewValues.treasuryFeeUsdc.toString(),
   };
 }
 
@@ -692,7 +913,7 @@ export async function executeEarnAction(params: {
     throw new Error('Earn preview expired. Please review the action again.');
   }
 
-  const { stableCoinType, treasuryAddress } = assertEarnConfig();
+  const { stableCoinType } = assertEarnConfig();
   const walletBinding = await getWalletBinding(params.xUserId);
   assertWalletReady(walletBinding);
 
@@ -705,10 +926,10 @@ export async function executeEarnAction(params: {
 
   if (!params.authorizationSignature) {
     txBytes = await buildEarnTransactionBytes({
+      xUserId: params.xUserId,
       action,
       senderAddress: walletBinding.suiAddress,
       stableCoinType,
-      treasuryAddress,
       amount: BigInt(preview.amount),
       sponsored: true,
     });
@@ -757,6 +978,7 @@ export async function executeEarnAction(params: {
 
   const txDigest = TransactionDataBuilder.getDigestFromBytes(txBytes);
   await stagePendingEarn(txDigest, {
+    xUserId: params.xUserId,
     action,
     txBytesBase64: authorization.txBytesBase64,
     signatures,
@@ -769,10 +991,25 @@ export async function executeEarnAction(params: {
       options: {
         showEffects: true,
         showBalanceChanges: true,
+        showObjectChanges: true,
       },
     });
 
     if (result.effects?.status.status === 'success') {
+      try {
+        const frameworkPackageId = await getEarnFrameworkPackageId(walletBinding.suiAddress);
+        const createdRetainedAccountId = extractCreatedEarnRetainedAccountId(
+          result.objectChanges,
+          frameworkPackageId,
+        );
+        await persistEarnAccounting({
+          xUserId: params.xUserId,
+          retainedAccountId: createdRetainedAccountId,
+          lastSettledTxDigest: result.digest || txDigest,
+        });
+      } catch (bookkeepingError) {
+        console.error('Earn bookkeeping failed after successful settlement', bookkeepingError);
+      }
       await clearPendingEarn(txDigest);
       await clearPreview(params.previewToken);
       return {
@@ -795,15 +1032,36 @@ export async function executeEarnAction(params: {
 export async function confirmEarnAction(params: {
   txDigest: string;
 }): Promise<EarnConfirmResult> {
+  const pending = await loadPendingEarn(params.txDigest);
+
   try {
     const tx = await getSuiClient().getTransactionBlock({
       digest: params.txDigest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
     if (tx.effects?.status.status === 'success') {
+      if (pending?.xUserId) {
+        try {
+          const walletBinding = await getWalletBinding(pending.xUserId);
+          const frameworkPackageId = walletBinding?.suiAddress
+            ? await getEarnFrameworkPackageId(walletBinding.suiAddress)
+            : null;
+          const createdRetainedAccountId = frameworkPackageId
+            ? extractCreatedEarnRetainedAccountId(tx.objectChanges, frameworkPackageId)
+            : null;
+          await persistEarnAccounting({
+            xUserId: pending.xUserId,
+            retainedAccountId: createdRetainedAccountId,
+            lastSettledTxDigest: tx.digest || params.txDigest,
+          });
+        } catch (bookkeepingError) {
+          console.error('Earn bookkeeping failed after confirmed transaction', bookkeepingError);
+        }
+      }
       await clearPendingEarn(params.txDigest);
       return {
         status: 'confirmed',
@@ -814,7 +1072,6 @@ export async function confirmEarnAction(params: {
     // Fall through to pending recovery.
   }
 
-  const pending = await loadPendingEarn(params.txDigest);
   if (!pending) {
     return {
       status: 'pending',
@@ -828,10 +1085,27 @@ export async function confirmEarnAction(params: {
       signature: pending.signatures,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
     if (result.effects?.status.status === 'success') {
+      try {
+        const walletBinding = await getWalletBinding(pending.xUserId);
+        const frameworkPackageId = walletBinding?.suiAddress
+          ? await getEarnFrameworkPackageId(walletBinding.suiAddress)
+          : null;
+        const createdRetainedAccountId = frameworkPackageId
+          ? extractCreatedEarnRetainedAccountId(result.objectChanges, frameworkPackageId)
+          : null;
+        await persistEarnAccounting({
+          xUserId: pending.xUserId,
+          retainedAccountId: createdRetainedAccountId,
+          lastSettledTxDigest: result.digest || params.txDigest,
+        });
+      } catch (bookkeepingError) {
+        console.error('Earn bookkeeping failed after confirmed retry', bookkeepingError);
+      }
       await clearPendingEarn(params.txDigest);
       return {
         status: 'confirmed',

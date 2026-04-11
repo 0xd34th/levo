@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getClientIp, invalidInputResponse, noStoreJson, verifySameOrigin } from '@/lib/api';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { acquireRedisLock } from '@/lib/redis-lock';
 import { executeEarnAction } from '@/lib/stable-layer-earn';
 import { parseXUserId } from '@/lib/twitter';
 
@@ -39,6 +40,21 @@ export async function POST(req: NextRequest) {
     return noStoreJson({ error: 'Invalid X user identifier' }, { status: 400 });
   }
 
+  const earnLock = await acquireRedisLock(`earn-execute:${xUserId}`, 60);
+  if (earnLock.status !== 'acquired') {
+    if (earnLock.status === 'busy') {
+      return noStoreJson(
+        { error: 'An earn action is already in progress. Please retry in a moment.' },
+        { status: 409 },
+      );
+    }
+
+    return noStoreJson(
+      { error: 'Earn service is temporarily unavailable. Please retry shortly.' },
+      { status: 503 },
+    );
+  }
+
   try {
     return noStoreJson(await executeEarnAction({
       xUserId,
@@ -51,5 +67,7 @@ export async function POST(req: NextRequest) {
       { error: error instanceof Error ? error.message : 'Earn execution failed' },
       { status: 400 },
     );
+  } finally {
+    await earnLock.release();
   }
 }

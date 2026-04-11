@@ -15,7 +15,13 @@ import {
 import { Button } from '@/components/ui/button';
 import type { TransactionResultData } from '@/components/transaction-result';
 import { emitAccountDataRefresh } from '@/lib/account-refresh';
-import { formatAmount, getCoinDecimals, getCoinLabel, isValidAmountInput } from '@/lib/coins';
+import {
+  formatAmount,
+  getCoinDecimals,
+  getCoinLabel,
+  getInputDecimals,
+  isValidAmountInput,
+} from '@/lib/coins';
 import { parsePrivyAuthorizationRequiredResponse } from '@/lib/privy-authorization';
 import {
   privyAuthenticatedFetch,
@@ -307,7 +313,7 @@ export function SendButton({
       return;
     }
     if (!isValidAmountInput(amount, coinType)) {
-      onError(`Amount supports at most ${getCoinDecimals(coinType)} decimal places`);
+      onError(`Amount supports at most ${getInputDecimals(coinType)} decimal places`);
       return;
     }
 

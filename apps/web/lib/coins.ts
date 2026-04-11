@@ -5,6 +5,7 @@ const LEVO_USD_SUFFIX = '::levo_usd::LEVO_USD';
 const SUI_DECIMALS = 9;
 const TEST_USDC_DECIMALS = 6;
 const USDC_DECIMALS = 6;
+const USER_FACING_USDC_DECIMALS = 2;
 
 export const SUI_COIN_TYPE = '0x2::sui::SUI';
 export const MAINNET_USDC_TYPE =
@@ -216,17 +217,99 @@ export function getCoinDecimals(
   throw new Error(`Unsupported coin type: ${coinType}`);
 }
 
+export function getInputDecimals(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+  network = process.env.NEXT_PUBLIC_SUI_NETWORK,
+  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+): number {
+  const displayCoinType = normalizeCoinTypeForDisplay(
+    coinType,
+    network,
+    packageId,
+    levoUsdCoinType,
+  );
+
+  if (
+    displayCoinType === MAINNET_USDC_TYPE ||
+    isConfiguredTestUsdcCoinType(displayCoinType, packageId)
+  ) {
+    return USER_FACING_USDC_DECIMALS;
+  }
+
+  return getCoinDecimals(coinType, packageId, network, levoUsdCoinType);
+}
+
+function getDisplayDecimals(
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+  network = process.env.NEXT_PUBLIC_SUI_NETWORK,
+  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+): number {
+  return getInputDecimals(coinType, packageId, network, levoUsdCoinType);
+}
+
+function formatRoundedBaseUnits(
+  baseUnits: string,
+  chainDecimals: number,
+  displayDecimals: number,
+  fixedScale = false,
+): string {
+  const amount = BigInt(baseUnits);
+  const roundingShift = chainDecimals - displayDecimals;
+
+  if (roundingShift < 0) {
+    const amountString = amount.toString().padStart(chainDecimals + 1, '0');
+    const whole = amountString.slice(0, -chainDecimals);
+    const fractional = amountString.slice(-chainDecimals).padEnd(displayDecimals, '0');
+    const fixedFraction = fractional.slice(0, displayDecimals);
+    if (displayDecimals === 0) {
+      return whole;
+    }
+    if (fixedScale) {
+      return `${whole}.${fixedFraction}`;
+    }
+    const trimmedFraction = fixedFraction.replace(/0+$/, '');
+    return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
+  }
+
+  const roundingDivisor = 10n ** BigInt(roundingShift);
+  const roundedAmount = roundingShift === 0
+    ? amount
+    : amount / roundingDivisor;
+  const roundedString = roundedAmount.toString().padStart(displayDecimals + 1, '0');
+
+  if (displayDecimals === 0) {
+    return roundedString;
+  }
+
+  const whole = roundedString.slice(0, -displayDecimals);
+  const fractional = roundedString.slice(-displayDecimals);
+
+  if (fixedScale) {
+    return `${whole}.${fractional}`;
+  }
+
+  const trimmedFraction = fractional.replace(/0+$/, '');
+  return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
+}
+
 export function isValidAmountInput(value: string, coinType: string): boolean {
-  const decimals = getCoinDecimals(coinType);
+  const decimals = getInputDecimals(coinType);
   return new RegExp(`^\\d*(?:\\.\\d{0,${decimals}})?$`).test(value);
 }
 
-export function formatAmount(baseUnits: string, coinType: string): string {
-  const decimals = getCoinDecimals(coinType);
-  const str = baseUnits.padStart(decimals + 1, '0');
-  const whole = str.slice(0, -decimals);
-  const frac = str.slice(-decimals).replace(/0+$/, '');
-  return frac ? `${whole}.${frac}` : whole;
+export function formatAmount(
+  baseUnits: string,
+  coinType: string,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+  network = process.env.NEXT_PUBLIC_SUI_NETWORK,
+  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+): string {
+  const chainDecimals = getCoinDecimals(coinType, packageId, network, levoUsdCoinType);
+  const displayDecimals = getDisplayDecimals(coinType, packageId, network, levoUsdCoinType);
+  const fixedScale = displayDecimals !== chainDecimals;
+  return formatRoundedBaseUnits(baseUnits, chainDecimals, displayDecimals, fixedScale);
 }
 
 export function getExplorerTransactionUrl(

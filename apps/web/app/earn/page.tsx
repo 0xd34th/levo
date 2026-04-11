@@ -14,6 +14,7 @@ import { emitAccountDataRefresh, subscribeAccountDataRefresh } from '@/lib/accou
 import {
   MAINNET_USDC_TYPE,
   formatAmount,
+  getCoinDecimals,
   getExplorerTransactionUrl,
   getUserFacingUsdcCoinType,
   isValidAmountInput,
@@ -40,7 +41,6 @@ interface EarnPreviewResponse extends EarnSummaryResponse {
   action: EarnAction;
   amount: string;
   userReceivesUsdc: string;
-  treasuryFeeUsdc: string;
 }
 
 type ExecuteEarnResponse =
@@ -68,7 +68,6 @@ function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse
     (candidate.action === 'stake' || candidate.action === 'claim' || candidate.action === 'withdraw') &&
     typeof candidate.amount === 'string' &&
     typeof candidate.userReceivesUsdc === 'string' &&
-    typeof candidate.treasuryFeeUsdc === 'string' &&
     typeof candidate.availableUsdc === 'string' &&
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
@@ -294,7 +293,7 @@ export default function EarnPage() {
     setLoadingAction(action);
 
     try {
-      const decimals = USER_FACING_USDC_TYPE === MAINNET_USDC_TYPE ? 6 : 6;
+      const decimals = getCoinDecimals(USER_FACING_USDC_TYPE);
       const [wholeRaw = '0', fractionalRaw = ''] = amount.split('.');
       const baseUnits = action === 'claim'
         ? undefined
@@ -485,7 +484,12 @@ export default function EarnPage() {
                 inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val === '' || isValidAmountInput(val, USER_FACING_USDC_TYPE)) {
+                    setAmount(val);
+                  }
+                }}
               />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
@@ -534,10 +538,6 @@ export default function EarnPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">You receive</span>
                   <span>{formatAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Levo fee</span>
-                  <span>{formatAmount(preview.treasuryFeeUsdc, USER_FACING_USDC_TYPE)} USDC</span>
                 </div>
               </div>
 
