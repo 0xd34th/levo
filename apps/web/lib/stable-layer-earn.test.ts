@@ -24,9 +24,13 @@ const {
   bucketGetConfigMock,
   bucketGetUserAccountsMock,
   signSuiTransactionMock,
+  transactionAddMock,
   transactionBuildMock,
+  transactionMoveCallMock,
+  transactionPureStringMock,
   transactionSetSenderMock,
   transactionSetGasOwnerMock,
+  transactionSplitCoinsMock,
   transactionTransferObjectsMock,
 } = vi.hoisted(() => {
   const redisStore = new Map<string, string>();
@@ -66,9 +70,13 @@ const {
     bucketGetConfigMock: vi.fn(),
     bucketGetUserAccountsMock: vi.fn(),
     signSuiTransactionMock: vi.fn(),
+    transactionAddMock: vi.fn((value) => value),
     transactionBuildMock: vi.fn(),
+    transactionMoveCallMock: vi.fn(() => 'move-call-result'),
+    transactionPureStringMock: vi.fn((value) => value),
     transactionSetSenderMock: vi.fn(),
     transactionSetGasOwnerMock: vi.fn(),
+    transactionSplitCoinsMock: vi.fn(() => ['split-coin']),
     transactionTransferObjectsMock: vi.fn(),
   };
 });
@@ -76,8 +84,14 @@ const {
 vi.mock('@mysten/sui/transactions', () => ({
   Transaction: vi.fn().mockImplementation(function TransactionMock() {
     return {
+      add: transactionAddMock,
+      moveCall: transactionMoveCallMock,
+      pure: {
+        string: transactionPureStringMock,
+      },
       setSender: transactionSetSenderMock,
       setGasOwner: transactionSetGasOwnerMock,
+      splitCoins: transactionSplitCoinsMock,
       transferObjects: transactionTransferObjectsMock,
       build: transactionBuildMock,
     };
@@ -94,6 +108,7 @@ vi.mock('@mysten/sui/utils', () => ({
 
 vi.mock('@/lib/coins', () => ({
   MAINNET_USDC_TYPE: '0xusdc',
+  SUI_COIN_TYPE: '0x2::sui::SUI',
   getConfiguredLevoUsdCoinType: vi.fn(() => '0xstable'),
   getUserFacingUsdcCoinType: vi.fn(() => '0xusdc'),
 }));
@@ -149,6 +164,7 @@ import {
   executeEarnAction,
   extractCreatedEarnRetainedAccountId,
   findEarnRetainedAccountId,
+  getEarnSummary,
   previewEarnAction,
   resolveClaimableRewardUsdb,
   splitRetainedYieldUsdb,
@@ -193,9 +209,13 @@ describe('stable-layer earn helpers', () => {
     bucketGetConfigMock.mockReset();
     bucketGetUserAccountsMock.mockReset();
     signSuiTransactionMock.mockReset();
+    transactionAddMock.mockReset();
     transactionBuildMock.mockReset();
+    transactionMoveCallMock.mockReset();
+    transactionPureStringMock.mockReset();
     transactionSetSenderMock.mockReset();
     transactionSetGasOwnerMock.mockReset();
+    transactionSplitCoinsMock.mockReset();
     transactionTransferObjectsMock.mockReset();
 
     prismaMock.xUser.findUnique.mockResolvedValue({
@@ -354,15 +374,43 @@ describe('stable-layer earn helpers', () => {
         'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
       ),
     );
-    dryRunTransactionBlockMock.mockResolvedValue({
-      balanceChanges: [
-        {
-          owner: { AddressOwner: '0xsender' },
-          coinType: '0xusdc',
-          amount: '100',
-        },
-      ],
-    });
+    dryRunTransactionBlockMock
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xreward',
+            amount: '20',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xusdc',
+            amount: '18',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xreward',
+            amount: '0',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xusdc',
+            amount: '100',
+          },
+        ],
+      });
 
     await expect(previewEarnAction({
       xUserId: 'x-user-1',
@@ -372,15 +420,69 @@ describe('stable-layer earn helpers', () => {
       walletReady: true,
       availableUsdc: '100000',
       depositedUsdc: '500000',
-      claimableYieldUsdc: '0',
-      claimableYieldReliable: false,
+      claimableYieldUsdc: '18',
+      claimableYieldReliable: true,
       action: 'withdraw',
       amount: '100',
       userReceivesUsdc: '100',
-      yieldSettlementSkipped: true,
     });
 
-    expect(transactionSetGasOwnerMock).toHaveBeenCalledTimes(2);
+    expect(stableLayerGetClaimRewardUsdbAmountMock).not.toHaveBeenCalled();
+    expect(transactionSetGasOwnerMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('derives claimable yield from sponsor-backed simulation instead of the sdk helper', async () => {
+    getGasStationKeypairMock.mockReturnValue({
+      toSuiAddress: () => '0xgasstation',
+    });
+    getBalanceMock.mockImplementation(async ({ owner, coinType }) => {
+      if (owner === '0xsender' && coinType === '0xusdc') {
+        return { totalBalance: '100000' };
+      }
+      if (owner === '0xsender' && coinType === '0xstable') {
+        return { totalBalance: '500000' };
+      }
+      if (owner === '0xgasstation') {
+        return { totalBalance: '200000000' };
+      }
+      return { totalBalance: '0' };
+    });
+    stableLayerGetClaimRewardUsdbAmountMock.mockRejectedValue(
+      new Error(
+        'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+      ),
+    );
+    dryRunTransactionBlockMock
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xreward',
+            amount: '1000',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        balanceChanges: [
+          {
+            owner: { AddressOwner: '0xsender' },
+            coinType: '0xusdc',
+            amount: '900',
+          },
+        ],
+      });
+
+    await expect(getEarnSummary({
+      xUserId: 'x-user-1',
+    })).resolves.toEqual({
+      walletReady: true,
+      availableUsdc: '100000',
+      depositedUsdc: '500000',
+      claimableYieldUsdc: '900',
+      claimableYieldReliable: true,
+    });
+
+    expect(stableLayerGetClaimRewardUsdbAmountMock).not.toHaveBeenCalled();
     expect(transactionSetGasOwnerMock).toHaveBeenNthCalledWith(1, '0xgasstation');
     expect(transactionSetGasOwnerMock).toHaveBeenNthCalledWith(2, '0xgasstation');
   });
