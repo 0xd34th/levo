@@ -56,6 +56,9 @@ describe('POST /api/v1/earn/preview', () => {
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
+      yieldSettlementMode: 'server_payout',
+      principalReceivesUsdc: '0',
+      yieldReceivesUsdc: '90000',
       userReceivesUsdc: '90000',
     });
   });
@@ -88,6 +91,9 @@ describe('POST /api/v1/earn/preview', () => {
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
+      yieldSettlementMode: 'server_payout',
+      principalReceivesUsdc: '0',
+      yieldReceivesUsdc: '90000',
       userReceivesUsdc: '90000',
     });
   });

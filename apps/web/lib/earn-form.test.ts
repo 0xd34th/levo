@@ -6,6 +6,7 @@ interface EarnFormSummary {
   availableUsdc: string;
   depositedUsdc: string;
   claimableYieldUsdc: string;
+  yieldSettlementMode: 'server_payout' | 'disabled';
 }
 
 interface EarnActionAvailability {
@@ -62,6 +63,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '5000000',
           depositedUsdc: '7000000',
           claimableYieldUsdc: '1',
+          yieldSettlementMode: 'server_payout',
         },
       }).claim,
     ).toBe(true);
@@ -76,6 +78,22 @@ describe('earn-form helpers', () => {
           availableUsdc: '5000000',
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'server_payout',
+        },
+      }).claim,
+    ).toBe(false);
+
+    expect(
+      getEarnActionAvailability?.({
+        amountInput: '',
+        busy: false,
+        coinType: MAINNET_USDC_TYPE,
+        summary: {
+          walletReady: true,
+          availableUsdc: '5000000',
+          depositedUsdc: '7000000',
+          claimableYieldUsdc: '1',
+          yieldSettlementMode: 'disabled',
         },
       }).claim,
     ).toBe(false);
@@ -94,6 +112,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '2500000',
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).stake,
     ).toBe(true);
@@ -108,6 +127,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '2500000',
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).stake,
     ).toBe(false);
@@ -122,6 +142,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '2500000',
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).stake,
     ).toBe(false);
@@ -140,6 +161,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '1000000',
           depositedUsdc: '3000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).withdraw,
     ).toBe(true);
@@ -154,6 +176,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '1000000',
           depositedUsdc: '3000000',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).withdraw,
     ).toBe(false);
@@ -168,6 +191,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '1000000',
           depositedUsdc: '0',
           claimableYieldUsdc: '0',
+          yieldSettlementMode: 'disabled',
         },
       }).withdraw,
     ).toBe(false);
@@ -186,6 +210,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '5000000',
           depositedUsdc: '5000000',
           claimableYieldUsdc: '500000',
+          yieldSettlementMode: 'server_payout',
         },
       }),
     ).toEqual({
@@ -204,6 +229,7 @@ describe('earn-form helpers', () => {
           availableUsdc: '5000000',
           depositedUsdc: '5000000',
           claimableYieldUsdc: '500000',
+          yieldSettlementMode: 'server_payout',
         },
       }),
     ).toEqual({

@@ -50,6 +50,7 @@ describe('GET /api/v1/earn/summary', () => {
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
+      yieldSettlementMode: 'server_payout',
     });
   });
 
@@ -69,6 +70,7 @@ describe('GET /api/v1/earn/summary', () => {
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
+      yieldSettlementMode: 'server_payout',
     });
   });
 });
