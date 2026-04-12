@@ -10,6 +10,8 @@
   - 手动合并 gas station 名下多个 `Coin<SUI>` 为一个主 coin。
 - 强化 `apps/web/instrumentation.ts` 启动日志，输出更有用的 gas station 健康信息和阈值告警。
 - 收口 sponsor 失败错误文案，让错误直接提示运维检查余额或执行 merge 脚本。
+- 补齐 `Earn` 的 `summary / preview` dry-run gas payer 逻辑：在 sponsor 已配置时，预览阶段也要沿用 sponsor，而不是退回要求用户钱包自带 `SUI` gas。
+- 调整 `Earn withdraw` 预览提示语义：当本次 withdraw 没有可结算收益时，显示中性说明；仅在确属收益结算暂不可用时显示 warning。
 - 更新示例环境变量与必要文档，说明这套能力是运维缓解，不是 sponsor 根治方案。
 
 ## Non-Goals
@@ -33,6 +35,8 @@
 1. 仓库内存在可执行的 gas station 维护脚本，能够输出地址、总 `SUI` 余额、`Coin<SUI>` 数量、最大 coin、最小 coin，并支持手动 merge。
 2. `apps/web/instrumentation.ts` 在 `nodejs` 启动时会输出 gas station 地址及健康摘要；当余额或 coin 状态异常时，会给出明确告警。
 3. sponsor 相关 “No valid gas coins found for the transaction.” 类错误会补充可执行运维提示，而不只是附带地址。
-4. `apps/web/.env.example` 与相应文档/说明已更新，明确脚本用途和运维边界。
-5. 本轮不接入 Aftermath，不新增显式 gas coin 池管理，不改变 `payments/send` 与 `Earn` 的 sponsor 架构。
-6. `apps/web` 相关单测通过，且新增测试覆盖健康检查、错误提示和脚本核心逻辑。
+4. `Earn` 的 `getEarnSummary / previewEarnAction` 在 sponsor 已配置时，不再因为用户钱包没有 `SUI` gas 而在 dry-run 阶段失败。
+5. `Earn withdraw` 预览在“无可结算收益”场景下显示中性说明，不再误用 warning 文案；在真实结算异常场景下仍保留 warning。
+6. `apps/web/.env.example` 与相应文档/说明已更新，明确脚本用途和运维边界。
+7. 本轮不接入 Aftermath，不新增显式 gas coin 池管理，不改变 `payments/send` 与 `Earn` 的 sponsor 架构。
+8. `apps/web` 相关单测通过，且新增测试覆盖健康检查、错误提示、脚本核心逻辑，以及 `Earn` 预览阶段的 sponsor 路径与提示语义。

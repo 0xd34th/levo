@@ -1,12 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type GasStationKeypairMock = {
+  toSuiAddress: () => string;
+};
+
 const {
   redisStore,
   prismaMock,
   executeTransactionBlockMock,
   getTransactionBlockMock,
+  getBalanceMock,
+  dryRunTransactionBlockMock,
   getGasStationAddressMock,
+  getGasStationKeypairMock,
+  getStableLayerClientMock,
+  stableLayerGetClaimRewardUsdbAmountMock,
+  stableLayerBuildBurnTxMock,
+  stableLayerBuildClaimTxMock,
+  stableLayerBuildMintTxMock,
+  stableLayerGetConstantsMock,
+  bucketBuildDepositToSavingPoolTransactionMock,
+  bucketBuildPSMSwapOutTransactionMock,
+  bucketGetConfigMock,
+  bucketGetUserAccountsMock,
   signSuiTransactionMock,
+  transactionBuildMock,
+  transactionSetSenderMock,
+  transactionSetGasOwnerMock,
+  transactionTransferObjectsMock,
 } = vi.hoisted(() => {
   const redisStore = new Map<string, string>();
   const prismaMock = {
@@ -30,13 +51,37 @@ const {
     prismaMock,
     executeTransactionBlockMock: vi.fn(),
     getTransactionBlockMock: vi.fn(),
+    getBalanceMock: vi.fn(),
+    dryRunTransactionBlockMock: vi.fn(),
     getGasStationAddressMock: vi.fn(() => '0xgasstation'),
+    getGasStationKeypairMock: vi.fn<() => GasStationKeypairMock | null>(() => null),
+    getStableLayerClientMock: vi.fn(),
+    stableLayerGetClaimRewardUsdbAmountMock: vi.fn(),
+    stableLayerBuildBurnTxMock: vi.fn(),
+    stableLayerBuildClaimTxMock: vi.fn(),
+    stableLayerBuildMintTxMock: vi.fn(),
+    stableLayerGetConstantsMock: vi.fn(),
+    bucketBuildDepositToSavingPoolTransactionMock: vi.fn(),
+    bucketBuildPSMSwapOutTransactionMock: vi.fn(),
+    bucketGetConfigMock: vi.fn(),
+    bucketGetUserAccountsMock: vi.fn(),
     signSuiTransactionMock: vi.fn(),
+    transactionBuildMock: vi.fn(),
+    transactionSetSenderMock: vi.fn(),
+    transactionSetGasOwnerMock: vi.fn(),
+    transactionTransferObjectsMock: vi.fn(),
   };
 });
 
 vi.mock('@mysten/sui/transactions', () => ({
-  Transaction: class {},
+  Transaction: vi.fn().mockImplementation(function TransactionMock() {
+    return {
+      setSender: transactionSetSenderMock,
+      setGasOwner: transactionSetGasOwnerMock,
+      transferObjects: transactionTransferObjectsMock,
+      build: transactionBuildMock,
+    };
+  }),
   TransactionDataBuilder: {
     getDigestFromBytes: vi.fn(() => '0xtestdigest'),
   },
@@ -54,7 +99,7 @@ vi.mock('@/lib/coins', () => ({
 }));
 
 vi.mock('@/lib/gas-station', () => ({
-  getGasStationKeypair: vi.fn(() => null),
+  getGasStationKeypair: getGasStationKeypairMock,
   getGasStationAddress: getGasStationAddressMock,
 }));
 
@@ -87,13 +132,15 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/stable-layer', () => ({
-  getStableLayerClient: vi.fn(),
+  getStableLayerClient: getStableLayerClientMock,
 }));
 
 vi.mock('@/lib/sui', () => ({
   getSuiClient: vi.fn(() => ({
     executeTransactionBlock: executeTransactionBlockMock,
     getTransactionBlock: getTransactionBlockMock,
+    getBalance: getBalanceMock,
+    dryRunTransactionBlock: dryRunTransactionBlockMock,
   })),
 }));
 
@@ -102,6 +149,7 @@ import {
   executeEarnAction,
   extractCreatedEarnRetainedAccountId,
   findEarnRetainedAccountId,
+  previewEarnAction,
   resolveClaimableRewardUsdb,
   splitRetainedYieldUsdb,
 } from './stable-layer-earn';
@@ -130,8 +178,25 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.deleteMany.mockReset();
     executeTransactionBlockMock.mockReset();
     getTransactionBlockMock.mockReset();
+    getBalanceMock.mockReset();
+    dryRunTransactionBlockMock.mockReset();
     getGasStationAddressMock.mockReset();
+    getGasStationKeypairMock.mockReset();
+    getStableLayerClientMock.mockReset();
+    stableLayerGetClaimRewardUsdbAmountMock.mockReset();
+    stableLayerBuildBurnTxMock.mockReset();
+    stableLayerBuildClaimTxMock.mockReset();
+    stableLayerBuildMintTxMock.mockReset();
+    stableLayerGetConstantsMock.mockReset();
+    bucketBuildDepositToSavingPoolTransactionMock.mockReset();
+    bucketBuildPSMSwapOutTransactionMock.mockReset();
+    bucketGetConfigMock.mockReset();
+    bucketGetUserAccountsMock.mockReset();
     signSuiTransactionMock.mockReset();
+    transactionBuildMock.mockReset();
+    transactionSetSenderMock.mockReset();
+    transactionSetGasOwnerMock.mockReset();
+    transactionTransferObjectsMock.mockReset();
 
     prismaMock.xUser.findUnique.mockResolvedValue({
       privyUserId: 'privy-user',
@@ -145,8 +210,42 @@ describe('stable-layer earn helpers', () => {
     prismaMock.pendingEarn.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.earnAccounting.findUnique.mockResolvedValue(null);
     prismaMock.earnAccounting.upsert.mockResolvedValue(undefined);
+    getBalanceMock.mockImplementation(async ({ owner, coinType }) => {
+      if (owner === '0xsender' && coinType === '0xusdc') {
+        return { totalBalance: '1000000' };
+      }
+      if (owner === '0xsender' && coinType === '0xstable') {
+        return { totalBalance: '500000' };
+      }
+      return { totalBalance: '0' };
+    });
+    dryRunTransactionBlockMock.mockResolvedValue({ balanceChanges: [] });
     getGasStationAddressMock.mockReturnValue('0xgasstation');
+    getGasStationKeypairMock.mockReturnValue(null);
+    stableLayerGetClaimRewardUsdbAmountMock.mockResolvedValue(0n);
+    stableLayerBuildBurnTxMock.mockResolvedValue('principal-usdc-coin');
+    stableLayerBuildClaimTxMock.mockResolvedValue('reward-usdb-coin');
+    stableLayerBuildMintTxMock.mockResolvedValue(undefined);
+    stableLayerGetConstantsMock.mockReturnValue({ SAVING_TYPE: '0xsaving' });
+    bucketBuildDepositToSavingPoolTransactionMock.mockResolvedValue(undefined);
+    bucketBuildPSMSwapOutTransactionMock.mockResolvedValue('reward-usdc-coin');
+    bucketGetConfigMock.mockResolvedValue({ FRAMEWORK_PACKAGE_ID: '0xfeed' });
+    bucketGetUserAccountsMock.mockResolvedValue([]);
+    getStableLayerClientMock.mockResolvedValue({
+      buildBurnTx: stableLayerBuildBurnTxMock,
+      buildClaimTx: stableLayerBuildClaimTxMock,
+      buildMintTx: stableLayerBuildMintTxMock,
+      getClaimRewardUsdbAmount: stableLayerGetClaimRewardUsdbAmountMock,
+      getConstants: stableLayerGetConstantsMock,
+      bucketClient: {
+        buildDepositToSavingPoolTransaction: bucketBuildDepositToSavingPoolTransactionMock,
+        buildPSMSwapOutTransaction: bucketBuildPSMSwapOutTransactionMock,
+        getConfig: bucketGetConfigMock,
+        getUserAccounts: bucketGetUserAccountsMock,
+      },
+    });
     signSuiTransactionMock.mockResolvedValue('user-signature');
+    transactionBuildMock.mockResolvedValue(Uint8Array.from([1, 2, 3]));
   });
 
   it('splits yield into user and retained portions with a strict 90/10 floor', () => {
@@ -232,6 +331,58 @@ describe('stable-layer earn helpers', () => {
         throw new Error('RPC unavailable');
       },
     })).rejects.toThrow('RPC unavailable');
+  });
+
+  it('uses sponsor gas during withdraw preview simulation when the gas station is configured', async () => {
+    getGasStationKeypairMock.mockReturnValue({
+      toSuiAddress: () => '0xgasstation',
+    });
+    getBalanceMock.mockImplementation(async ({ owner, coinType }) => {
+      if (owner === '0xsender' && coinType === '0xusdc') {
+        return { totalBalance: '100000' };
+      }
+      if (owner === '0xsender' && coinType === '0xstable') {
+        return { totalBalance: '500000' };
+      }
+      if (owner === '0xgasstation') {
+        return { totalBalance: '200000000' };
+      }
+      return { totalBalance: '0' };
+    });
+    stableLayerGetClaimRewardUsdbAmountMock.mockRejectedValue(
+      new Error(
+        'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+      ),
+    );
+    dryRunTransactionBlockMock.mockResolvedValue({
+      balanceChanges: [
+        {
+          owner: { AddressOwner: '0xsender' },
+          coinType: '0xusdc',
+          amount: '100',
+        },
+      ],
+    });
+
+    await expect(previewEarnAction({
+      xUserId: 'x-user-1',
+      action: 'withdraw',
+      amount: '100',
+    })).resolves.toMatchObject({
+      walletReady: true,
+      availableUsdc: '100000',
+      depositedUsdc: '500000',
+      claimableYieldUsdc: '0',
+      claimableYieldReliable: false,
+      action: 'withdraw',
+      amount: '100',
+      userReceivesUsdc: '100',
+      yieldSettlementSkipped: true,
+    });
+
+    expect(transactionSetGasOwnerMock).toHaveBeenCalledTimes(2);
+    expect(transactionSetGasOwnerMock).toHaveBeenNthCalledWith(1, '0xgasstation');
+    expect(transactionSetGasOwnerMock).toHaveBeenNthCalledWith(2, '0xgasstation');
   });
 
   it('rethrows on-chain execute failures instead of downgrading them to pending', async () => {

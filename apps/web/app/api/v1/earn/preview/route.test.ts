@@ -55,6 +55,7 @@ describe('POST /api/v1/earn/preview', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
+      claimableYieldReliable: true,
       userReceivesUsdc: '90000',
     });
   });
@@ -86,6 +87,7 @@ describe('POST /api/v1/earn/preview', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
+      claimableYieldReliable: true,
       userReceivesUsdc: '90000',
     });
   });

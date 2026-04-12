@@ -49,6 +49,7 @@ describe('GET /api/v1/earn/summary', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
+      claimableYieldReliable: true,
     });
   });
 
@@ -67,6 +68,7 @@ describe('GET /api/v1/earn/summary', () => {
       availableUsdc: '4200000',
       depositedUsdc: '1200000',
       claimableYieldUsdc: '90000',
+      claimableYieldReliable: true,
     });
   });
 });
