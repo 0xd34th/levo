@@ -22,6 +22,7 @@ import {
   getEarnActionAvailability,
   parseAmountInputToBaseUnits,
 } from '@/lib/earn-form';
+import { getEarnPreviewNotice } from '@/lib/earn-preview-notice';
 import {
   type PrivyAuthorizationRequest,
   parsePrivyAuthorizationRequiredResponse,
@@ -37,6 +38,7 @@ interface EarnSummaryResponse {
   availableUsdc: string;
   depositedUsdc: string;
   claimableYieldUsdc: string;
+  claimableYieldReliable: boolean;
 }
 
 interface EarnPreviewResponse extends EarnSummaryResponse {
@@ -75,6 +77,7 @@ function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse
     typeof candidate.availableUsdc === 'string' &&
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
+    typeof candidate.claimableYieldReliable === 'boolean' &&
     typeof candidate.walletReady === 'boolean'
   );
 }
@@ -89,7 +92,8 @@ function isEarnSummaryResponse(payload: unknown): payload is EarnSummaryResponse
     typeof candidate.walletReady === 'boolean' &&
     typeof candidate.availableUsdc === 'string' &&
     typeof candidate.depositedUsdc === 'string' &&
-    typeof candidate.claimableYieldUsdc === 'string'
+    typeof candidate.claimableYieldUsdc === 'string' &&
+    typeof candidate.claimableYieldReliable === 'boolean'
   );
 }
 
@@ -295,6 +299,8 @@ export default function EarnPage() {
     }),
     [amount, executing, loadingAction, summary],
   );
+
+  const previewNotice = preview ? getEarnPreviewNotice(preview) : null;
 
   const requestPreview = useCallback(async (action: EarnAction) => {
     if (action !== 'claim' && !amount) {
@@ -571,9 +577,15 @@ export default function EarnPage() {
                 </div>
               </div>
 
-              {preview.yieldSettlementSkipped ? (
-                <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                  Yield settlement is temporarily unavailable. This withdrawal will return your principal only. Accrued yield can be claimed separately once settlement resumes.
+              {previewNotice ? (
+                <div
+                  className={
+                    previewNotice.tone === 'warning'
+                      ? 'mt-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs text-amber-700 dark:text-amber-400'
+                      : 'mt-3 rounded-xl border border-border/60 bg-secondary/40 px-3 py-2 text-xs text-muted-foreground dark:border-white/10 dark:bg-white/4'
+                  }
+                >
+                  {previewNotice.message}
                 </div>
               ) : null}
 

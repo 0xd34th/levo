@@ -35,6 +35,7 @@ export interface EarnSummary {
   availableUsdc: string;
   depositedUsdc: string;
   claimableYieldUsdc: string;
+  claimableYieldReliable: boolean;
 }
 
 export interface EarnPreview extends EarnSummary {
@@ -154,6 +155,7 @@ function zeroSummary(): EarnSummary {
     availableUsdc: '0',
     depositedUsdc: '0',
     claimableYieldUsdc: '0',
+    claimableYieldReliable: true,
   };
 }
 
@@ -736,7 +738,7 @@ async function simulateEarnAction(params: {
 }) {
   const { txBytes, yieldSettlementSkipped } = await buildEarnTransactionBytes({
     ...params,
-    sponsored: false,
+    sponsored: true,
   });
   const result = await getSuiClient().dryRunTransactionBlock({
     transactionBlock: txBytes,
@@ -984,6 +986,7 @@ export async function getEarnSummary(params: {
   );
 
   let claimableYieldUsdc = 0n;
+  let claimableYieldReliable = true;
   if (depositedUsdc > 0n) {
     try {
       const claimPreview = await simulateEarnAction({
@@ -995,6 +998,7 @@ export async function getEarnSummary(params: {
       });
       claimableYieldUsdc = claimPreview.userReceivesUsdc;
     } catch (error) {
+      claimableYieldReliable = false;
       console.warn('Failed to simulate claimable StableLayer yield', {
         xUserId: params.xUserId,
         error,
@@ -1007,6 +1011,7 @@ export async function getEarnSummary(params: {
     availableUsdc: availableUsdc.toString(),
     depositedUsdc: depositedUsdc.toString(),
     claimableYieldUsdc: claimableYieldUsdc.toString(),
+    claimableYieldReliable,
   };
 }
 
