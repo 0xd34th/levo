@@ -10,6 +10,7 @@ import {
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import {
   MAINNET_USDC_TYPE,
+  SUI_COIN_TYPE,
   getConfiguredLevoUsdCoinType,
   getUserFacingUsdcCoinType,
 } from '@/lib/coins';
@@ -343,6 +344,105 @@ function sumPositiveCoinBalanceChanges(params: {
   }, 0n);
 }
 
+function sumPositiveNonSuiBalanceChanges(params: {
+  balanceChanges: unknown[];
+  ownerAddress: string;
+}) {
+  const normalizedOwner = normalizeSuiAddress(params.ownerAddress);
+  const normalizedSuiType = normalizeObjectTypeTag(SUI_COIN_TYPE);
+
+  return params.balanceChanges.reduce<bigint>((sum, change) => {
+    if (typeof change !== 'object' || change === null) {
+      return sum;
+    }
+
+    const candidate = change as {
+      amount?: string;
+      coinType?: string;
+    };
+
+    if (typeof candidate.coinType !== 'string' || typeof candidate.amount !== 'string') {
+      return sum;
+    }
+
+    if (normalizeObjectTypeTag(candidate.coinType) === normalizedSuiType) {
+      return sum;
+    }
+
+    const ownerAddress = getBalanceOwnerAddress(change);
+    if (ownerAddress !== normalizedOwner) {
+      return sum;
+    }
+
+    const amount = BigInt(candidate.amount);
+    return amount > 0n ? sum + amount : sum;
+  }, 0n);
+}
+
+async function maybeApplyGasSponsor(tx: Transaction, sponsored: boolean) {
+  if (!sponsored) {
+    return false;
+  }
+
+  const gasKeypair = getGasStationKeypair();
+  if (!gasKeypair) {
+    return false;
+  }
+
+  const gasAddress = gasKeypair.toSuiAddress();
+  let gasBalance: bigint | null = null;
+  try {
+    const r = await getSuiClient().getBalance({ owner: gasAddress });
+    gasBalance = BigInt(r.totalBalance);
+  } catch (error) {
+    console.warn('Gas station balance probe failed; keeping sponsorship enabled', {
+      gasAddress,
+      error,
+    });
+  }
+
+  // If the balance probe failed (null), optimistically keep sponsorship — the
+  // chain will reject if the gas station is truly unfunded, which is recoverable.
+  if (gasBalance === null || gasBalance >= 100_000_000n) {
+    tx.setGasOwner(gasAddress);
+    return true;
+  }
+
+  console.warn('Gas station SUI balance too low for sponsorship', {
+    gasAddress,
+    balance: gasBalance.toString(),
+  });
+  return false;
+}
+
+async function simulateClaimRewardUsdbAmount(params: {
+  senderAddress: string;
+  stableCoinType: string;
+  sponsored: boolean;
+}) {
+  const tx = new Transaction();
+  tx.setSender(params.senderAddress);
+  await maybeApplyGasSponsor(tx, params.sponsored);
+
+  const stableLayerClient = await getStableLayerClient(params.senderAddress);
+  await stableLayerClient.buildClaimTx({
+    tx,
+    sender: params.senderAddress,
+    stableCoinType: params.stableCoinType,
+    autoTransfer: true,
+  });
+
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await getSuiClient().dryRunTransactionBlock({
+    transactionBlock: txBytes,
+  });
+
+  return sumPositiveNonSuiBalanceChanges({
+    balanceChanges: result.balanceChanges ?? [],
+    ownerAddress: params.senderAddress,
+  });
+}
+
 async function getWalletBinding(xUserId: string) {
   const walletBinding = await prisma.xUser.findUnique({
     where: { xUserId },
@@ -537,34 +637,7 @@ async function buildEarnTransaction(params: {
   const tx = new Transaction();
   tx.setSender(senderAddress);
 
-  let sponsorApplied = false;
-  if (sponsored) {
-    const gasKeypair = getGasStationKeypair();
-    if (gasKeypair) {
-      const gasAddress = gasKeypair.toSuiAddress();
-      let gasBalance: bigint | null = null;
-      try {
-        const r = await getSuiClient().getBalance({ owner: gasAddress });
-        gasBalance = BigInt(r.totalBalance);
-      } catch (error) {
-        console.warn('Gas station balance probe failed; keeping sponsorship enabled', {
-          gasAddress,
-          error,
-        });
-      }
-      // If the balance probe failed (null), optimistically keep sponsorship — the
-      // chain will reject if the gas station is truly unfunded, which is recoverable.
-      if (gasBalance === null || gasBalance >= 100_000_000n) {
-        tx.setGasOwner(gasAddress);
-        sponsorApplied = true;
-      } else {
-        console.warn('Gas station SUI balance too low for sponsorship', {
-          gasAddress,
-          balance: gasBalance.toString(),
-        });
-      }
-    }
-  }
+  const sponsorApplied = await maybeApplyGasSponsor(tx, sponsored);
 
   const stableLayerClient = await getStableLayerClient(senderAddress);
   const internals = stableLayerClient as unknown as StableLayerEarnInternals;
@@ -605,9 +678,10 @@ async function buildEarnTransaction(params: {
 
   const claimableReward = await resolveClaimableRewardUsdb({
     action,
-    fetchClaimRewardUsdbAmount: () => stableLayerClient.getClaimRewardUsdbAmount({
+    fetchClaimRewardUsdbAmount: () => simulateClaimRewardUsdbAmount({
+      senderAddress,
       stableCoinType,
-      sender: senderAddress,
+      sponsored,
     }),
   });
   yieldSettlementSkipped = claimableReward.yieldSettlementSkipped;
