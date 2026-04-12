@@ -10,7 +10,6 @@ import {
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import {
   MAINNET_USDC_TYPE,
-  SUI_COIN_TYPE,
   getConfiguredLevoUsdCoinType,
   getUserFacingUsdcCoinType,
 } from '@/lib/coins';
@@ -21,7 +20,9 @@ import {
   buildPrivyRawSignAuthorizationRequest,
   signSuiTransaction,
 } from '@/lib/privy-wallet';
+import { acquireRedisLock } from '@/lib/redis-lock';
 import { getRedis } from '@/lib/rate-limit';
+import { getStableLayerManagerKeypair } from '@/lib/stable-layer-manager';
 import { getStableLayerClient } from '@/lib/stable-layer';
 import { getSuiClient } from '@/lib/sui';
 import {
@@ -30,6 +31,7 @@ import {
 } from '@/lib/sui-transaction-errors';
 
 export type EarnAction = 'stake' | 'claim' | 'withdraw';
+export type YieldSettlementMode = 'server_payout' | 'disabled';
 
 export interface EarnSummary {
   walletReady: boolean;
@@ -37,12 +39,15 @@ export interface EarnSummary {
   depositedUsdc: string;
   claimableYieldUsdc: string;
   claimableYieldReliable: boolean;
+  yieldSettlementMode: YieldSettlementMode;
 }
 
 export interface EarnPreview extends EarnSummary {
   previewToken: string;
   action: EarnAction;
   amount: string;
+  principalReceivesUsdc: string;
+  yieldReceivesUsdc: string;
   userReceivesUsdc: string;
   yieldSettlementSkipped?: boolean;
 }
@@ -53,14 +58,16 @@ export type EarnExecuteResult =
       authorizationRequest: ReturnType<typeof buildPrivyRawSignAuthorizationRequest>;
     }
   | {
-      status: 'confirmed' | 'pending';
+      status: 'confirmed' | 'pending' | 'partial';
       action: EarnAction;
       txDigest: string;
+      message?: string;
     };
 
 export interface EarnConfirmResult {
-  status: 'confirmed' | 'pending';
+  status: 'confirmed' | 'pending' | 'partial';
   txDigest: string;
+  message?: string;
 }
 
 type StableLayerEarnInternals = {
@@ -84,6 +91,7 @@ type StableLayerEarnInternals = {
     getConfig: () => Promise<{
       FRAMEWORK_PACKAGE_ID: string;
     }>;
+    getUsdbCoinType: () => Promise<string>;
     getUserAccounts: (params: {
       address: string;
     }) => Promise<BucketUserAccount[]>;
@@ -97,13 +105,87 @@ type BucketUserAccount = {
   alias: string | null;
 };
 
-export const EARN_RETAINED_ACCOUNT_ALIAS = 'levo-earn-retained';
-const CLAIM_REWARD_DRY_RUN_FAILURE =
-  'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.';
+type WalletBinding = {
+  privyUserId: string | null;
+  privyWalletId: string | null;
+  suiAddress: string | null;
+  suiPublicKey: string | null;
+};
 
+type EarnAccountingState = {
+  retainedAccountId: string | null;
+  rewardDebtPayoutUsdc: bigint;
+  rewardDebtRetainedUsdb: bigint;
+  claimedUsdcTotal: bigint;
+  retainedUsdbTotal: bigint;
+  lastKnownDepositedUsdc: bigint;
+};
+
+type EarnGlobalState = {
+  accPayoutPerShareUsdcE18: bigint;
+  accRetainedPerShareUsdbE18: bigint;
+  lastHarvestTxDigest: string | null;
+  lastHarvestedRewardUsdb: bigint;
+  lastHarvestedPayoutUsdc: bigint;
+  lastHarvestedRetainedUsdb: bigint;
+};
+
+type EarnPosition = {
+  accounting: EarnAccountingState;
+  globalState: EarnGlobalState;
+  availableUsdc: bigint;
+  depositedUsdc: bigint;
+  claimableYieldUsdc: bigint;
+  claimableYieldReliable: boolean;
+  harvestedOutstandingUsdc: bigint;
+  harvestedOutstandingRetainedUsdb: bigint;
+  globalClaimableRewardUsdb: bigint;
+  totalSupply: bigint;
+  yieldSettlementMode: YieldSettlementMode;
+};
+
+type SettlementPlan = {
+  xUserId: string;
+  action: EarnAction;
+  stableCoinType: string;
+  senderAddress: string;
+  yieldSettlementMode: YieldSettlementMode;
+  yieldSettled: boolean;
+  preBalanceUsdc: bigint;
+  postBalanceUsdc: bigint;
+  userPayoutOwedUsdc: bigint;
+  userRetainedOwedUsdb: bigint;
+  harvestedRewardUsdb: bigint;
+  harvestedPayoutUsdc: bigint;
+  harvestedRetainedUsdb: bigint;
+  nextAccPayoutPerShareUsdcE18: bigint;
+  nextAccRetainedPerShareUsdbE18: bigint;
+};
+
+type SignedTxBundle = {
+  txDigest: string;
+  txBytesBase64: string;
+  signatures: string[];
+};
+
+export interface ResolvedClaimableReward {
+  amount: bigint;
+  yieldSettlementSkipped: boolean;
+}
+
+type SettlementSnapshot = z.infer<typeof SettlementSnapshotSchema>;
+
+type EarnDb = Pick<typeof prisma, 'earnAccounting' | 'earnGlobalState' | 'pendingEarnSettlement'>;
+
+export const EARN_RETAINED_ACCOUNT_ALIAS = 'levo-earn-retained';
+
+const ACC_PRECISION = 1_000_000_000_000_000_000n;
 const PREVIEW_TTL_SEC = 10 * 60;
 const AUTHORIZATION_TTL_SEC = 5 * 60;
 const PENDING_EARN_TTL_SEC = 15 * 60;
+const HARVEST_LOCK_TTL_SEC = 60;
+const SETTLEMENT_PARTIAL_MESSAGE =
+  'Yield was settled, but principal withdraw did not complete. Your principal remains in Earn. Retry Withdraw to continue.';
 
 const WalletBindingSchema = z.object({
   privyUserId: z.string().nullable(),
@@ -116,11 +198,15 @@ const StagedPreviewSchema = z.object({
   xUserId: z.string().min(1),
   action: z.enum(['stake', 'claim', 'withdraw']),
   amount: z.string().regex(/^\d+$/),
+  yieldSettlementMode: z.enum(['server_payout', 'disabled']),
+  expectedYieldUsdc: z.string().regex(/^\d+$/),
+  expectedPrincipalUsdc: z.string().regex(/^\d+$/),
   yieldSettlementSkipped: z.boolean().optional(),
 });
 
 const StagedAuthorizationSchema = z.object({
-  action: z.enum(['stake', 'claim', 'withdraw']),
+  action: z.enum(['stake', 'withdraw']),
+  amount: z.string().regex(/^\d+$/),
   txBytesBase64: z.string().min(1),
   walletId: z.string().min(1),
   storedPublicKey: z.string().min(1),
@@ -129,9 +215,23 @@ const StagedAuthorizationSchema = z.object({
 
 const PendingEarnBundleSchema = z.object({
   xUserId: z.string().min(1),
-  action: z.enum(['stake', 'claim', 'withdraw']),
+  action: z.literal('stake'),
+  amount: z.string().regex(/^\d+$/),
   txBytesBase64: z.string().min(1),
   signatures: z.array(z.string().min(1)).min(1),
+});
+
+const SettlementSnapshotSchema = z.object({
+  yieldSettled: z.boolean(),
+  preBalanceUsdc: z.string().regex(/^\d+$/),
+  postBalanceUsdc: z.string().regex(/^\d+$/),
+  userPayoutOwedUsdc: z.string().regex(/^\d+$/),
+  userRetainedOwedUsdb: z.string().regex(/^\d+$/),
+  nextAccPayoutPerShareUsdcE18: z.string().regex(/^\d+$/),
+  nextAccRetainedPerShareUsdbE18: z.string().regex(/^\d+$/),
+  harvestedRewardUsdb: z.string().regex(/^\d+$/),
+  harvestedPayoutUsdc: z.string().regex(/^\d+$/),
+  harvestedRetainedUsdb: z.string().regex(/^\d+$/),
 });
 
 type StagedPreview = z.infer<typeof StagedPreviewSchema>;
@@ -150,14 +250,19 @@ function getPendingEarnKey(txDigest: string) {
   return `earn-pending:${txDigest}`;
 }
 
-function zeroSummary(): EarnSummary {
+function zeroSummary(yieldSettlementMode: YieldSettlementMode): EarnSummary {
   return {
     walletReady: false,
     availableUsdc: '0',
     depositedUsdc: '0',
     claimableYieldUsdc: '0',
     claimableYieldReliable: true,
+    yieldSettlementMode,
   };
+}
+
+function getYieldSettlementMode(): YieldSettlementMode {
+  return getStableLayerManagerKeypair() ? 'server_payout' : 'disabled';
 }
 
 function assertEarnConfig() {
@@ -174,11 +279,11 @@ function assertEarnConfig() {
   if (!stableCoinType) {
     throw new Error('StableLayer Earn is not configured');
   }
+
   const userFacingUsdcType = getUserFacingUsdcCoinType(
     process.env.NEXT_PUBLIC_SUI_NETWORK,
     process.env.NEXT_PUBLIC_PACKAGE_ID,
   );
-
   if (userFacingUsdcType !== MAINNET_USDC_TYPE) {
     throw new Error('Mainnet USDC is not configured');
   }
@@ -189,7 +294,7 @@ function assertEarnConfig() {
   };
 }
 
-function parseBaseUnitAmount(amount: string | undefined, action: EarnAction): bigint {
+function parseBaseUnitAmount(amount: string | undefined, action: EarnAction) {
   if (action === 'claim') {
     return 0n;
   }
@@ -206,14 +311,25 @@ function parseBaseUnitAmount(amount: string | undefined, action: EarnAction): bi
   return parsedAmount;
 }
 
-export function splitRetainedYieldUsdb(amount: bigint) {
-  const userClaimUsdb = (amount * 9n) / 10n;
-  const retainedUsdb = amount - userClaimUsdb;
+function parseBigIntLike(value: bigint | number | string) {
+  return BigInt(value);
+}
 
-  return {
-    userClaimUsdb,
-    retainedUsdb,
-  };
+function serializeBigInt(value: bigint) {
+  return value.toString();
+}
+
+function scaleShare(amount: bigint, accPerShareE18: bigint) {
+  return (amount * accPerShareE18) / ACC_PRECISION;
+}
+
+function computePendingReward(params: {
+  balance: bigint;
+  accPerShareE18: bigint;
+  rewardDebt: bigint;
+}) {
+  const accrued = scaleShare(params.balance, params.accPerShareE18);
+  return accrued > params.rewardDebt ? accrued - params.rewardDebt : 0n;
 }
 
 function normalizeObjectTypeTag(typeTag: string): string {
@@ -229,6 +345,72 @@ function normalizeObjectTypeTag(typeTag: string): string {
   }
 }
 
+function getTransactionObjectArgument(tx: Transaction, objectId: string) {
+  const candidate = tx as Transaction & {
+    object?: (id: string) => TransactionArgument;
+  };
+
+  return typeof candidate.object === 'function'
+    ? candidate.object(objectId)
+    : objectId as unknown as TransactionArgument;
+}
+
+function getDevInspectFailureMessage(result: unknown) {
+  if (typeof result !== 'object' || result === null) {
+    return 'unknown dev-inspect failure';
+  }
+
+  const candidate = result as {
+    error?: string;
+    effects?: {
+      status?: {
+        status?: string;
+        error?: string;
+      };
+    };
+  };
+
+  if (candidate.effects?.status?.status === 'success') {
+    return null;
+  }
+
+  return candidate.effects?.status?.error ?? candidate.error ?? 'unknown dev-inspect failure';
+}
+
+function parseFirstDevInspectU64(result: unknown) {
+  if (typeof result !== 'object' || result === null) {
+    return null;
+  }
+
+  const candidate = result as {
+    results?: Array<{
+      returnValues?: Array<[number[] | Uint8Array, string]>;
+    }>;
+  };
+
+  const encoded = candidate.results?.[0]?.returnValues?.[0];
+  if (!encoded || encoded[1] !== 'u64') {
+    return null;
+  }
+
+  const bytes = encoded[0];
+  if (!(Array.isArray(bytes) || bytes instanceof Uint8Array) || bytes.length < 8) {
+    return null;
+  }
+
+  return Buffer.from(bytes).readBigUInt64LE(0);
+}
+
+export function splitRetainedYieldUsdb(amount: bigint) {
+  const userClaimUsdb = (amount * 9n) / 10n;
+  const retainedUsdb = amount - userClaimUsdb;
+
+  return {
+    userClaimUsdb,
+    retainedUsdb,
+  };
+}
+
 export function findEarnRetainedAccountId(accounts: BucketUserAccount[]): string | null {
   const retainedAccount = accounts.find((account) => account.alias === EARN_RETAINED_ACCOUNT_ALIAS);
   return retainedAccount ? normalizeSuiAddress(retainedAccount.id.id) : null;
@@ -237,7 +419,7 @@ export function findEarnRetainedAccountId(accounts: BucketUserAccount[]): string
 export function extractCreatedEarnRetainedAccountId(
   objectChanges: unknown[] | null | undefined,
   frameworkPackageId: string,
-): string | null {
+) {
   const normalizedFrameworkPackageId = normalizeSuiAddress(frameworkPackageId);
 
   for (const change of objectChanges ?? []) {
@@ -251,14 +433,12 @@ export function extractCreatedEarnRetainedAccountId(
       type?: string;
     };
 
-    if (candidate.type !== 'created') {
-      continue;
-    }
-
     if (
+      candidate.type === 'created' &&
       typeof candidate.objectId === 'string' &&
       typeof candidate.objectType === 'string' &&
-      normalizeObjectTypeTag(candidate.objectType) === `${normalizedFrameworkPackageId}::account::Account`
+      normalizeObjectTypeTag(candidate.objectType) ===
+        `${normalizedFrameworkPackageId}::account::Account`
     ) {
       return normalizeSuiAddress(candidate.objectId);
     }
@@ -267,13 +447,114 @@ export function extractCreatedEarnRetainedAccountId(
   return null;
 }
 
-function isClaimRewardDryRunInferenceFailure(error: unknown) {
-  return error instanceof Error && error.message.includes(CLAIM_REWARD_DRY_RUN_FAILURE);
+function parseEarnAccountingState(
+  row:
+    | {
+        retainedAccountId: string | null;
+        rewardDebtPayoutUsdc: string;
+        rewardDebtRetainedUsdb: string;
+        claimedUsdcTotal: bigint;
+        retainedUsdbTotal: bigint;
+        lastKnownDepositedUsdc: bigint;
+      }
+    | null,
+): EarnAccountingState {
+  if (!row) {
+    return {
+      retainedAccountId: null,
+      rewardDebtPayoutUsdc: 0n,
+      rewardDebtRetainedUsdb: 0n,
+      claimedUsdcTotal: 0n,
+      retainedUsdbTotal: 0n,
+      lastKnownDepositedUsdc: 0n,
+    };
+  }
+
+  return {
+    retainedAccountId: row.retainedAccountId ? normalizeSuiAddress(row.retainedAccountId) : null,
+    rewardDebtPayoutUsdc: BigInt(row.rewardDebtPayoutUsdc),
+    rewardDebtRetainedUsdb: BigInt(row.rewardDebtRetainedUsdb),
+    claimedUsdcTotal: row.claimedUsdcTotal,
+    retainedUsdbTotal: row.retainedUsdbTotal,
+    lastKnownDepositedUsdc: row.lastKnownDepositedUsdc,
+  };
 }
 
-export interface ResolvedClaimableReward {
-  amount: bigint;
-  yieldSettlementSkipped: boolean;
+function parseEarnGlobalState(
+  row:
+    | {
+        accPayoutPerShareUsdcE18: string;
+        accRetainedPerShareUsdbE18: string;
+        lastHarvestTxDigest: string | null;
+        lastHarvestedRewardUsdb: bigint;
+        lastHarvestedPayoutUsdc: bigint;
+        lastHarvestedRetainedUsdb: bigint;
+      }
+    | null,
+): EarnGlobalState {
+  if (!row) {
+    return {
+      accPayoutPerShareUsdcE18: 0n,
+      accRetainedPerShareUsdbE18: 0n,
+      lastHarvestTxDigest: null,
+      lastHarvestedRewardUsdb: 0n,
+      lastHarvestedPayoutUsdc: 0n,
+      lastHarvestedRetainedUsdb: 0n,
+    };
+  }
+
+  return {
+    accPayoutPerShareUsdcE18: BigInt(row.accPayoutPerShareUsdcE18),
+    accRetainedPerShareUsdbE18: BigInt(row.accRetainedPerShareUsdbE18),
+    lastHarvestTxDigest: row.lastHarvestTxDigest,
+    lastHarvestedRewardUsdb: row.lastHarvestedRewardUsdb,
+    lastHarvestedPayoutUsdc: row.lastHarvestedPayoutUsdc,
+    lastHarvestedRetainedUsdb: row.lastHarvestedRetainedUsdb,
+  };
+}
+
+function serializeSettlementSnapshot(plan: SettlementPlan): SettlementSnapshot {
+  return {
+    yieldSettled: plan.yieldSettled,
+    preBalanceUsdc: serializeBigInt(plan.preBalanceUsdc),
+    postBalanceUsdc: serializeBigInt(plan.postBalanceUsdc),
+    userPayoutOwedUsdc: serializeBigInt(plan.userPayoutOwedUsdc),
+    userRetainedOwedUsdb: serializeBigInt(plan.userRetainedOwedUsdb),
+    nextAccPayoutPerShareUsdcE18: serializeBigInt(plan.nextAccPayoutPerShareUsdcE18),
+    nextAccRetainedPerShareUsdbE18: serializeBigInt(plan.nextAccRetainedPerShareUsdbE18),
+    harvestedRewardUsdb: serializeBigInt(plan.harvestedRewardUsdb),
+    harvestedPayoutUsdc: serializeBigInt(plan.harvestedPayoutUsdc),
+    harvestedRetainedUsdb: serializeBigInt(plan.harvestedRetainedUsdb),
+  };
+}
+
+function parseSettlementSnapshot(raw: unknown) {
+  const parsed = SettlementSnapshotSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error('Earn settlement state is invalid');
+  }
+
+  return {
+    yieldSettled: parsed.data.yieldSettled,
+    preBalanceUsdc: BigInt(parsed.data.preBalanceUsdc),
+    postBalanceUsdc: BigInt(parsed.data.postBalanceUsdc),
+    userPayoutOwedUsdc: BigInt(parsed.data.userPayoutOwedUsdc),
+    userRetainedOwedUsdb: BigInt(parsed.data.userRetainedOwedUsdb),
+    nextAccPayoutPerShareUsdcE18: BigInt(parsed.data.nextAccPayoutPerShareUsdcE18),
+    nextAccRetainedPerShareUsdbE18: BigInt(parsed.data.nextAccRetainedPerShareUsdbE18),
+    harvestedRewardUsdb: BigInt(parsed.data.harvestedRewardUsdb),
+    harvestedPayoutUsdc: BigInt(parsed.data.harvestedPayoutUsdc),
+    harvestedRetainedUsdb: BigInt(parsed.data.harvestedRetainedUsdb),
+  };
+}
+
+function isClaimRewardDryRunInferenceFailure(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes(
+      'StableLayerClient.getClaimRewardUsdbAmount: dry-run did not succeed; cannot infer claimable USDB.',
+    )
+  );
 }
 
 export async function resolveClaimableRewardUsdb(params: {
@@ -281,169 +562,23 @@ export async function resolveClaimableRewardUsdb(params: {
   fetchClaimRewardUsdbAmount: () => Promise<bigint>;
 }): Promise<ResolvedClaimableReward> {
   try {
-    return { amount: await params.fetchClaimRewardUsdbAmount(), yieldSettlementSkipped: false };
+    return {
+      amount: await params.fetchClaimRewardUsdbAmount(),
+      yieldSettlementSkipped: false,
+    };
   } catch (error) {
     if (params.action === 'withdraw' && isClaimRewardDryRunInferenceFailure(error)) {
-      console.warn('StableLayer claim reward dry-run failed during withdraw; continuing without yield settlement', {
-        error,
-      });
-      return { amount: 0n, yieldSettlementSkipped: true };
+      return {
+        amount: 0n,
+        yieldSettlementSkipped: true,
+      };
     }
 
     throw error;
   }
 }
 
-function getBalanceOwnerAddress(change: unknown): string | null {
-  if (typeof change !== 'object' || change === null) {
-    return null;
-  }
-
-  if ('address' in change && typeof change.address === 'string') {
-    return normalizeSuiAddress(change.address);
-  }
-
-  if ('owner' in change && typeof change.owner === 'object' && change.owner !== null) {
-    const owner = change.owner as { AddressOwner?: string };
-    if (typeof owner.AddressOwner === 'string') {
-      return normalizeSuiAddress(owner.AddressOwner);
-    }
-  }
-
-  return null;
-}
-
-function sumPositiveCoinBalanceChanges(params: {
-  balanceChanges: unknown[];
-  ownerAddress: string;
-  coinType: string;
-}) {
-  const normalizedOwner = normalizeSuiAddress(params.ownerAddress);
-
-  return params.balanceChanges.reduce<bigint>((sum, change) => {
-    if (typeof change !== 'object' || change === null) {
-      return sum;
-    }
-
-    const candidate = change as {
-      amount?: string;
-      coinType?: string;
-    };
-
-    if (candidate.coinType !== params.coinType || typeof candidate.amount !== 'string') {
-      return sum;
-    }
-
-    const ownerAddress = getBalanceOwnerAddress(change);
-    if (ownerAddress !== normalizedOwner) {
-      return sum;
-    }
-
-    const amount = BigInt(candidate.amount);
-    return amount > 0n ? sum + amount : sum;
-  }, 0n);
-}
-
-function sumPositiveNonSuiBalanceChanges(params: {
-  balanceChanges: unknown[];
-  ownerAddress: string;
-}) {
-  const normalizedOwner = normalizeSuiAddress(params.ownerAddress);
-  const normalizedSuiType = normalizeObjectTypeTag(SUI_COIN_TYPE);
-
-  return params.balanceChanges.reduce<bigint>((sum, change) => {
-    if (typeof change !== 'object' || change === null) {
-      return sum;
-    }
-
-    const candidate = change as {
-      amount?: string;
-      coinType?: string;
-    };
-
-    if (typeof candidate.coinType !== 'string' || typeof candidate.amount !== 'string') {
-      return sum;
-    }
-
-    if (normalizeObjectTypeTag(candidate.coinType) === normalizedSuiType) {
-      return sum;
-    }
-
-    const ownerAddress = getBalanceOwnerAddress(change);
-    if (ownerAddress !== normalizedOwner) {
-      return sum;
-    }
-
-    const amount = BigInt(candidate.amount);
-    return amount > 0n ? sum + amount : sum;
-  }, 0n);
-}
-
-async function maybeApplyGasSponsor(tx: Transaction, sponsored: boolean) {
-  if (!sponsored) {
-    return false;
-  }
-
-  const gasKeypair = getGasStationKeypair();
-  if (!gasKeypair) {
-    return false;
-  }
-
-  const gasAddress = gasKeypair.toSuiAddress();
-  let gasBalance: bigint | null = null;
-  try {
-    const r = await getSuiClient().getBalance({ owner: gasAddress });
-    gasBalance = BigInt(r.totalBalance);
-  } catch (error) {
-    console.warn('Gas station balance probe failed; keeping sponsorship enabled', {
-      gasAddress,
-      error,
-    });
-  }
-
-  // If the balance probe failed (null), optimistically keep sponsorship — the
-  // chain will reject if the gas station is truly unfunded, which is recoverable.
-  if (gasBalance === null || gasBalance >= 100_000_000n) {
-    tx.setGasOwner(gasAddress);
-    return true;
-  }
-
-  console.warn('Gas station SUI balance too low for sponsorship', {
-    gasAddress,
-    balance: gasBalance.toString(),
-  });
-  return false;
-}
-
-async function simulateClaimRewardUsdbAmount(params: {
-  senderAddress: string;
-  stableCoinType: string;
-  sponsored: boolean;
-}) {
-  const tx = new Transaction();
-  tx.setSender(params.senderAddress);
-  await maybeApplyGasSponsor(tx, params.sponsored);
-
-  const stableLayerClient = await getStableLayerClient(params.senderAddress);
-  await stableLayerClient.buildClaimTx({
-    tx,
-    sender: params.senderAddress,
-    stableCoinType: params.stableCoinType,
-    autoTransfer: true,
-  });
-
-  const txBytes = await tx.build({ client: getSuiClient() });
-  const result = await getSuiClient().dryRunTransactionBlock({
-    transactionBlock: txBytes,
-  });
-
-  return sumPositiveNonSuiBalanceChanges({
-    balanceChanges: result.balanceChanges ?? [],
-    ownerAddress: params.senderAddress,
-  });
-}
-
-async function getWalletBinding(xUserId: string) {
+async function getWalletBinding(xUserId: string): Promise<WalletBinding | null> {
   const walletBinding = await prisma.xUser.findUnique({
     where: { xUserId },
     select: {
@@ -458,138 +593,8 @@ async function getWalletBinding(xUserId: string) {
   return parsed.success ? parsed.data : null;
 }
 
-async function persistEarnAccounting(params: {
-  xUserId: string;
-  retainedAccountId?: string | null;
-  lastSettledTxDigest?: string | null;
-}) {
-  const updateData: {
-    retainedAccountId?: string;
-    lastSettledTxDigest?: string;
-  } = {};
-
-  if (params.retainedAccountId) {
-    updateData.retainedAccountId = normalizeSuiAddress(params.retainedAccountId);
-  }
-
-  if (params.lastSettledTxDigest) {
-    updateData.lastSettledTxDigest = params.lastSettledTxDigest;
-  }
-
-  if (Object.keys(updateData).length === 0) {
-    return;
-  }
-
-  await prisma.earnAccounting.upsert({
-    where: {
-      xUserId: params.xUserId,
-    },
-    update: updateData,
-    create: {
-      xUserId: params.xUserId,
-      ...updateData,
-    },
-  });
-}
-
-const BOOKKEEPING_MAX_RETRIES = 2;
-
-async function persistEarnAccountingWithRetry(params: {
-  xUserId: string;
-  retainedAccountId?: string | null;
-  lastSettledTxDigest?: string | null;
-}) {
-  for (let attempt = 1; attempt <= BOOKKEEPING_MAX_RETRIES; attempt++) {
-    try {
-      await persistEarnAccounting(params);
-      return;
-    } catch (error) {
-      if (attempt === BOOKKEEPING_MAX_RETRIES) {
-        throw error;
-      }
-      console.warn(`Earn bookkeeping attempt ${attempt} failed; retrying`, {
-        xUserId: params.xUserId,
-        error,
-      });
-    }
-  }
-}
-
-async function resolveRetainedAccountId(params: {
-  xUserId: string;
-  senderAddress: string;
-  bucketClient: StableLayerEarnInternals['bucketClient'];
-}) {
-  const accounting = await prisma.earnAccounting.findUnique({
-    where: {
-      xUserId: params.xUserId,
-    },
-    select: {
-      retainedAccountId: true,
-    },
-  });
-
-  try {
-    const accounts = await params.bucketClient.getUserAccounts({
-      address: params.senderAddress,
-    });
-
-    const normalizedStoredAccountId = accounting?.retainedAccountId
-      ? normalizeSuiAddress(accounting.retainedAccountId)
-      : null;
-
-    if (
-      normalizedStoredAccountId &&
-      accounts.some((account) => normalizeSuiAddress(account.id.id) === normalizedStoredAccountId)
-    ) {
-      return normalizedStoredAccountId;
-    }
-
-    const discoveredAccountId = findEarnRetainedAccountId(accounts);
-    if (discoveredAccountId) {
-      await persistEarnAccounting({
-        xUserId: params.xUserId,
-        retainedAccountId: discoveredAccountId,
-      });
-      return discoveredAccountId;
-    }
-  } catch (error) {
-    console.warn('Failed to resolve retained Earn account from Bucket', {
-      xUserId: params.xUserId,
-      senderAddress: params.senderAddress,
-      error,
-    });
-
-    if (accounting?.retainedAccountId) {
-      return normalizeSuiAddress(accounting.retainedAccountId);
-    }
-  }
-
-  // Stored ID exists but was not found in a successful Bucket response (stale/incomplete list).
-  // Trust the persisted ID to avoid creating a duplicate retained account.
-  if (accounting?.retainedAccountId) {
-    return normalizeSuiAddress(accounting.retainedAccountId);
-  }
-
-  return null;
-}
-
-async function getEarnFrameworkPackageId(senderAddress: string) {
-  const stableLayerClient = await getStableLayerClient(senderAddress);
-  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
-
-  if (typeof internals.bucketClient?.getConfig !== 'function') {
-    throw new Error(
-      'stable-layer-sdk internals changed; Earn retained account resolution is unavailable',
-    );
-  }
-
-  const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
-  return frameworkPackageId;
-}
-
 function assertWalletReady(
-  walletBinding: z.infer<typeof WalletBindingSchema> | null,
+  walletBinding: WalletBinding | null,
 ): asserts walletBinding is {
   privyUserId: string;
   privyWalletId: string;
@@ -625,152 +630,150 @@ async function getEarnBalances(senderAddress: string, stableCoinType: string) {
   };
 }
 
-async function buildEarnTransaction(params: {
+async function loadEarnAccountingState(xUserId: string) {
+  const row = await prisma.earnAccounting.findUnique({
+    where: { xUserId },
+    select: {
+      retainedAccountId: true,
+      rewardDebtPayoutUsdc: true,
+      rewardDebtRetainedUsdb: true,
+      claimedUsdcTotal: true,
+      retainedUsdbTotal: true,
+      lastKnownDepositedUsdc: true,
+    },
+  });
+
+  return parseEarnAccountingState(row);
+}
+
+async function loadEarnGlobalState(stableCoinType: string) {
+  const row = await prisma.earnGlobalState.findUnique({
+    where: { stableCoinType },
+    select: {
+      accPayoutPerShareUsdcE18: true,
+      accRetainedPerShareUsdbE18: true,
+      lastHarvestTxDigest: true,
+      lastHarvestedRewardUsdb: true,
+      lastHarvestedPayoutUsdc: true,
+      lastHarvestedRetainedUsdb: true,
+    },
+  });
+
+  return parseEarnGlobalState(row);
+}
+
+async function ensureEarnAccountingBaseline(params: {
   xUserId: string;
-  action: EarnAction;
+  accounting: EarnAccountingState;
+  depositedUsdc: bigint;
+}) {
+  if (params.depositedUsdc <= 0n || params.accounting.lastKnownDepositedUsdc > 0n) {
+    return params.accounting;
+  }
+
+  await prisma.earnAccounting.upsert({
+    where: { xUserId: params.xUserId },
+    update: {
+      lastKnownDepositedUsdc: params.depositedUsdc,
+    },
+    create: {
+      xUserId: params.xUserId,
+      lastKnownDepositedUsdc: params.depositedUsdc,
+    },
+  });
+
+  return {
+    ...params.accounting,
+    lastKnownDepositedUsdc: params.depositedUsdc,
+  };
+}
+
+async function inspectGlobalClaimableRewardUsdb(params: {
+  senderAddress: string;
+  stableCoinType: string;
+}) {
+  const stableLayerClient = await getStableLayerClient(params.senderAddress);
+  const constants = stableLayerClient.getConstants();
+  const tx = new Transaction();
+  tx.setSender(params.senderAddress);
+  tx.moveCall({
+    target: `${constants.STABLE_VAULT_FARM_PACKAGE_ID}::stable_vault_farm::claimable_amount`,
+    typeArguments: [
+      constants.STABLE_LP_TYPE,
+      constants.USDC_TYPE,
+      params.stableCoinType,
+      constants.YUSDB_TYPE,
+      constants.SAVING_TYPE,
+    ],
+    arguments: [getTransactionObjectArgument(tx, constants.STABLE_VAULT_FARM)],
+  });
+
+  const result = await getSuiClient().devInspectTransactionBlock({
+    sender: params.senderAddress,
+    transactionBlock: tx,
+  });
+  const failureMessage = getDevInspectFailureMessage(result);
+  if (failureMessage) {
+    throw new Error(failureMessage);
+  }
+
+  const amount = parseFirstDevInspectU64(result);
+  if (amount === null) {
+    throw new Error('StableLayer claimable amount inspect returned no u64');
+  }
+
+  return amount;
+}
+
+async function maybeApplyGasSponsor(tx: Transaction, sponsored: boolean) {
+  if (!sponsored) {
+    return false;
+  }
+
+  const gasKeypair = getGasStationKeypair();
+  if (!gasKeypair) {
+    return false;
+  }
+
+  const gasAddress = gasKeypair.toSuiAddress();
+  tx.setGasOwner(gasAddress);
+  return true;
+}
+
+async function buildUserEarnTransaction(params: {
+  action: 'stake' | 'withdraw';
   senderAddress: string;
   stableCoinType: string;
   amount: bigint;
   sponsored: boolean;
 }) {
-  const { action, amount, senderAddress, stableCoinType, sponsored, xUserId } = params;
   const tx = new Transaction();
-  tx.setSender(senderAddress);
+  tx.setSender(params.senderAddress);
+  const sponsorApplied = await maybeApplyGasSponsor(tx, params.sponsored);
 
-  const sponsorApplied = await maybeApplyGasSponsor(tx, sponsored);
-
-  const stableLayerClient = await getStableLayerClient(senderAddress);
-  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
-
-  if (
-    typeof internals.bucketClient?.buildDepositToSavingPoolTransaction !== 'function' ||
-    typeof internals.bucketClient?.buildPSMSwapOutTransaction !== 'function' ||
-    typeof internals.bucketClient?.getConfig !== 'function' ||
-    typeof internals.bucketClient?.getUserAccounts !== 'function'
-  ) {
-    throw new Error(
-      'stable-layer-sdk internals changed; Earn currently requires Bucket PSM access',
-    );
-  }
-
-  if (action === 'stake') {
+  const stableLayerClient = await getStableLayerClient(params.senderAddress);
+  if (params.action === 'stake') {
     const usdcCoin = tx.add(
       coinWithBalance({
         type: MAINNET_USDC_TYPE,
-        balance: amount,
+        balance: params.amount,
       }),
     );
 
     await stableLayerClient.buildMintTx({
       tx,
-      sender: senderAddress,
-      stableCoinType,
+      sender: params.senderAddress,
+      stableCoinType: params.stableCoinType,
       usdcCoin,
-      amount,
+      amount: params.amount,
       autoTransfer: true,
     });
-
-    return { tx, sponsorApplied, yieldSettlementSkipped: false };
-  }
-
-  let rewardUsdcCoin: TransactionObjectArgument | null = null;
-  let yieldSettlementSkipped = false;
-
-  const claimableReward = await resolveClaimableRewardUsdb({
-    action,
-    fetchClaimRewardUsdbAmount: () => simulateClaimRewardUsdbAmount({
-      senderAddress,
-      stableCoinType,
-      sponsored,
-    }),
-  });
-  yieldSettlementSkipped = claimableReward.yieldSettlementSkipped;
-
-  if (claimableReward.amount > 0n) {
-    const { retainedUsdb, userClaimUsdb } = splitRetainedYieldUsdb(claimableReward.amount);
-    const rewardUsdbCoin = await stableLayerClient.buildClaimTx({
-      tx,
-      sender: senderAddress,
-      stableCoinType,
-      autoTransfer: false,
-    });
-
-    if (!rewardUsdbCoin) {
-      throw new Error('StableLayer claim did not return a reward coin');
-    }
-
-    let retainedAccountObject: TransactionObjectArgument | null = null;
-    let retainedAccountObjectOrId: string | TransactionArgument | undefined;
-
-    if (retainedUsdb > 0n) {
-      const existingRetainedAccountId = await resolveRetainedAccountId({
-        xUserId,
-        senderAddress,
-        bucketClient: internals.bucketClient,
-      });
-
-      if (existingRetainedAccountId) {
-        retainedAccountObjectOrId = existingRetainedAccountId;
-      } else {
-        const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
-        const aliasOption = tx.moveCall({
-          target: '0x1::option::some',
-          typeArguments: ['0x1::string::String'],
-          arguments: [tx.pure.string(EARN_RETAINED_ACCOUNT_ALIAS)],
-        });
-        retainedAccountObject = tx.moveCall({
-          target: `${frameworkPackageId}::account::new`,
-          arguments: [aliasOption],
-        });
-        retainedAccountObjectOrId = retainedAccountObject;
-      }
-
-      const retainedUsdbCoin = rewardUsdbCoin;
-
-      if (userClaimUsdb > 0n) {
-        const [userRewardUsdbCoin] = tx.splitCoins(rewardUsdbCoin, [userClaimUsdb]);
-        rewardUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
-          coinType: MAINNET_USDC_TYPE,
-          usdbCoinOrAmount: userRewardUsdbCoin,
-        });
-      }
-
-      await internals.bucketClient.buildDepositToSavingPoolTransaction(tx, {
-        address: senderAddress,
-        accountObjectOrId: retainedAccountObjectOrId,
-        lpType: stableLayerClient.getConstants().SAVING_TYPE,
-        depositCoinOrAmount: retainedUsdbCoin,
-      });
-
-      if (retainedAccountObject) {
-        tx.transferObjects([retainedAccountObject], senderAddress);
-      }
-    } else {
-      rewardUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
-        coinType: MAINNET_USDC_TYPE,
-        usdbCoinOrAmount: rewardUsdbCoin,
-      });
-    }
-
-    if (rewardUsdcCoin) {
-      tx.transferObjects([rewardUsdcCoin], senderAddress);
-    }
-  } else if (action === 'claim') {
-    throw new Error('No claimable yield available');
-  }
-
-  if (action === 'claim' && rewardUsdcCoin === null) {
-    throw new Error('No claimable yield available');
-  } else if (action === 'claim') {
-    // Claim path only settles yield; principal remains deposited.
-  }
-
-  if (action === 'withdraw') {
+  } else {
     const principalUsdcCoin = await stableLayerClient.buildBurnTx({
       tx,
-      sender: senderAddress,
-      stableCoinType,
-      amount,
+      sender: params.senderAddress,
+      stableCoinType: params.stableCoinType,
+      amount: params.amount,
       autoTransfer: false,
     });
 
@@ -778,56 +781,28 @@ async function buildEarnTransaction(params: {
       throw new Error('StableLayer withdraw did not return USDC');
     }
 
-    tx.transferObjects([principalUsdcCoin as TransactionObjectArgument], senderAddress);
+    tx.transferObjects([principalUsdcCoin as TransactionObjectArgument], params.senderAddress);
   }
 
-  return { tx, sponsorApplied, yieldSettlementSkipped };
+  return { tx, sponsorApplied };
 }
 
-async function buildEarnTransactionBytes(params: {
-  xUserId: string;
-  action: EarnAction;
+async function buildUserEarnTransactionBytes(params: {
+  action: 'stake' | 'withdraw';
   senderAddress: string;
   stableCoinType: string;
   amount: bigint;
   sponsored: boolean;
 }) {
-  const { tx, sponsorApplied, yieldSettlementSkipped } = await buildEarnTransaction(params);
+  const { tx, sponsorApplied } = await buildUserEarnTransaction(params);
   try {
     const txBytes = await tx.build({ client: getSuiClient() });
-    return { txBytes, sponsorApplied, yieldSettlementSkipped };
+    return { txBytes, sponsorApplied };
   } catch (error) {
     throw new Error(
       getAnnotatedTransactionErrorMessage(error) ?? 'Failed to build Earn transaction',
     );
   }
-}
-
-async function simulateEarnAction(params: {
-  xUserId: string;
-  action: EarnAction;
-  senderAddress: string;
-  stableCoinType: string;
-  amount: bigint;
-}) {
-  const { txBytes, yieldSettlementSkipped } = await buildEarnTransactionBytes({
-    ...params,
-    sponsored: true,
-  });
-  const result = await getSuiClient().dryRunTransactionBlock({
-    transactionBlock: txBytes,
-  });
-
-  const balanceChanges = result.balanceChanges ?? [];
-
-  return {
-    userReceivesUsdc: sumPositiveCoinBalanceChanges({
-      balanceChanges,
-      ownerAddress: params.senderAddress,
-      coinType: MAINNET_USDC_TYPE,
-    }),
-    yieldSettlementSkipped,
-  };
 }
 
 async function stagePreview(preview: StagedPreview) {
@@ -837,13 +812,7 @@ async function stagePreview(preview: StagedPreview) {
   }
 
   const previewToken = randomUUID();
-  await redis.set(
-    getPreviewKey(previewToken),
-    JSON.stringify(preview),
-    'EX',
-    PREVIEW_TTL_SEC,
-  );
-
+  await redis.set(getPreviewKey(previewToken), JSON.stringify(preview), 'EX', PREVIEW_TTL_SEC);
   return previewToken;
 }
 
@@ -928,12 +897,12 @@ async function clearAuthorization(previewToken: string) {
 }
 
 async function stagePendingEarn(txDigest: string, payload: PendingEarnBundle) {
-  // Write to DB first (durable), then Redis (fast cache).
   await prisma.pendingEarn.upsert({
     where: { txDigest },
     update: {
       xUserId: payload.xUserId,
       action: payload.action,
+      amount: payload.amount,
       txBytesBase64: payload.txBytesBase64,
       signatures: payload.signatures,
       createdAt: new Date(),
@@ -942,13 +911,12 @@ async function stagePendingEarn(txDigest: string, payload: PendingEarnBundle) {
       txDigest,
       xUserId: payload.xUserId,
       action: payload.action,
+      amount: payload.amount,
       txBytesBase64: payload.txBytesBase64,
       signatures: payload.signatures,
     },
   });
 
-  // Opportunistically purge all expired rows so abandoned flows don't
-  // leave signed transaction payloads in Postgres indefinitely.
   prisma.pendingEarn.deleteMany({
     where: { createdAt: { lt: new Date(Date.now() - PENDING_EARN_TTL_SEC * 1000) } },
   }).catch(() => {});
@@ -969,14 +937,10 @@ async function stagePendingEarn(txDigest: string, payload: PendingEarnBundle) {
 }
 
 async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | null> {
-  // Opportunistically purge all expired rows so abandoned flows don't
-  // leave signed transaction payloads in Postgres indefinitely.
-  // Complements the same cleanup in stagePendingEarn() to cover read-only paths.
   prisma.pendingEarn.deleteMany({
     where: { createdAt: { lt: new Date(Date.now() - PENDING_EARN_TTL_SEC * 1000) } },
   }).catch(() => {});
 
-  // Try Redis first (fast), fall back to DB (durable).
   try {
     const redis = getRedis();
     if (redis.status === 'ready') {
@@ -992,7 +956,6 @@ async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | nu
     console.warn('Failed to load pending Earn from Redis; falling back to DB', { txDigest, error });
   }
 
-  // DB fallback — enforce the same TTL as Redis to prevent indefinite replay.
   try {
     const row = await prisma.pendingEarn.findUnique({ where: { txDigest } });
     if (!row) {
@@ -1001,7 +964,6 @@ async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | nu
 
     const ageSeconds = (Date.now() - row.createdAt.getTime()) / 1000;
     if (ageSeconds > PENDING_EARN_TTL_SEC) {
-      console.warn('Pending Earn DB record expired, cleaning up', { txDigest, ageSeconds });
       await prisma.pendingEarn.delete({ where: { txDigest } }).catch(() => {});
       return null;
     }
@@ -1009,6 +971,7 @@ async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | nu
     const parsed = PendingEarnBundleSchema.safeParse({
       xUserId: row.xUserId,
       action: row.action,
+      amount: row.amount ?? '0',
       txBytesBase64: row.txBytesBase64,
       signatures: row.signatures,
     });
@@ -1020,11 +983,9 @@ async function loadPendingEarn(txDigest: string): Promise<PendingEarnBundle | nu
 }
 
 async function clearPendingEarn(txDigest: string) {
-  // Clear from both stores.
   try {
     await prisma.pendingEarn.delete({ where: { txDigest } });
   } catch (error) {
-    // Record may not exist (already cleared or never persisted).
     if (!(error instanceof Error && 'code' in error && (error as { code: string }).code === 'P2025')) {
       console.warn('Failed to clear pending Earn from DB', { txDigest, error });
     }
@@ -1040,6 +1001,839 @@ async function clearPendingEarn(txDigest: string) {
   }
 }
 
+async function createPendingSettlement(params: {
+  xUserId: string;
+  action: 'claim' | 'withdraw';
+  stableCoinType: string;
+  previewToken: string;
+  status: 'yield_pending' | 'principal_pending';
+  expectedYieldUsdc: bigint;
+  expectedPrincipalUsdc: bigint;
+  snapshot: SettlementSnapshot;
+  yieldBundle?: SignedTxBundle | null;
+  principalBundle?: SignedTxBundle | null;
+}) {
+  return prisma.pendingEarnSettlement.create({
+    data: {
+      xUserId: params.xUserId,
+      action: params.action,
+      stableCoinType: params.stableCoinType,
+      previewToken: params.previewToken,
+      status: params.status,
+      expectedYieldUsdc: params.expectedYieldUsdc,
+      expectedPrincipalUsdc: params.expectedPrincipalUsdc,
+      yieldTxDigest: params.yieldBundle?.txDigest ?? null,
+      yieldTxBytesBase64: params.yieldBundle?.txBytesBase64 ?? null,
+      yieldSignatures: params.yieldBundle?.signatures ?? [],
+      principalTxDigest: params.principalBundle?.txDigest ?? null,
+      principalTxBytesBase64: params.principalBundle?.txBytesBase64 ?? null,
+      principalSignatures: params.principalBundle?.signatures ?? [],
+      settlementSnapshot: params.snapshot,
+    },
+  });
+}
+
+async function loadSettlementByTxDigest(txDigest: string) {
+  return prisma.pendingEarnSettlement.findFirst({
+    where: {
+      OR: [
+        { yieldTxDigest: txDigest },
+        { principalTxDigest: txDigest },
+      ],
+    },
+  });
+}
+
+function buildSignedBundle(txBytes: Uint8Array, signatures: string[]): SignedTxBundle {
+  return {
+    txDigest: TransactionDataBuilder.getDigestFromBytes(txBytes),
+    txBytesBase64: Buffer.from(txBytes).toString('base64'),
+    signatures,
+  };
+}
+
+function decodeSignedBundle(params: {
+  txDigest: string | null;
+  txBytesBase64: string | null;
+  signatures: string[];
+}): SignedTxBundle | null {
+  if (!params.txDigest || !params.txBytesBase64 || params.signatures.length === 0) {
+    return null;
+  }
+
+  return {
+    txDigest: params.txDigest,
+    txBytesBase64: params.txBytesBase64,
+    signatures: params.signatures,
+  };
+}
+
+async function signManagerTransaction(txBytes: Uint8Array) {
+  const managerKeypair = getStableLayerManagerKeypair();
+  if (!managerKeypair) {
+    throw new Error('StableLayer manager signer is not configured');
+  }
+
+  const signature = await managerKeypair.signTransaction(txBytes);
+  return [signature.signature];
+}
+
+async function buildManagerSignedBundle(tx: Transaction) {
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return buildSignedBundle(txBytes, await signManagerTransaction(txBytes));
+}
+
+async function buildUserSignedBundle(params: {
+  authorization: StagedAuthorization;
+  authorizationSignature: string;
+}) {
+  const txBytes = Uint8Array.from(Buffer.from(params.authorization.txBytesBase64, 'base64'));
+  const signatures: string[] = [];
+  const privy = getPrivyClient();
+  const userSignature = await signSuiTransaction(
+    privy,
+    params.authorization.walletId,
+    params.authorization.storedPublicKey,
+    txBytes,
+    { signatures: [params.authorizationSignature] },
+  );
+  signatures.push(userSignature);
+
+  if (params.authorization.sponsored) {
+    const gasKeypair = getGasStationKeypair();
+    if (gasKeypair) {
+      const gasSignature = await gasKeypair.signTransaction(txBytes);
+      signatures.push(gasSignature.signature);
+    }
+  }
+
+  return buildSignedBundle(txBytes, signatures);
+}
+
+async function executeSignedBundle(bundle: SignedTxBundle) {
+  return getSuiClient().executeTransactionBlock({
+    transactionBlock: Uint8Array.from(Buffer.from(bundle.txBytesBase64, 'base64')),
+    signature: bundle.signatures,
+    options: {
+      showEffects: true,
+      showBalanceChanges: true,
+      showObjectChanges: true,
+    },
+  });
+}
+
+async function getEarnPosition(params: {
+  xUserId: string;
+  senderAddress: string;
+  stableCoinType: string;
+}) {
+  const yieldSettlementMode = getYieldSettlementMode();
+  const [{ availableUsdc, depositedUsdc }, accountingBase, globalState] = await Promise.all([
+    getEarnBalances(params.senderAddress, params.stableCoinType),
+    loadEarnAccountingState(params.xUserId),
+    loadEarnGlobalState(params.stableCoinType),
+  ]);
+
+  const accounting = await ensureEarnAccountingBaseline({
+    xUserId: params.xUserId,
+    accounting: accountingBase,
+    depositedUsdc,
+  });
+
+  const harvestedOutstandingUsdc = computePendingReward({
+    balance: depositedUsdc,
+    accPerShareE18: globalState.accPayoutPerShareUsdcE18,
+    rewardDebt: accounting.rewardDebtPayoutUsdc,
+  });
+  const harvestedOutstandingRetainedUsdb = computePendingReward({
+    balance: depositedUsdc,
+    accPerShareE18: globalState.accRetainedPerShareUsdbE18,
+    rewardDebt: accounting.rewardDebtRetainedUsdb,
+  });
+
+  let claimableYieldReliable = true;
+  let globalClaimableRewardUsdb = 0n;
+  let totalSupply = 0n;
+
+  if (depositedUsdc > 0n) {
+    try {
+      const stableLayerClient = await getStableLayerClient(params.senderAddress);
+      const [claimableRaw, totalSupplyRaw] = await Promise.all([
+        inspectGlobalClaimableRewardUsdb({
+          senderAddress: params.senderAddress,
+          stableCoinType: params.stableCoinType,
+        }),
+        stableLayerClient.getTotalSupplyByCoinType(params.stableCoinType),
+      ]);
+      globalClaimableRewardUsdb = claimableRaw;
+      totalSupply = parseBigIntLike(totalSupplyRaw as string | number | bigint);
+    } catch (error) {
+      claimableYieldReliable = false;
+      console.warn('Failed to inspect global Earn claimable reward', {
+        xUserId: params.xUserId,
+        senderAddress: params.senderAddress,
+        stableCoinType: params.stableCoinType,
+        error,
+      });
+    }
+  }
+
+  let unharvestedEstimateUsdc = 0n;
+  if (globalClaimableRewardUsdb > 0n && totalSupply > 0n && depositedUsdc > 0n) {
+    const { userClaimUsdb } = splitRetainedYieldUsdb(globalClaimableRewardUsdb);
+    unharvestedEstimateUsdc = (userClaimUsdb * depositedUsdc) / totalSupply;
+  }
+
+  return {
+    accounting,
+    globalState,
+    availableUsdc,
+    depositedUsdc,
+    claimableYieldUsdc: harvestedOutstandingUsdc + unharvestedEstimateUsdc,
+    claimableYieldReliable,
+    harvestedOutstandingUsdc,
+    harvestedOutstandingRetainedUsdb,
+    globalClaimableRewardUsdb,
+    totalSupply,
+    yieldSettlementMode,
+  } satisfies EarnPosition;
+}
+
+async function resolveRetainedAccountId(params: {
+  xUserId: string;
+  senderAddress: string;
+  bucketClient: StableLayerEarnInternals['bucketClient'];
+}) {
+  const accounting = await prisma.earnAccounting.findUnique({
+    where: { xUserId: params.xUserId },
+    select: { retainedAccountId: true },
+  });
+
+  try {
+    const accounts = await params.bucketClient.getUserAccounts({
+      address: params.senderAddress,
+    });
+
+    const normalizedStoredAccountId = accounting?.retainedAccountId
+      ? normalizeSuiAddress(accounting.retainedAccountId)
+      : null;
+
+    if (
+      normalizedStoredAccountId &&
+      accounts.some((account) => normalizeSuiAddress(account.id.id) === normalizedStoredAccountId)
+    ) {
+      return normalizedStoredAccountId;
+    }
+
+    const discoveredAccountId = findEarnRetainedAccountId(accounts);
+    if (discoveredAccountId) {
+      await prisma.earnAccounting.upsert({
+        where: { xUserId: params.xUserId },
+        update: { retainedAccountId: discoveredAccountId },
+        create: {
+          xUserId: params.xUserId,
+          retainedAccountId: discoveredAccountId,
+        },
+      });
+      return discoveredAccountId;
+    }
+  } catch (error) {
+    console.warn('Failed to resolve retained Earn account from Bucket', {
+      xUserId: params.xUserId,
+      senderAddress: params.senderAddress,
+      error,
+    });
+  }
+
+  return accounting?.retainedAccountId ? normalizeSuiAddress(accounting.retainedAccountId) : null;
+}
+
+async function getEarnFrameworkPackageId(senderAddress: string) {
+  const stableLayerClient = await getStableLayerClient(senderAddress);
+  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
+
+  if (typeof internals.bucketClient?.getConfig !== 'function') {
+    throw new Error(
+      'stable-layer-sdk internals changed; Earn retained account resolution is unavailable',
+    );
+  }
+
+  const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
+  return frameworkPackageId;
+}
+
+async function buildSettlementPlan(params: {
+  xUserId: string;
+  action: 'claim' | 'withdraw';
+  senderAddress: string;
+  stableCoinType: string;
+  amount: bigint;
+}) {
+  const position = await getEarnPosition({
+    xUserId: params.xUserId,
+    senderAddress: params.senderAddress,
+    stableCoinType: params.stableCoinType,
+  });
+
+  if (params.action === 'withdraw' && position.depositedUsdc < params.amount) {
+    throw new Error('Insufficient deposited balance');
+  }
+
+  if (position.yieldSettlementMode === 'disabled') {
+    return {
+      ...position,
+      plan: {
+        xUserId: params.xUserId,
+        action: params.action,
+        stableCoinType: params.stableCoinType,
+        senderAddress: params.senderAddress,
+        yieldSettlementMode: position.yieldSettlementMode,
+        yieldSettled: false,
+        preBalanceUsdc: position.depositedUsdc,
+        postBalanceUsdc:
+          params.action === 'withdraw'
+            ? position.depositedUsdc - params.amount
+            : position.depositedUsdc,
+        userPayoutOwedUsdc: 0n,
+        userRetainedOwedUsdb: 0n,
+        harvestedRewardUsdb: 0n,
+        harvestedPayoutUsdc: 0n,
+        harvestedRetainedUsdb: 0n,
+        nextAccPayoutPerShareUsdcE18: position.globalState.accPayoutPerShareUsdcE18,
+        nextAccRetainedPerShareUsdbE18: position.globalState.accRetainedPerShareUsdbE18,
+      } satisfies SettlementPlan,
+    };
+  }
+
+  let harvestedRewardUsdb = position.globalClaimableRewardUsdb;
+  let harvestedPayoutUsdc = 0n;
+  let harvestedRetainedUsdb = 0n;
+  let nextAccPayoutPerShareUsdcE18 = position.globalState.accPayoutPerShareUsdcE18;
+  let nextAccRetainedPerShareUsdbE18 = position.globalState.accRetainedPerShareUsdbE18;
+
+  if (harvestedRewardUsdb > 0n && position.totalSupply > 0n) {
+    const split = splitRetainedYieldUsdb(harvestedRewardUsdb);
+    harvestedPayoutUsdc = split.userClaimUsdb;
+    harvestedRetainedUsdb = split.retainedUsdb;
+    nextAccPayoutPerShareUsdcE18 += (harvestedPayoutUsdc * ACC_PRECISION) / position.totalSupply;
+    nextAccRetainedPerShareUsdbE18 +=
+      (harvestedRetainedUsdb * ACC_PRECISION) / position.totalSupply;
+  } else {
+    harvestedRewardUsdb = 0n;
+  }
+
+  const userPayoutOwedUsdc = computePendingReward({
+    balance: position.depositedUsdc,
+    accPerShareE18: nextAccPayoutPerShareUsdcE18,
+    rewardDebt: position.accounting.rewardDebtPayoutUsdc,
+  });
+  const userRetainedOwedUsdb = computePendingReward({
+    balance: position.depositedUsdc,
+    accPerShareE18: nextAccRetainedPerShareUsdbE18,
+    rewardDebt: position.accounting.rewardDebtRetainedUsdb,
+  });
+
+  const yieldSettled = userPayoutOwedUsdc > 0n || userRetainedOwedUsdb > 0n;
+
+  return {
+    ...position,
+    plan: {
+      xUserId: params.xUserId,
+      action: params.action,
+      stableCoinType: params.stableCoinType,
+      senderAddress: params.senderAddress,
+      yieldSettlementMode: position.yieldSettlementMode,
+      yieldSettled,
+      preBalanceUsdc: position.depositedUsdc,
+      postBalanceUsdc:
+        params.action === 'withdraw'
+          ? position.depositedUsdc - params.amount
+          : position.depositedUsdc,
+      userPayoutOwedUsdc,
+      userRetainedOwedUsdb,
+      harvestedRewardUsdb,
+      harvestedPayoutUsdc,
+      harvestedRetainedUsdb,
+      nextAccPayoutPerShareUsdcE18,
+      nextAccRetainedPerShareUsdbE18,
+    } satisfies SettlementPlan,
+  };
+}
+
+async function buildYieldSettlementBundle(params: {
+  plan: SettlementPlan;
+}) {
+  if (!params.plan.yieldSettled) {
+    return null;
+  }
+
+  const managerKeypair = getStableLayerManagerKeypair();
+  if (!managerKeypair) {
+    throw new Error('StableLayer manager signer is not configured');
+  }
+
+  const managerAddress = managerKeypair.toSuiAddress();
+  const stableLayerClient = await getStableLayerClient(managerAddress);
+  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
+  if (
+    typeof internals.bucketClient?.buildDepositToSavingPoolTransaction !== 'function' ||
+    typeof internals.bucketClient?.buildPSMSwapOutTransaction !== 'function' ||
+    typeof internals.bucketClient?.getConfig !== 'function' ||
+    typeof internals.bucketClient?.getUserAccounts !== 'function' ||
+    typeof internals.bucketClient?.getUsdbCoinType !== 'function'
+  ) {
+    throw new Error(
+      'stable-layer-sdk internals changed; Earn yield settlement is unavailable',
+    );
+  }
+
+  const tx = new Transaction();
+  tx.setSender(managerAddress);
+
+  let harvestedPayableUsdcCoin: TransactionObjectArgument | null = null;
+  let harvestedRetainedUsdbCoin: TransactionObjectArgument | null = null;
+
+  if (params.plan.harvestedRewardUsdb > 0n) {
+    const rewardUsdbCoin = await stableLayerClient.buildClaimTx({
+      tx,
+      sender: managerAddress,
+      stableCoinType: params.plan.stableCoinType,
+      autoTransfer: false,
+    });
+
+    if (!rewardUsdbCoin) {
+      throw new Error('StableLayer claim did not return a reward coin');
+    }
+
+    if (params.plan.harvestedPayoutUsdc > 0n && params.plan.harvestedRetainedUsdb > 0n) {
+      const [payableUsdbCoin] = tx.splitCoins(rewardUsdbCoin, [params.plan.harvestedPayoutUsdc]);
+      harvestedRetainedUsdbCoin = rewardUsdbCoin;
+      harvestedPayableUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
+        coinType: MAINNET_USDC_TYPE,
+        usdbCoinOrAmount: payableUsdbCoin,
+      });
+    } else if (params.plan.harvestedPayoutUsdc > 0n) {
+      harvestedPayableUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
+        coinType: MAINNET_USDC_TYPE,
+        usdbCoinOrAmount: rewardUsdbCoin,
+      });
+    } else {
+      harvestedRetainedUsdbCoin = rewardUsdbCoin;
+    }
+  }
+
+  if (params.plan.userPayoutOwedUsdc > 0n) {
+    let payoutFundingCoin = harvestedPayableUsdcCoin;
+    if (!payoutFundingCoin) {
+      payoutFundingCoin = tx.add(
+        coinWithBalance({
+          type: MAINNET_USDC_TYPE,
+          balance: params.plan.userPayoutOwedUsdc,
+        }),
+      ) as TransactionObjectArgument;
+    } else if (params.plan.userPayoutOwedUsdc > params.plan.harvestedPayoutUsdc) {
+      const topUpCoin = tx.add(
+        coinWithBalance({
+          type: MAINNET_USDC_TYPE,
+          balance: params.plan.userPayoutOwedUsdc - params.plan.harvestedPayoutUsdc,
+        }),
+      );
+      tx.mergeCoins(payoutFundingCoin, [topUpCoin]);
+    }
+
+    if (params.plan.harvestedPayoutUsdc > params.plan.userPayoutOwedUsdc) {
+      const [userPayoutCoin] = tx.splitCoins(payoutFundingCoin, [params.plan.userPayoutOwedUsdc]);
+      tx.transferObjects([userPayoutCoin], params.plan.senderAddress);
+      tx.transferObjects([payoutFundingCoin], managerAddress);
+    } else {
+      tx.transferObjects([payoutFundingCoin], params.plan.senderAddress);
+    }
+  } else if (harvestedPayableUsdcCoin) {
+    tx.transferObjects([harvestedPayableUsdcCoin], managerAddress);
+  }
+
+  if (params.plan.userRetainedOwedUsdb > 0n) {
+    const existingRetainedAccountId = await resolveRetainedAccountId({
+      xUserId: params.plan.xUserId,
+      senderAddress: params.plan.senderAddress,
+      bucketClient: internals.bucketClient,
+    });
+
+    let retainedAccountObject: TransactionObjectArgument | null = null;
+    let retainedAccountObjectOrId: string | TransactionArgument | undefined = existingRetainedAccountId ?? undefined;
+
+    if (!retainedAccountObjectOrId) {
+      const { FRAMEWORK_PACKAGE_ID: frameworkPackageId } = await internals.bucketClient.getConfig();
+      const aliasOption = tx.moveCall({
+        target: '0x1::option::some',
+        typeArguments: ['0x1::string::String'],
+        arguments: [tx.pure.string(EARN_RETAINED_ACCOUNT_ALIAS)],
+      });
+      retainedAccountObject = tx.moveCall({
+        target: `${frameworkPackageId}::account::new`,
+        arguments: [aliasOption],
+      });
+      retainedAccountObjectOrId = retainedAccountObject;
+    }
+
+    const usdbCoinType = await internals.bucketClient.getUsdbCoinType();
+    let retainedFundingCoin: TransactionArgument | null = harvestedRetainedUsdbCoin;
+    if (!retainedFundingCoin) {
+      retainedFundingCoin = tx.add(
+        coinWithBalance({
+          type: usdbCoinType,
+          balance: params.plan.userRetainedOwedUsdb,
+        }),
+      ) as TransactionObjectArgument;
+    } else if (params.plan.userRetainedOwedUsdb > params.plan.harvestedRetainedUsdb) {
+      const topUpCoin = tx.add(
+        coinWithBalance({
+          type: usdbCoinType,
+          balance: params.plan.userRetainedOwedUsdb - params.plan.harvestedRetainedUsdb,
+        }),
+      );
+      tx.mergeCoins(retainedFundingCoin, [topUpCoin]);
+    }
+
+    const depositCoin =
+      params.plan.harvestedRetainedUsdb > params.plan.userRetainedOwedUsdb
+        ? tx.splitCoins(
+            retainedFundingCoin as TransactionObjectArgument,
+            [params.plan.userRetainedOwedUsdb],
+          )[0]
+        : retainedFundingCoin;
+
+    await internals.bucketClient.buildDepositToSavingPoolTransaction(tx, {
+      address: params.plan.senderAddress,
+      accountObjectOrId: retainedAccountObjectOrId,
+      lpType: stableLayerClient.getConstants().SAVING_TYPE,
+      depositCoinOrAmount: depositCoin,
+    });
+
+    if (params.plan.harvestedRetainedUsdb > params.plan.userRetainedOwedUsdb) {
+      tx.transferObjects([retainedFundingCoin as TransactionObjectArgument], managerAddress);
+    }
+
+    if (retainedAccountObject) {
+      tx.transferObjects([retainedAccountObject], params.plan.senderAddress);
+    }
+  } else if (harvestedRetainedUsdbCoin) {
+    tx.transferObjects([harvestedRetainedUsdbCoin], managerAddress);
+  }
+
+  return buildManagerSignedBundle(tx);
+}
+
+async function updateEarnAccounting(
+  db: Pick<EarnDb, 'earnAccounting'>,
+  params: {
+    xUserId: string;
+    accounting: EarnAccountingState;
+    rewardDebtPayoutUsdc?: bigint;
+    rewardDebtRetainedUsdb?: bigint;
+    claimedUsdcTotal?: bigint;
+    retainedUsdbTotal?: bigint;
+    lastKnownDepositedUsdc?: bigint;
+    retainedAccountId?: string | null;
+    lastSettledTxDigest?: string | null;
+  },
+) {
+  await db.earnAccounting.upsert({
+    where: { xUserId: params.xUserId },
+    update: {
+      ...(params.rewardDebtPayoutUsdc !== undefined
+        ? { rewardDebtPayoutUsdc: serializeBigInt(params.rewardDebtPayoutUsdc) }
+        : {}),
+      ...(params.rewardDebtRetainedUsdb !== undefined
+        ? { rewardDebtRetainedUsdb: serializeBigInt(params.rewardDebtRetainedUsdb) }
+        : {}),
+      ...(params.claimedUsdcTotal !== undefined ? { claimedUsdcTotal: params.claimedUsdcTotal } : {}),
+      ...(params.retainedUsdbTotal !== undefined ? { retainedUsdbTotal: params.retainedUsdbTotal } : {}),
+      ...(params.lastKnownDepositedUsdc !== undefined
+        ? { lastKnownDepositedUsdc: params.lastKnownDepositedUsdc }
+        : {}),
+      ...(params.retainedAccountId !== undefined ? { retainedAccountId: params.retainedAccountId } : {}),
+      ...(params.lastSettledTxDigest !== undefined
+        ? { lastSettledTxDigest: params.lastSettledTxDigest }
+        : {}),
+    },
+    create: {
+      xUserId: params.xUserId,
+      rewardDebtPayoutUsdc: serializeBigInt(
+        params.rewardDebtPayoutUsdc ?? params.accounting.rewardDebtPayoutUsdc,
+      ),
+      rewardDebtRetainedUsdb: serializeBigInt(
+        params.rewardDebtRetainedUsdb ?? params.accounting.rewardDebtRetainedUsdb,
+      ),
+      claimedUsdcTotal: params.claimedUsdcTotal ?? params.accounting.claimedUsdcTotal,
+      retainedUsdbTotal: params.retainedUsdbTotal ?? params.accounting.retainedUsdbTotal,
+      lastKnownDepositedUsdc:
+        params.lastKnownDepositedUsdc ?? params.accounting.lastKnownDepositedUsdc,
+      ...(params.retainedAccountId !== undefined && params.retainedAccountId !== null
+        ? { retainedAccountId: params.retainedAccountId }
+        : {}),
+      ...(params.lastSettledTxDigest !== undefined && params.lastSettledTxDigest !== null
+        ? { lastSettledTxDigest: params.lastSettledTxDigest }
+        : {}),
+    },
+  });
+}
+
+async function updateEarnGlobalState(
+  db: Pick<EarnDb, 'earnGlobalState'>,
+  params: {
+    stableCoinType: string;
+    globalState: EarnGlobalState;
+    nextAccPayoutPerShareUsdcE18?: bigint;
+    nextAccRetainedPerShareUsdbE18?: bigint;
+    lastHarvestTxDigest?: string | null;
+    lastHarvestedRewardUsdb?: bigint;
+    lastHarvestedPayoutUsdc?: bigint;
+    lastHarvestedRetainedUsdb?: bigint;
+  },
+) {
+  await db.earnGlobalState.upsert({
+    where: { stableCoinType: params.stableCoinType },
+    update: {
+      ...(params.nextAccPayoutPerShareUsdcE18 !== undefined
+        ? { accPayoutPerShareUsdcE18: serializeBigInt(params.nextAccPayoutPerShareUsdcE18) }
+        : {}),
+      ...(params.nextAccRetainedPerShareUsdbE18 !== undefined
+        ? { accRetainedPerShareUsdbE18: serializeBigInt(params.nextAccRetainedPerShareUsdbE18) }
+        : {}),
+      ...(params.lastHarvestTxDigest !== undefined
+        ? { lastHarvestTxDigest: params.lastHarvestTxDigest }
+        : {}),
+      ...(params.lastHarvestedRewardUsdb !== undefined
+        ? { lastHarvestedRewardUsdb: params.lastHarvestedRewardUsdb }
+        : {}),
+      ...(params.lastHarvestedPayoutUsdc !== undefined
+        ? { lastHarvestedPayoutUsdc: params.lastHarvestedPayoutUsdc }
+        : {}),
+      ...(params.lastHarvestedRetainedUsdb !== undefined
+        ? { lastHarvestedRetainedUsdb: params.lastHarvestedRetainedUsdb }
+        : {}),
+    },
+    create: {
+      stableCoinType: params.stableCoinType,
+      accPayoutPerShareUsdcE18: serializeBigInt(
+        params.nextAccPayoutPerShareUsdcE18 ?? params.globalState.accPayoutPerShareUsdcE18,
+      ),
+      accRetainedPerShareUsdbE18: serializeBigInt(
+        params.nextAccRetainedPerShareUsdbE18 ?? params.globalState.accRetainedPerShareUsdbE18,
+      ),
+      lastHarvestTxDigest:
+        params.lastHarvestTxDigest ?? params.globalState.lastHarvestTxDigest,
+      lastHarvestedRewardUsdb:
+        params.lastHarvestedRewardUsdb ?? params.globalState.lastHarvestedRewardUsdb,
+      lastHarvestedPayoutUsdc:
+        params.lastHarvestedPayoutUsdc ?? params.globalState.lastHarvestedPayoutUsdc,
+      lastHarvestedRetainedUsdb:
+        params.lastHarvestedRetainedUsdb ?? params.globalState.lastHarvestedRetainedUsdb,
+    },
+  });
+}
+
+async function applyStakeSuccessBookkeeping(params: {
+  xUserId: string;
+  stableCoinType: string;
+  amount: bigint;
+  txDigest: string;
+}) {
+  const [accounting, globalState] = await Promise.all([
+    loadEarnAccountingState(params.xUserId),
+    loadEarnGlobalState(params.stableCoinType),
+  ]);
+
+  const rewardDebtPayoutUsdc =
+    accounting.rewardDebtPayoutUsdc +
+    scaleShare(params.amount, globalState.accPayoutPerShareUsdcE18);
+  const rewardDebtRetainedUsdb =
+    accounting.rewardDebtRetainedUsdb +
+    scaleShare(params.amount, globalState.accRetainedPerShareUsdbE18);
+
+  await updateEarnAccounting(prisma, {
+    xUserId: params.xUserId,
+    accounting,
+    rewardDebtPayoutUsdc,
+    rewardDebtRetainedUsdb,
+    lastKnownDepositedUsdc: accounting.lastKnownDepositedUsdc + params.amount,
+    lastSettledTxDigest: params.txDigest,
+  });
+}
+
+async function applyYieldSettlementSuccess(params: {
+  settlementId: string;
+  xUserId: string;
+  stableCoinType: string;
+  snapshot: ReturnType<typeof parseSettlementSnapshot>;
+  yieldTxDigest: string;
+  nextStatus: 'confirmed' | 'principal_pending';
+  retainedAccountId?: string | null;
+}) {
+  await prisma.$transaction(async (tx) => {
+    const [accounting, globalState] = await Promise.all([
+      tx.earnAccounting.findUnique({
+        where: { xUserId: params.xUserId },
+        select: {
+          retainedAccountId: true,
+          rewardDebtPayoutUsdc: true,
+          rewardDebtRetainedUsdb: true,
+          claimedUsdcTotal: true,
+          retainedUsdbTotal: true,
+          lastKnownDepositedUsdc: true,
+        },
+      }).then(parseEarnAccountingState),
+      tx.earnGlobalState.findUnique({
+        where: { stableCoinType: params.stableCoinType },
+        select: {
+          accPayoutPerShareUsdcE18: true,
+          accRetainedPerShareUsdbE18: true,
+          lastHarvestTxDigest: true,
+          lastHarvestedRewardUsdb: true,
+          lastHarvestedPayoutUsdc: true,
+          lastHarvestedRetainedUsdb: true,
+        },
+      }).then(parseEarnGlobalState),
+    ]);
+
+    await updateEarnGlobalState(tx, {
+      stableCoinType: params.stableCoinType,
+      globalState,
+      nextAccPayoutPerShareUsdcE18: params.snapshot.nextAccPayoutPerShareUsdcE18,
+      nextAccRetainedPerShareUsdbE18: params.snapshot.nextAccRetainedPerShareUsdbE18,
+      lastHarvestTxDigest: params.yieldTxDigest,
+      lastHarvestedRewardUsdb: params.snapshot.harvestedRewardUsdb,
+      lastHarvestedPayoutUsdc: params.snapshot.harvestedPayoutUsdc,
+      lastHarvestedRetainedUsdb: params.snapshot.harvestedRetainedUsdb,
+    });
+
+    await updateEarnAccounting(tx, {
+      xUserId: params.xUserId,
+      accounting,
+      rewardDebtPayoutUsdc: scaleShare(
+        params.snapshot.preBalanceUsdc,
+        params.snapshot.nextAccPayoutPerShareUsdcE18,
+      ),
+      rewardDebtRetainedUsdb: scaleShare(
+        params.snapshot.preBalanceUsdc,
+        params.snapshot.nextAccRetainedPerShareUsdbE18,
+      ),
+      claimedUsdcTotal: accounting.claimedUsdcTotal + params.snapshot.userPayoutOwedUsdc,
+      retainedUsdbTotal: accounting.retainedUsdbTotal + params.snapshot.userRetainedOwedUsdb,
+      lastKnownDepositedUsdc: params.snapshot.preBalanceUsdc,
+      retainedAccountId:
+        params.retainedAccountId !== undefined
+          ? params.retainedAccountId
+          : accounting.retainedAccountId,
+      lastSettledTxDigest: params.yieldTxDigest,
+    });
+
+    await tx.pendingEarnSettlement.update({
+      where: { id: params.settlementId },
+      data: {
+        status: params.nextStatus,
+        lastErrorMessage: null,
+      },
+    });
+  });
+}
+
+async function applyWithdrawPrincipalSuccess(params: {
+  settlementId: string;
+  xUserId: string;
+  stableCoinType: string;
+  snapshot: ReturnType<typeof parseSettlementSnapshot>;
+  principalTxDigest: string;
+}) {
+  await prisma.$transaction(async (tx) => {
+    const [accounting, globalState] = await Promise.all([
+      tx.earnAccounting.findUnique({
+        where: { xUserId: params.xUserId },
+        select: {
+          retainedAccountId: true,
+          rewardDebtPayoutUsdc: true,
+          rewardDebtRetainedUsdb: true,
+          claimedUsdcTotal: true,
+          retainedUsdbTotal: true,
+          lastKnownDepositedUsdc: true,
+        },
+      }).then(parseEarnAccountingState),
+      tx.earnGlobalState.findUnique({
+        where: { stableCoinType: params.stableCoinType },
+        select: {
+          accPayoutPerShareUsdcE18: true,
+          accRetainedPerShareUsdbE18: true,
+          lastHarvestTxDigest: true,
+          lastHarvestedRewardUsdb: true,
+          lastHarvestedPayoutUsdc: true,
+          lastHarvestedRetainedUsdb: true,
+        },
+      }).then(parseEarnGlobalState),
+    ]);
+
+    const withdrawnAmount = params.snapshot.preBalanceUsdc - params.snapshot.postBalanceUsdc;
+    const rewardDebtPayoutUsdc = params.snapshot.yieldSettled
+      ? scaleShare(
+          params.snapshot.postBalanceUsdc,
+          params.snapshot.nextAccPayoutPerShareUsdcE18,
+        )
+      : accounting.rewardDebtPayoutUsdc > scaleShare(withdrawnAmount, globalState.accPayoutPerShareUsdcE18)
+          ? accounting.rewardDebtPayoutUsdc -
+            scaleShare(withdrawnAmount, globalState.accPayoutPerShareUsdcE18)
+          : 0n;
+    const rewardDebtRetainedUsdb = params.snapshot.yieldSettled
+      ? scaleShare(
+          params.snapshot.postBalanceUsdc,
+          params.snapshot.nextAccRetainedPerShareUsdbE18,
+        )
+      : accounting.rewardDebtRetainedUsdb >
+            scaleShare(withdrawnAmount, globalState.accRetainedPerShareUsdbE18)
+          ? accounting.rewardDebtRetainedUsdb -
+            scaleShare(withdrawnAmount, globalState.accRetainedPerShareUsdbE18)
+          : 0n;
+
+    await updateEarnAccounting(tx, {
+      xUserId: params.xUserId,
+      accounting,
+      rewardDebtPayoutUsdc,
+      rewardDebtRetainedUsdb,
+      lastKnownDepositedUsdc: params.snapshot.postBalanceUsdc,
+      lastSettledTxDigest: params.principalTxDigest,
+    });
+
+    await tx.pendingEarnSettlement.update({
+      where: { id: params.settlementId },
+      data: {
+        status: 'confirmed',
+        lastErrorMessage: null,
+      },
+    });
+  });
+}
+
+async function markSettlementFailure(params: {
+  settlementId: string;
+  status: 'failed' | 'partial';
+  message: string;
+}) {
+  await prisma.pendingEarnSettlement.update({
+    where: { id: params.settlementId },
+    data: {
+      status: params.status,
+      lastErrorMessage: params.message,
+    },
+  });
+}
+
+async function loadRetainedAccountIdFromSuccess(params: {
+  senderAddress: string;
+  objectChanges: unknown[] | null | undefined;
+}) {
+  const frameworkPackageId = await getEarnFrameworkPackageId(params.senderAddress);
+  return extractCreatedEarnRetainedAccountId(params.objectChanges, frameworkPackageId);
+}
+
 export function buildEarnAuthorizationRequest(walletId: string, txBytes: Uint8Array) {
   return buildPrivyRawSignAuthorizationRequest(walletId, txBytes);
 }
@@ -1049,43 +1843,25 @@ export async function getEarnSummary(params: {
 }): Promise<EarnSummary> {
   const { stableCoinType } = assertEarnConfig();
   const walletBinding = await getWalletBinding(params.xUserId);
+  const yieldSettlementMode = getYieldSettlementMode();
 
   if (!walletBinding?.suiAddress) {
-    return zeroSummary();
+    return zeroSummary(yieldSettlementMode);
   }
 
-  const { availableUsdc, depositedUsdc } = await getEarnBalances(
-    walletBinding.suiAddress,
+  const position = await getEarnPosition({
+    xUserId: params.xUserId,
+    senderAddress: walletBinding.suiAddress,
     stableCoinType,
-  );
-
-  let claimableYieldUsdc = 0n;
-  let claimableYieldReliable = true;
-  if (depositedUsdc > 0n) {
-    try {
-      const claimPreview = await simulateEarnAction({
-        xUserId: params.xUserId,
-        action: 'claim',
-        senderAddress: walletBinding.suiAddress,
-        stableCoinType,
-        amount: 0n,
-      });
-      claimableYieldUsdc = claimPreview.userReceivesUsdc;
-    } catch (error) {
-      claimableYieldReliable = false;
-      console.warn('Failed to simulate claimable StableLayer yield', {
-        xUserId: params.xUserId,
-        error,
-      });
-    }
-  }
+  });
 
   return {
     walletReady: Boolean(walletBinding.privyWalletId && walletBinding.suiPublicKey),
-    availableUsdc: availableUsdc.toString(),
-    depositedUsdc: depositedUsdc.toString(),
-    claimableYieldUsdc: claimableYieldUsdc.toString(),
-    claimableYieldReliable,
+    availableUsdc: serializeBigInt(position.availableUsdc),
+    depositedUsdc: serializeBigInt(position.depositedUsdc),
+    claimableYieldUsdc: serializeBigInt(position.claimableYieldUsdc),
+    claimableYieldReliable: position.claimableYieldReliable,
+    yieldSettlementMode: position.yieldSettlementMode,
   };
 }
 
@@ -1112,36 +1888,488 @@ export async function previewEarnAction(params: {
     throw new Error('Insufficient deposited balance');
   }
 
-  let previewValues = {
-    userReceivesUsdc: 0n,
-    yieldSettlementSkipped: false,
-  };
+  let yieldReceivesUsdc = 0n;
+  const principalReceivesUsdc = action === 'withdraw' ? amount : 0n;
+  let yieldSettlementSkipped = false;
 
   if (action === 'claim' || action === 'withdraw') {
-    previewValues = await simulateEarnAction({
+    const { plan } = await buildSettlementPlan({
       xUserId,
       action,
       senderAddress: walletBinding.suiAddress,
       stableCoinType,
       amount,
     });
+
+    yieldReceivesUsdc = plan.userPayoutOwedUsdc;
+    yieldSettlementSkipped = !plan.yieldSettled;
+
+    if (action === 'claim') {
+      if (summary.yieldSettlementMode === 'disabled') {
+        throw new Error('Yield settlement is temporarily unavailable');
+      }
+
+      if (yieldReceivesUsdc <= 0n) {
+        throw new Error('No claimable yield available');
+      }
+    }
   }
 
   const previewToken = await stagePreview({
     xUserId,
     action,
-    amount: amount.toString(),
-    ...(previewValues.yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
+    amount: serializeBigInt(amount),
+    yieldSettlementMode: summary.yieldSettlementMode,
+    expectedYieldUsdc: serializeBigInt(yieldReceivesUsdc),
+    expectedPrincipalUsdc: serializeBigInt(principalReceivesUsdc),
+    ...(yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
   });
 
   return {
     ...summary,
     previewToken,
     action,
-    amount: amount.toString(),
-    userReceivesUsdc: previewValues.userReceivesUsdc.toString(),
-    ...(previewValues.yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
+    amount: serializeBigInt(amount),
+    principalReceivesUsdc: serializeBigInt(principalReceivesUsdc),
+    yieldReceivesUsdc: serializeBigInt(yieldReceivesUsdc),
+    userReceivesUsdc: serializeBigInt(principalReceivesUsdc + yieldReceivesUsdc),
+    ...(yieldSettlementSkipped ? { yieldSettlementSkipped: true } : {}),
   };
+}
+
+async function executeStakeFlow(params: {
+  xUserId: string;
+  previewToken: string;
+  walletBinding: {
+    privyWalletId: string;
+    suiAddress: string;
+    suiPublicKey: string;
+  };
+  stableCoinType: string;
+  preview: StagedPreview;
+  authorizationSignature?: string;
+}) {
+  if (!params.authorizationSignature) {
+    const buildResult = await buildUserEarnTransactionBytes({
+      action: 'stake',
+      senderAddress: params.walletBinding.suiAddress,
+      stableCoinType: params.stableCoinType,
+      amount: BigInt(params.preview.amount),
+      sponsored: true,
+    });
+
+    await stageAuthorization(params.previewToken, {
+      action: 'stake',
+      amount: params.preview.amount,
+      txBytesBase64: Buffer.from(buildResult.txBytes).toString('base64'),
+      walletId: params.walletBinding.privyWalletId,
+      storedPublicKey: params.walletBinding.suiPublicKey,
+      sponsored: buildResult.sponsorApplied,
+    });
+
+    return {
+      status: 'authorization_required',
+      authorizationRequest: buildEarnAuthorizationRequest(
+        params.walletBinding.privyWalletId,
+        buildResult.txBytes,
+      ),
+    } satisfies EarnExecuteResult;
+  }
+
+  const authorization = await loadAuthorization(params.previewToken);
+  if (!authorization) {
+    throw new Error('Authorization expired. Please confirm the earn action again.');
+  }
+
+  await clearAuthorization(params.previewToken);
+  const bundle = await buildUserSignedBundle({
+    authorization,
+    authorizationSignature: params.authorizationSignature,
+  });
+
+  await stagePendingEarn(bundle.txDigest, {
+    xUserId: params.xUserId,
+    action: 'stake',
+    amount: authorization.amount,
+    txBytesBase64: bundle.txBytesBase64,
+    signatures: bundle.signatures,
+  });
+
+  try {
+    const result = await executeSignedBundle(bundle);
+    if (result.effects?.status.status === 'success') {
+      await applyStakeSuccessBookkeeping({
+        xUserId: params.xUserId,
+        stableCoinType: params.stableCoinType,
+        amount: BigInt(authorization.amount),
+        txDigest: result.digest || bundle.txDigest,
+      });
+      await clearPendingEarn(bundle.txDigest);
+      await clearPreview(params.previewToken);
+      return {
+        status: 'confirmed',
+        action: 'stake',
+        txDigest: result.digest || bundle.txDigest,
+      } satisfies EarnExecuteResult;
+    }
+
+    await clearPendingEarn(bundle.txDigest);
+    await clearPreview(params.previewToken);
+    throw new Error(
+      `Earn transaction failed on-chain: ${annotateNoValidGasCoinsError(
+        result.effects?.status.error || 'Transaction failed on-chain',
+      )}`,
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
+
+    console.error('Failed to execute Earn stake transaction; returning pending for confirm recovery', error);
+  }
+
+  return {
+    status: 'pending',
+    action: 'stake',
+    txDigest: bundle.txDigest,
+  } satisfies EarnExecuteResult;
+}
+
+async function executeClaimFlow(params: {
+  xUserId: string;
+  previewToken: string;
+  walletBinding: {
+    suiAddress: string;
+  };
+  stableCoinType: string;
+}) {
+  const harvestLock = await acquireRedisLock(`earn-harvest:${params.stableCoinType}`, HARVEST_LOCK_TTL_SEC);
+  if (harvestLock.status !== 'acquired') {
+    throw new Error('Yield settlement is already in progress. Please retry in a moment.');
+  }
+
+  try {
+    const { plan } = await buildSettlementPlan({
+      xUserId: params.xUserId,
+      action: 'claim',
+      senderAddress: params.walletBinding.suiAddress,
+      stableCoinType: params.stableCoinType,
+      amount: 0n,
+    });
+
+    if (plan.yieldSettlementMode === 'disabled') {
+      throw new Error('Yield settlement is temporarily unavailable');
+    }
+    if (!plan.yieldSettled || plan.userPayoutOwedUsdc <= 0n) {
+      throw new Error('No claimable yield available');
+    }
+
+    const yieldBundle = await buildYieldSettlementBundle({ plan });
+    if (!yieldBundle) {
+      throw new Error('No claimable yield available');
+    }
+
+    const settlement = await createPendingSettlement({
+      xUserId: params.xUserId,
+      action: 'claim',
+      stableCoinType: params.stableCoinType,
+      previewToken: params.previewToken,
+      status: 'yield_pending',
+      expectedYieldUsdc: plan.userPayoutOwedUsdc,
+      expectedPrincipalUsdc: 0n,
+      snapshot: serializeSettlementSnapshot(plan),
+      yieldBundle,
+    });
+
+    try {
+      const result = await executeSignedBundle(yieldBundle);
+      if (result.effects?.status.status === 'success') {
+        const retainedAccountId = await loadRetainedAccountIdFromSuccess({
+          senderAddress: params.walletBinding.suiAddress,
+          objectChanges: result.objectChanges,
+        });
+        await applyYieldSettlementSuccess({
+          settlementId: settlement.id,
+          xUserId: params.xUserId,
+          stableCoinType: params.stableCoinType,
+          snapshot: parseSettlementSnapshot(settlement.settlementSnapshot),
+          yieldTxDigest: result.digest || yieldBundle.txDigest,
+          nextStatus: 'confirmed',
+          retainedAccountId,
+        });
+        await clearPreview(params.previewToken);
+        return {
+          status: 'confirmed',
+          action: 'claim',
+          txDigest: result.digest || yieldBundle.txDigest,
+        } satisfies EarnExecuteResult;
+      }
+
+      const message = annotateNoValidGasCoinsError(
+        result.effects?.status.error || 'Yield settlement failed on-chain',
+      );
+      await markSettlementFailure({
+        settlementId: settlement.id,
+        status: 'failed',
+        message,
+      });
+      throw new Error(`Earn transaction failed on-chain: ${message}`);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+        throw error;
+      }
+
+      console.error('Failed to execute Earn claim settlement; returning pending for confirm recovery', error);
+      return {
+        status: 'pending',
+        action: 'claim',
+        txDigest: yieldBundle.txDigest,
+      } satisfies EarnExecuteResult;
+    }
+  } finally {
+    await harvestLock.release();
+  }
+}
+
+async function executeWithdrawFlow(params: {
+  xUserId: string;
+  previewToken: string;
+  walletBinding: {
+    privyWalletId: string;
+    suiAddress: string;
+    suiPublicKey: string;
+  };
+  stableCoinType: string;
+  preview: StagedPreview;
+  authorizationSignature?: string;
+}) {
+  if (!params.authorizationSignature) {
+    const buildResult = await buildUserEarnTransactionBytes({
+      action: 'withdraw',
+      senderAddress: params.walletBinding.suiAddress,
+      stableCoinType: params.stableCoinType,
+      amount: BigInt(params.preview.amount),
+      sponsored: true,
+    });
+
+    await stageAuthorization(params.previewToken, {
+      action: 'withdraw',
+      amount: params.preview.amount,
+      txBytesBase64: Buffer.from(buildResult.txBytes).toString('base64'),
+      walletId: params.walletBinding.privyWalletId,
+      storedPublicKey: params.walletBinding.suiPublicKey,
+      sponsored: buildResult.sponsorApplied,
+    });
+
+    return {
+      status: 'authorization_required',
+      authorizationRequest: buildEarnAuthorizationRequest(
+        params.walletBinding.privyWalletId,
+        buildResult.txBytes,
+      ),
+    } satisfies EarnExecuteResult;
+  }
+
+  const authorization = await loadAuthorization(params.previewToken);
+  if (!authorization) {
+    throw new Error('Authorization expired. Please confirm the earn action again.');
+  }
+
+  await clearAuthorization(params.previewToken);
+  const principalBundle = await buildUserSignedBundle({
+    authorization,
+    authorizationSignature: params.authorizationSignature,
+  });
+
+  const harvestLock = await acquireRedisLock(`earn-harvest:${params.stableCoinType}`, HARVEST_LOCK_TTL_SEC);
+  if (harvestLock.status !== 'acquired') {
+    throw new Error('Yield settlement is already in progress. Please retry in a moment.');
+  }
+
+  try {
+    const { plan } = await buildSettlementPlan({
+      xUserId: params.xUserId,
+      action: 'withdraw',
+      senderAddress: params.walletBinding.suiAddress,
+      stableCoinType: params.stableCoinType,
+      amount: BigInt(authorization.amount),
+    });
+
+    const previewedYieldMode = params.preview.yieldSettlementMode;
+    const previewedYieldUsdc = BigInt(params.preview.expectedYieldUsdc);
+    const liveYieldMode = plan.yieldSettled ? 'server_payout' : 'disabled';
+    const liveYieldUsdc = plan.userPayoutOwedUsdc;
+    if (
+      liveYieldMode !== previewedYieldMode ||
+      (previewedYieldUsdc > 0n && liveYieldUsdc !== previewedYieldUsdc)
+    ) {
+      throw new Error(
+        'Settlement plan changed since preview. Please review the updated breakdown and try again.',
+      );
+    }
+
+    const snapshot = serializeSettlementSnapshot(plan);
+
+    if (!plan.yieldSettled) {
+      const settlement = await createPendingSettlement({
+        xUserId: params.xUserId,
+        action: 'withdraw',
+        stableCoinType: params.stableCoinType,
+        previewToken: params.previewToken,
+        status: 'principal_pending',
+        expectedYieldUsdc: 0n,
+        expectedPrincipalUsdc: BigInt(authorization.amount),
+        snapshot,
+        principalBundle,
+      });
+
+      try {
+        const result = await executeSignedBundle(principalBundle);
+        if (result.effects?.status.status === 'success') {
+          await applyWithdrawPrincipalSuccess({
+            settlementId: settlement.id,
+            xUserId: params.xUserId,
+            stableCoinType: params.stableCoinType,
+            snapshot: parseSettlementSnapshot(settlement.settlementSnapshot),
+            principalTxDigest: result.digest || principalBundle.txDigest,
+          });
+          await clearPreview(params.previewToken);
+          return {
+            status: 'confirmed',
+            action: 'withdraw',
+            txDigest: result.digest || principalBundle.txDigest,
+          } satisfies EarnExecuteResult;
+        }
+
+        const message = annotateNoValidGasCoinsError(
+          result.effects?.status.error || 'Withdraw failed on-chain',
+        );
+        await markSettlementFailure({
+          settlementId: settlement.id,
+          status: 'failed',
+          message,
+        });
+        throw new Error(`Earn transaction failed on-chain: ${message}`);
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+          throw error;
+        }
+
+        console.error('Failed to execute principal withdraw; returning pending for confirm recovery', error);
+        return {
+          status: 'pending',
+          action: 'withdraw',
+          txDigest: principalBundle.txDigest,
+        } satisfies EarnExecuteResult;
+      }
+    }
+
+    const yieldBundle = await buildYieldSettlementBundle({ plan });
+    if (!yieldBundle) {
+      throw new Error('Yield settlement is temporarily unavailable');
+    }
+
+    const settlement = await createPendingSettlement({
+      xUserId: params.xUserId,
+      action: 'withdraw',
+      stableCoinType: params.stableCoinType,
+      previewToken: params.previewToken,
+      status: 'yield_pending',
+      expectedYieldUsdc: plan.userPayoutOwedUsdc,
+      expectedPrincipalUsdc: BigInt(authorization.amount),
+      snapshot,
+      yieldBundle,
+      principalBundle,
+    });
+
+    try {
+      const yieldResult = await executeSignedBundle(yieldBundle);
+      if (yieldResult.effects?.status.status !== 'success') {
+        const message = annotateNoValidGasCoinsError(
+          yieldResult.effects?.status.error || 'Yield settlement failed on-chain',
+        );
+        await markSettlementFailure({
+          settlementId: settlement.id,
+          status: 'failed',
+          message,
+        });
+        throw new Error(`Earn transaction failed on-chain: ${message}`);
+      }
+
+      const retainedAccountId = await loadRetainedAccountIdFromSuccess({
+        senderAddress: params.walletBinding.suiAddress,
+        objectChanges: yieldResult.objectChanges,
+      });
+      await applyYieldSettlementSuccess({
+        settlementId: settlement.id,
+        xUserId: params.xUserId,
+        stableCoinType: params.stableCoinType,
+        snapshot: parseSettlementSnapshot(settlement.settlementSnapshot),
+        yieldTxDigest: yieldResult.digest || yieldBundle.txDigest,
+        nextStatus: 'principal_pending',
+        retainedAccountId,
+      });
+
+      try {
+        const principalResult = await executeSignedBundle(principalBundle);
+        if (principalResult.effects?.status.status === 'success') {
+          await applyWithdrawPrincipalSuccess({
+            settlementId: settlement.id,
+            xUserId: params.xUserId,
+            stableCoinType: params.stableCoinType,
+            snapshot: parseSettlementSnapshot(settlement.settlementSnapshot),
+            principalTxDigest: principalResult.digest || principalBundle.txDigest,
+          });
+          await clearPreview(params.previewToken);
+          return {
+            status: 'confirmed',
+            action: 'withdraw',
+            txDigest: principalResult.digest || principalBundle.txDigest,
+          } satisfies EarnExecuteResult;
+        }
+
+        const message = annotateNoValidGasCoinsError(
+          principalResult.effects?.status.error || 'Withdraw failed on-chain',
+        );
+        await markSettlementFailure({
+          settlementId: settlement.id,
+          status: 'partial',
+          message,
+        });
+        await clearPreview(params.previewToken);
+        return {
+          status: 'partial',
+          action: 'withdraw',
+          txDigest: yieldResult.digest || yieldBundle.txDigest,
+          message: SETTLEMENT_PARTIAL_MESSAGE,
+        } satisfies EarnExecuteResult;
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+          throw error;
+        }
+
+        console.error('Failed to execute principal withdraw after yield settlement; returning pending', error);
+        return {
+          status: 'pending',
+          action: 'withdraw',
+          txDigest: principalBundle.txDigest,
+        } satisfies EarnExecuteResult;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+        throw error;
+      }
+
+      console.error('Failed to execute withdraw yield settlement; returning pending for confirm recovery', error);
+      return {
+        status: 'pending',
+        action: 'withdraw',
+        txDigest: yieldBundle.txDigest,
+      } satisfies EarnExecuteResult;
+    }
+  } finally {
+    await harvestLock.release();
+  }
 }
 
 export async function executeEarnAction(params: {
@@ -1163,186 +2391,63 @@ export async function executeEarnAction(params: {
     throw new Error('Wallet ownership could not be verified. Please set up your wallet first.');
   }
 
-  let txBytes: Uint8Array;
-  let action = preview.action;
-
-  if (!params.authorizationSignature) {
-    const buildResult = await buildEarnTransactionBytes({
+  if (preview.action === 'stake') {
+    return executeStakeFlow({
       xUserId: params.xUserId,
-      action,
-      senderAddress: walletBinding.suiAddress,
+      previewToken: params.previewToken,
+      walletBinding,
       stableCoinType,
-      amount: BigInt(preview.amount),
-      sponsored: true,
+      preview,
+      authorizationSignature: params.authorizationSignature,
     });
-    txBytes = buildResult.txBytes;
+  }
 
-    // Reject if settlement mode diverged from preview — the user reviewed a
-    // different yield/principal breakdown than what this build produced.
-    if (buildResult.yieldSettlementSkipped !== (preview.yieldSettlementSkipped ?? false)) {
-      await clearPreview(params.previewToken);
-      throw new Error('Settlement conditions changed since preview. Please review the action again.');
-    }
-
-    await stageAuthorization(params.previewToken, {
-      action,
-      txBytesBase64: Buffer.from(txBytes).toString('base64'),
-      walletId: walletBinding.privyWalletId,
-      storedPublicKey: walletBinding.suiPublicKey,
-      sponsored: buildResult.sponsorApplied,
+  if (preview.action === 'claim') {
+    await clearAuthorization(params.previewToken);
+    return executeClaimFlow({
+      xUserId: params.xUserId,
+      previewToken: params.previewToken,
+      walletBinding,
+      stableCoinType,
     });
-
-    return {
-      status: 'authorization_required',
-      authorizationRequest: buildEarnAuthorizationRequest(
-        walletBinding.privyWalletId,
-        txBytes,
-      ),
-    };
   }
 
-  const authorization = await loadAuthorization(params.previewToken);
-  if (!authorization) {
-    throw new Error('Authorization expired. Please confirm the earn action again.');
-  }
-
-  await clearAuthorization(params.previewToken);
-  action = authorization.action;
-  txBytes = Uint8Array.from(Buffer.from(authorization.txBytesBase64, 'base64'));
-
-  const signatures: string[] = [];
-  const privy = getPrivyClient();
-  const userSignature = await signSuiTransaction(
-    privy,
-    authorization.walletId,
-    authorization.storedPublicKey,
-    txBytes,
-    { signatures: [params.authorizationSignature] },
-  );
-  signatures.push(userSignature);
-
-  if (authorization.sponsored) {
-    const gasKeypair = getGasStationKeypair();
-    if (gasKeypair) {
-      const gasSignature = await gasKeypair.signTransaction(txBytes);
-      signatures.push(gasSignature.signature);
-    }
-  }
-
-  const txDigest = TransactionDataBuilder.getDigestFromBytes(txBytes);
-  await stagePendingEarn(txDigest, {
+  return executeWithdrawFlow({
     xUserId: params.xUserId,
-    action,
-    txBytesBase64: authorization.txBytesBase64,
-    signatures,
+    previewToken: params.previewToken,
+    walletBinding,
+    stableCoinType,
+    preview,
+    authorizationSignature: params.authorizationSignature,
   });
-
-  try {
-    const result = await getSuiClient().executeTransactionBlock({
-      transactionBlock: txBytes,
-      signature: signatures,
-      options: {
-        showEffects: true,
-        showBalanceChanges: true,
-        showObjectChanges: true,
-      },
-    });
-
-    if (result.effects?.status.status === 'success') {
-      try {
-        const frameworkPackageId = await getEarnFrameworkPackageId(walletBinding.suiAddress);
-        const createdRetainedAccountId = extractCreatedEarnRetainedAccountId(
-          result.objectChanges,
-          frameworkPackageId,
-        );
-        await persistEarnAccountingWithRetry({
-          xUserId: params.xUserId,
-          retainedAccountId: createdRetainedAccountId,
-          lastSettledTxDigest: result.digest || txDigest,
-        });
-      } catch (bookkeepingError) {
-        console.error('Earn bookkeeping failed after successful settlement (retries exhausted)', bookkeepingError);
-      }
-      await clearPendingEarn(txDigest);
-      await clearPreview(params.previewToken);
-      return {
-        status: 'confirmed',
-        action,
-        txDigest: result.digest || txDigest,
-      };
-    }
-
-    // Transaction was executed on-chain but failed — retrying won't help.
-    await clearPendingEarn(txDigest);
-    await clearPreview(params.previewToken);
-    const onChainError = annotateNoValidGasCoinsError(
-      result.effects?.status.error || 'Transaction failed on-chain',
-    );
-    throw new Error(`Earn transaction failed on-chain: ${onChainError}`);
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
-      throw error;
-    }
-    // Network/timeout error — transaction may or may not have been submitted.
-    // Return pending so the client can poll confirm, which will retry submission
-    // from the Redis-stored bundle if needed.
-    const executionError = getAnnotatedTransactionErrorMessage(error);
-    console.error(
-      'Failed to execute Earn transaction; returning pending for confirm recovery',
-      executionError
-        ? { error: executionError, originalError: error }
-        : error,
-    );
-  }
-
-  return {
-    status: 'pending',
-    action,
-    txDigest,
-  };
 }
 
-export async function confirmEarnAction(params: {
+async function confirmPendingStake(params: {
   txDigest: string;
-}): Promise<EarnConfirmResult> {
-  const pending = await loadPendingEarn(params.txDigest);
-
+  pending: PendingEarnBundle;
+}) {
   try {
     const tx = await getSuiClient().getTransactionBlock({
       digest: params.txDigest,
       options: {
         showEffects: true,
-        showObjectChanges: true,
       },
     });
 
     if (tx.effects?.status.status === 'success') {
-      if (pending?.xUserId) {
-        try {
-          const walletBinding = await getWalletBinding(pending.xUserId);
-          const frameworkPackageId = walletBinding?.suiAddress
-            ? await getEarnFrameworkPackageId(walletBinding.suiAddress)
-            : null;
-          const createdRetainedAccountId = frameworkPackageId
-            ? extractCreatedEarnRetainedAccountId(tx.objectChanges, frameworkPackageId)
-            : null;
-          await persistEarnAccountingWithRetry({
-            xUserId: pending.xUserId,
-            retainedAccountId: createdRetainedAccountId,
-            lastSettledTxDigest: tx.digest || params.txDigest,
-          });
-        } catch (bookkeepingError) {
-          console.error('Earn bookkeeping failed after confirmed transaction (retries exhausted)', bookkeepingError);
-        }
-      }
+      await applyStakeSuccessBookkeeping({
+        xUserId: params.pending.xUserId,
+        stableCoinType: assertEarnConfig().stableCoinType,
+        amount: BigInt(params.pending.amount),
+        txDigest: tx.digest || params.txDigest,
+      });
       await clearPendingEarn(params.txDigest);
       return {
         status: 'confirmed',
-        txDigest: params.txDigest,
-      };
+        txDigest: tx.digest || params.txDigest,
+      } satisfies EarnConfirmResult;
     }
 
-    // Transaction found on-chain but failed — retrying won't help.
     if (tx.effects?.status.status === 'failure') {
       await clearPendingEarn(params.txDigest);
       throw new Error(
@@ -1352,55 +2457,32 @@ export async function confirmEarnAction(params: {
       );
     }
   } catch (error) {
-    // Re-throw known on-chain failures so the route returns 400 instead of 202.
     if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
       throw error;
     }
-    // Network/RPC error — fall through to pending recovery.
-  }
-
-  if (!pending) {
-    return {
-      status: 'pending',
-      txDigest: params.txDigest,
-    };
   }
 
   try {
-    const result = await getSuiClient().executeTransactionBlock({
-      transactionBlock: Uint8Array.from(Buffer.from(pending.txBytesBase64, 'base64')),
-      signature: pending.signatures,
-      options: {
-        showEffects: true,
-        showObjectChanges: true,
-      },
+    const result = await executeSignedBundle({
+      txDigest: params.txDigest,
+      txBytesBase64: params.pending.txBytesBase64,
+      signatures: params.pending.signatures,
     });
 
     if (result.effects?.status.status === 'success') {
-      try {
-        const walletBinding = await getWalletBinding(pending.xUserId);
-        const frameworkPackageId = walletBinding?.suiAddress
-          ? await getEarnFrameworkPackageId(walletBinding.suiAddress)
-          : null;
-        const createdRetainedAccountId = frameworkPackageId
-          ? extractCreatedEarnRetainedAccountId(result.objectChanges, frameworkPackageId)
-          : null;
-        await persistEarnAccountingWithRetry({
-          xUserId: pending.xUserId,
-          retainedAccountId: createdRetainedAccountId,
-          lastSettledTxDigest: result.digest || params.txDigest,
-        });
-      } catch (bookkeepingError) {
-        console.error('Earn bookkeeping failed after confirmed retry (retries exhausted)', bookkeepingError);
-      }
+      await applyStakeSuccessBookkeeping({
+        xUserId: params.pending.xUserId,
+        stableCoinType: assertEarnConfig().stableCoinType,
+        amount: BigInt(params.pending.amount),
+        txDigest: result.digest || params.txDigest,
+      });
       await clearPendingEarn(params.txDigest);
       return {
         status: 'confirmed',
         txDigest: result.digest || params.txDigest,
-      };
+      } satisfies EarnConfirmResult;
     }
 
-    // Retry submitted but failed on-chain — stop retrying.
     await clearPendingEarn(params.txDigest);
     throw new Error(
       `Earn transaction failed on-chain: ${annotateNoValidGasCoinsError(
@@ -1408,14 +2490,306 @@ export async function confirmEarnAction(params: {
       )}`,
     );
   } catch (error) {
-    // Re-throw known on-chain failures.
     if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
       throw error;
     }
-    const retryError = getAnnotatedTransactionErrorMessage(error);
-    console.warn('Earn confirmation retry is still pending', {
+
+    console.warn('Earn stake confirmation retry is still pending', {
       txDigest: params.txDigest,
-      error: retryError || error,
+      error: getAnnotatedTransactionErrorMessage(error) || error,
+    });
+  }
+
+  return {
+    status: 'pending',
+    txDigest: params.txDigest,
+  } satisfies EarnConfirmResult;
+}
+
+async function confirmSettlement(params: {
+  txDigest: string;
+  settlement: Awaited<ReturnType<typeof loadSettlementByTxDigest>>;
+}) {
+  if (!params.settlement) {
+    return {
+      status: 'pending',
+      txDigest: params.txDigest,
+    } satisfies EarnConfirmResult;
+  }
+
+  const snapshot = parseSettlementSnapshot(params.settlement.settlementSnapshot);
+
+  if (params.settlement.status === 'partial') {
+    return {
+      status: 'partial',
+      txDigest: params.settlement.yieldTxDigest || params.txDigest,
+      message: params.settlement.lastErrorMessage || SETTLEMENT_PARTIAL_MESSAGE,
+    } satisfies EarnConfirmResult;
+  }
+
+  if (params.settlement.status === 'confirmed') {
+    return {
+      status: 'confirmed',
+      txDigest:
+        params.settlement.principalTxDigest ||
+        params.settlement.yieldTxDigest ||
+        params.txDigest,
+    } satisfies EarnConfirmResult;
+  }
+
+  const yieldBundle = decodeSignedBundle({
+    txDigest: params.settlement.yieldTxDigest,
+    txBytesBase64: params.settlement.yieldTxBytesBase64,
+    signatures: params.settlement.yieldSignatures,
+  });
+  const principalBundle = decodeSignedBundle({
+    txDigest: params.settlement.principalTxDigest,
+    txBytesBase64: params.settlement.principalTxBytesBase64,
+    signatures: params.settlement.principalSignatures,
+  });
+  const walletBinding = await getWalletBinding(params.settlement.xUserId);
+  const settlementSenderAddress = walletBinding?.suiAddress
+    ? normalizeSuiAddress(walletBinding.suiAddress)
+    : null;
+
+  if (params.settlement.status === 'yield_pending' && yieldBundle) {
+    let yieldSettledOnChain = false;
+    try {
+      const tx = await getSuiClient().getTransactionBlock({
+        digest: yieldBundle.txDigest,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+
+      if (tx.effects?.status.status === 'success') {
+        const retainedAccountId = settlementSenderAddress
+          ? await loadRetainedAccountIdFromSuccess({
+              senderAddress: settlementSenderAddress,
+              objectChanges: tx.objectChanges,
+            }).catch(() => null)
+          : null;
+        await applyYieldSettlementSuccess({
+          settlementId: params.settlement.id,
+          xUserId: params.settlement.xUserId,
+          stableCoinType: params.settlement.stableCoinType,
+          snapshot,
+          yieldTxDigest: tx.digest || yieldBundle.txDigest,
+          nextStatus: params.settlement.action === 'claim' ? 'confirmed' : 'principal_pending',
+          retainedAccountId,
+        });
+        yieldSettledOnChain = true;
+
+        if (params.settlement.action === 'claim') {
+          return {
+            status: 'confirmed',
+            txDigest: tx.digest || yieldBundle.txDigest,
+          } satisfies EarnConfirmResult;
+        }
+      } else if (tx.effects?.status.status === 'failure') {
+        const message = annotateNoValidGasCoinsError(
+          tx.effects.status.error || 'Yield settlement failed on-chain',
+        );
+        await markSettlementFailure({
+          settlementId: params.settlement.id,
+          status: 'failed',
+          message,
+        });
+        throw new Error(`Earn transaction failed on-chain: ${message}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+        throw error;
+      }
+    }
+
+    if (!yieldSettledOnChain) try {
+      const result = await executeSignedBundle(yieldBundle);
+      if (result.effects?.status.status === 'success') {
+        const retainedAccountId = settlementSenderAddress
+          ? await loadRetainedAccountIdFromSuccess({
+              senderAddress: settlementSenderAddress,
+              objectChanges: result.objectChanges,
+            }).catch(() => null)
+          : null;
+        await applyYieldSettlementSuccess({
+          settlementId: params.settlement.id,
+          xUserId: params.settlement.xUserId,
+          stableCoinType: params.settlement.stableCoinType,
+          snapshot,
+          yieldTxDigest: result.digest || yieldBundle.txDigest,
+          nextStatus: params.settlement.action === 'claim' ? 'confirmed' : 'principal_pending',
+          retainedAccountId,
+        });
+
+        if (params.settlement.action === 'claim') {
+          return {
+            status: 'confirmed',
+            txDigest: result.digest || yieldBundle.txDigest,
+          } satisfies EarnConfirmResult;
+        }
+      } else {
+        const message = annotateNoValidGasCoinsError(
+          result.effects?.status.error || 'Yield settlement failed on-chain',
+        );
+        await markSettlementFailure({
+          settlementId: params.settlement.id,
+          status: 'failed',
+          message,
+        });
+        throw new Error(`Earn transaction failed on-chain: ${message}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+        throw error;
+      }
+
+      console.warn('Earn yield confirmation retry is still pending', {
+        txDigest: params.txDigest,
+        error: getAnnotatedTransactionErrorMessage(error) || error,
+      });
+      return {
+        status: 'pending',
+        txDigest: yieldBundle.txDigest,
+      } satisfies EarnConfirmResult;
+    }
+  }
+
+  if (params.settlement.status === 'failed') {
+    throw new Error(
+      `Earn settlement failed: ${params.settlement.lastErrorMessage || 'Unknown error'}`,
+    );
+  }
+
+  if (params.settlement.action === 'claim') {
+    return {
+      status: 'confirmed',
+      txDigest: params.settlement.yieldTxDigest || params.txDigest,
+    } satisfies EarnConfirmResult;
+  }
+
+  if (!principalBundle) {
+    return {
+      status: 'pending',
+      txDigest: params.txDigest,
+    } satisfies EarnConfirmResult;
+  }
+
+  try {
+    const tx = await getSuiClient().getTransactionBlock({
+      digest: principalBundle.txDigest,
+      options: {
+        showEffects: true,
+      },
+    });
+
+    if (tx.effects?.status.status === 'success') {
+      await applyWithdrawPrincipalSuccess({
+        settlementId: params.settlement.id,
+        xUserId: params.settlement.xUserId,
+        stableCoinType: params.settlement.stableCoinType,
+        snapshot,
+        principalTxDigest: tx.digest || principalBundle.txDigest,
+      });
+      return {
+        status: 'confirmed',
+        txDigest: tx.digest || principalBundle.txDigest,
+      } satisfies EarnConfirmResult;
+    }
+
+    if (tx.effects?.status.status === 'failure') {
+      const message = annotateNoValidGasCoinsError(
+        tx.effects.status.error || 'Withdraw failed on-chain',
+      );
+      await markSettlementFailure({
+        settlementId: params.settlement.id,
+        status: snapshot.yieldSettled ? 'partial' : 'failed',
+        message,
+      });
+      if (snapshot.yieldSettled) {
+        return {
+          status: 'partial',
+          txDigest: params.settlement.yieldTxDigest || params.txDigest,
+          message: SETTLEMENT_PARTIAL_MESSAGE,
+        } satisfies EarnConfirmResult;
+      }
+
+      throw new Error(`Earn transaction failed on-chain: ${message}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
+  }
+
+  try {
+    const result = await executeSignedBundle(principalBundle);
+    if (result.effects?.status.status === 'success') {
+      await applyWithdrawPrincipalSuccess({
+        settlementId: params.settlement.id,
+        xUserId: params.settlement.xUserId,
+        stableCoinType: params.settlement.stableCoinType,
+        snapshot,
+        principalTxDigest: result.digest || principalBundle.txDigest,
+      });
+      return {
+        status: 'confirmed',
+        txDigest: result.digest || principalBundle.txDigest,
+      } satisfies EarnConfirmResult;
+    }
+
+    const message = annotateNoValidGasCoinsError(
+      result.effects?.status.error || 'Withdraw failed on-chain',
+    );
+    await markSettlementFailure({
+      settlementId: params.settlement.id,
+      status: snapshot.yieldSettled ? 'partial' : 'failed',
+      message,
+    });
+
+    if (snapshot.yieldSettled) {
+      return {
+        status: 'partial',
+        txDigest: params.settlement.yieldTxDigest || params.txDigest,
+        message: SETTLEMENT_PARTIAL_MESSAGE,
+      } satisfies EarnConfirmResult;
+    }
+
+    throw new Error(`Earn transaction failed on-chain: ${message}`);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Earn transaction failed on-chain:')) {
+      throw error;
+    }
+
+    console.warn('Earn principal confirmation retry is still pending', {
+      txDigest: params.txDigest,
+      error: getAnnotatedTransactionErrorMessage(error) || error,
+    });
+  }
+
+  return {
+    status: 'pending',
+    txDigest: principalBundle.txDigest,
+  } satisfies EarnConfirmResult;
+}
+
+export async function confirmEarnAction(params: {
+  txDigest: string;
+}): Promise<EarnConfirmResult> {
+  const settlement = await loadSettlementByTxDigest(params.txDigest);
+  if (settlement) {
+    return confirmSettlement({
+      txDigest: params.txDigest,
+      settlement,
+    });
+  }
+
+  const pending = await loadPendingEarn(params.txDigest);
+  if (pending?.action === 'stake') {
+    return confirmPendingStake({
+      txDigest: params.txDigest,
+      pending,
     });
   }
 
