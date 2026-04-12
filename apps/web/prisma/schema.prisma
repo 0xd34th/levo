@@ -27,6 +27,7 @@ model XUser {
   quotes PaymentQuote[]
   ledger PaymentLedger[]
   earnAccounting EarnAccounting?
+  pendingEarnSettlements PendingEarnSettlement[]
 
   @@map("x_user")
 }
@@ -102,25 +103,72 @@ enum RecipientType {
 }
 
 model EarnAccounting {
-  xUserId            String   @id @map("x_user_id")
-  retainedAccountId  String?  @unique @map("retained_account_id")
-  lastSettledTxDigest String? @map("last_settled_tx_digest")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  xUserId                 String   @id @map("x_user_id")
+  retainedAccountId       String?  @unique @map("retained_account_id")
+  lastSettledTxDigest     String?  @map("last_settled_tx_digest")
+  rewardDebtPayoutUsdc    String   @default("0") @map("reward_debt_payout_usdc")
+  rewardDebtRetainedUsdb  String   @default("0") @map("reward_debt_retained_usdb")
+  claimedUsdcTotal        BigInt   @default(0) @map("claimed_usdc_total")
+  retainedUsdbTotal       BigInt   @default(0) @map("retained_usdb_total")
+  lastKnownDepositedUsdc  BigInt   @default(0) @map("last_known_deposited_usdc")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
 
   @@map("earn_accounting")
 }
 
+model EarnGlobalState {
+  stableCoinType             String   @id @map("stable_coin_type")
+  accPayoutPerShareUsdcE18   String   @default("0") @map("acc_payout_per_share_usdc_e18")
+  accRetainedPerShareUsdbE18 String   @default("0") @map("acc_retained_per_share_usdb_e18")
+  lastHarvestTxDigest        String?  @map("last_harvest_tx_digest")
+  lastHarvestedRewardUsdb    BigInt   @default(0) @map("last_harvested_reward_usdb")
+  lastHarvestedPayoutUsdc    BigInt   @default(0) @map("last_harvested_payout_usdc")
+  lastHarvestedRetainedUsdb  BigInt   @default(0) @map("last_harvested_retained_usdb")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  @@map("earn_global_state")
+}
+
 model PendingEarn {
   txDigest      String   @id @map("tx_digest")
   xUserId       String   @map("x_user_id")
   action        String
+  amount        String?  @map("amount")
   txBytesBase64 String   @map("tx_bytes_base64")
   signatures    String[] @default([])
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([xUserId])
   @@map("pending_earn")
+}
+
+model PendingEarnSettlement {
+  id                    String   @id @default(cuid())
+  xUserId               String   @map("x_user_id")
+  action                String
+  stableCoinType        String   @map("stable_coin_type")
+  previewToken          String?  @map("preview_token")
+  status                String
+  expectedYieldUsdc     BigInt   @default(0) @map("expected_yield_usdc")
+  expectedPrincipalUsdc BigInt   @default(0) @map("expected_principal_usdc")
+  yieldTxDigest         String?  @unique @map("yield_tx_digest")
+  yieldTxBytesBase64    String?  @map("yield_tx_bytes_base64")
+  yieldSignatures       String[] @default([]) @map("yield_signatures")
+  principalTxDigest     String?  @unique @map("principal_tx_digest")
+  principalTxBytesBase64 String? @map("principal_tx_bytes_base64")
+  principalSignatures   String[] @default([]) @map("principal_signatures")
+  settlementSnapshot    Json?    @map("settlement_snapshot")
+  lastErrorMessage      String?  @map("last_error_message")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+
+  @@index([xUserId])
+  @@index([status])
+  @@map("pending_earn_settlement")
 }

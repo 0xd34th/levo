@@ -40,12 +40,15 @@ interface EarnSummaryResponse {
   depositedUsdc: string;
   claimableYieldUsdc: string;
   claimableYieldReliable: boolean;
+  yieldSettlementMode: 'server_payout' | 'disabled';
 }
 
 interface EarnPreviewResponse extends EarnSummaryResponse {
   previewToken: string;
   action: EarnAction;
   amount: string;
+  principalReceivesUsdc: string;
+  yieldReceivesUsdc: string;
   userReceivesUsdc: string;
   yieldSettlementSkipped?: boolean;
 }
@@ -56,10 +59,17 @@ type ExecuteEarnResponse =
       authorizationRequest: PrivyAuthorizationRequest;
     }
   | {
-      status: 'confirmed' | 'pending';
+      status: 'confirmed' | 'pending' | 'partial';
       action: EarnAction;
       txDigest: string;
+      message?: string;
     };
+
+interface EarnFinalResponse {
+  status: 'confirmed' | 'pending' | 'partial';
+  txDigest: string;
+  message?: string;
+}
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const USER_FACING_USDC_TYPE = getUserFacingUsdcCoinType() ?? MAINNET_USDC_TYPE;
@@ -74,11 +84,14 @@ function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse
     typeof candidate.previewToken === 'string' &&
     (candidate.action === 'stake' || candidate.action === 'claim' || candidate.action === 'withdraw') &&
     typeof candidate.amount === 'string' &&
+    typeof candidate.principalReceivesUsdc === 'string' &&
+    typeof candidate.yieldReceivesUsdc === 'string' &&
     typeof candidate.userReceivesUsdc === 'string' &&
     typeof candidate.availableUsdc === 'string' &&
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
     typeof candidate.claimableYieldReliable === 'boolean' &&
+    (candidate.yieldSettlementMode === 'server_payout' || candidate.yieldSettlementMode === 'disabled') &&
     typeof candidate.walletReady === 'boolean'
   );
 }
@@ -94,7 +107,8 @@ function isEarnSummaryResponse(payload: unknown): payload is EarnSummaryResponse
     typeof candidate.availableUsdc === 'string' &&
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
-    typeof candidate.claimableYieldReliable === 'boolean'
+    typeof candidate.claimableYieldReliable === 'boolean' &&
+    (candidate.yieldSettlementMode === 'server_payout' || candidate.yieldSettlementMode === 'disabled')
   );
 }
 
@@ -109,9 +123,21 @@ function isExecuteEarnResponse(payload: unknown): payload is ExecuteEarnResponse
   }
 
   return (
-    (candidate.status === 'confirmed' || candidate.status === 'pending') &&
+    (candidate.status === 'confirmed' || candidate.status === 'pending' || candidate.status === 'partial') &&
     typeof candidate.txDigest === 'string' &&
     (candidate.action === 'stake' || candidate.action === 'claim' || candidate.action === 'withdraw')
+  );
+}
+
+function isEarnFinalResponse(payload: unknown): payload is EarnFinalResponse {
+  if (typeof payload !== 'object' || payload === null) {
+    return false;
+  }
+
+  const candidate = payload as Partial<EarnFinalResponse>;
+  return (
+    (candidate.status === 'confirmed' || candidate.status === 'pending' || candidate.status === 'partial') &&
+    typeof candidate.txDigest === 'string'
   );
 }
 
@@ -166,7 +192,7 @@ async function confirmEarnWithRetry(
   getAccessToken: ReturnType<typeof usePrivy>['getAccessToken'],
   identityToken: string | null | undefined,
   signal?: AbortSignal,
-) {
+): Promise<EarnFinalResponse | null> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const res = await privyAuthenticatedFetch(
       getAccessToken,
@@ -185,7 +211,16 @@ async function confirmEarnWithRetry(
       continue;
     }
 
-    return res;
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Earn transaction is still pending. Please check Activity shortly.'));
+    }
+
+    const payload = await res.json();
+    if (!isEarnFinalResponse(payload)) {
+      throw new Error('Invalid Earn confirmation response');
+    }
+
+    return payload;
   }
 
   return null;
@@ -214,6 +249,7 @@ export default function EarnPage() {
   const [loadingAction, setLoadingAction] = useState<EarnAction | null>(null);
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [txDigest, setTxDigest] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -330,6 +366,7 @@ export default function EarnPage() {
     }
 
     setError(null);
+    setNotice(null);
     setTxDigest(null);
     setLoadingAction(action);
 
@@ -376,6 +413,7 @@ export default function EarnPage() {
 
     setExecuting(true);
     setError(null);
+    setNotice(null);
 
     try {
       const requestExecute = (authorizationSignature?: string) => (
@@ -422,15 +460,26 @@ export default function EarnPage() {
       }
 
       if (payload.status === 'pending') {
-        const confirmResponse = await confirmEarnWithRetry(
+        const confirmed = await confirmEarnWithRetry(
           payload.txDigest,
           getAccessToken,
           identityToken,
         );
 
-        if (!confirmResponse || !confirmResponse.ok) {
+        if (!confirmed) {
           throw new Error('Earn transaction is still pending. Please check Activity shortly.');
         }
+
+        payload = {
+          ...payload,
+          status: confirmed.status,
+          txDigest: confirmed.txDigest,
+          ...(confirmed.message ? { message: confirmed.message } : {}),
+        };
+      }
+
+      if (payload.status === 'partial') {
+        setNotice(payload.message ?? 'Yield was settled, but principal withdraw is still pending.');
       }
 
       setTxDigest(payload.txDigest);
@@ -561,6 +610,12 @@ export default function EarnPage() {
             </div>
           ) : null}
 
+          {notice ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-primary dark:border-primary/25 dark:bg-primary/10">
+              {notice}
+            </div>
+          ) : null}
+
           {preview ? (
             <div className="rounded-3xl border border-border/60 bg-card px-5 py-5 dark:border-white/10 dark:bg-white/5">
               <p className="section-eyebrow">Review action</p>
@@ -570,8 +625,24 @@ export default function EarnPage() {
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Input</span>
-                  <span>{formatAmount(preview.amount, USER_FACING_USDC_TYPE)} USDC</span>
+                  <span>
+                    {preview.action === 'claim'
+                      ? 'No amount'
+                      : `${formatAmount(preview.amount, USER_FACING_USDC_TYPE)} USDC`}
+                  </span>
                 </div>
+                {preview.action === 'withdraw' ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Principal returns</span>
+                    <span>{formatAmount(preview.principalReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                  </div>
+                ) : null}
+                {preview.action !== 'stake' ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Yield settles</span>
+                    <span>{formatEarnEstimateAmount(preview.yieldReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">You receive</span>
                   <span>{formatEarnEstimateAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
