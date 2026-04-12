@@ -22,6 +22,7 @@ import {
   getEarnActionAvailability,
   parseAmountInputToBaseUnits,
 } from '@/lib/earn-form';
+import { formatEarnEstimateAmount } from '@/lib/earn-display';
 import { getEarnPreviewNotice } from '@/lib/earn-preview-notice';
 import {
   type PrivyAuthorizationRequest,
@@ -281,7 +282,7 @@ export default function EarnPage() {
     return {
       availableUsdc: formatAmount(summary.availableUsdc, USER_FACING_USDC_TYPE),
       depositedUsdc: formatAmount(summary.depositedUsdc, USER_FACING_USDC_TYPE),
-      claimableYieldUsdc: formatAmount(summary.claimableYieldUsdc, USER_FACING_USDC_TYPE),
+      claimableYieldUsdc: formatEarnEstimateAmount(summary.claimableYieldUsdc, USER_FACING_USDC_TYPE),
     };
   }, [summary]);
 
@@ -573,7 +574,7 @@ export default function EarnPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">You receive</span>
-                  <span>{formatAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                  <span>{formatEarnEstimateAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
                 </div>
               </div>
 
