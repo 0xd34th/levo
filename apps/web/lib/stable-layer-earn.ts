@@ -1434,14 +1434,26 @@ async function buildYieldSettlementBundle(params: {
       throw new Error('StableLayer claim did not return a reward coin');
     }
 
-    if (params.plan.harvestedPayoutUsdc > 0n && params.plan.harvestedRetainedUsdb > 0n) {
-      const [payableUsdbCoin] = tx.splitCoins(rewardUsdbCoin, [params.plan.harvestedPayoutUsdc]);
-      harvestedRetainedUsdbCoin = rewardUsdbCoin;
+    // Split user-specific portions from the USDB reward coin.
+    // The accumulator values (userPayoutOwedUsdc, userRetainedOwedUsdb) are denominated
+    // in USDB base units (9 decimals), NOT USDC base units (6 decimals).  The PSM swap
+    // converts at dollar parity, producing ~1/1000 as many USDC base units.  To avoid an
+    // InsufficientCoinBalance when splitting the post-swap USDC coin, we split the USDB
+    // reward into per-user portions BEFORE the PSM swap, so the swap output equals exactly
+    // the user's payout and can be transferred without further splitting.
+    const userPayoutUsdb = params.plan.userPayoutOwedUsdc;
+    const userRetainedUsdb = params.plan.userRetainedOwedUsdb;
+    const userTotalUsdb = userPayoutUsdb + userRetainedUsdb;
+    const hasExcess = params.plan.harvestedRewardUsdb > userTotalUsdb;
+
+    if (userPayoutUsdb > 0n && (userRetainedUsdb > 0n || hasExcess)) {
+      const [userPayoutUsdbCoin] = tx.splitCoins(rewardUsdbCoin, [userPayoutUsdb]);
       harvestedPayableUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
         coinType: MAINNET_USDC_TYPE,
-        usdbCoinOrAmount: payableUsdbCoin,
+        usdbCoinOrAmount: userPayoutUsdbCoin,
       });
-    } else if (params.plan.harvestedPayoutUsdc > 0n) {
+      harvestedRetainedUsdbCoin = rewardUsdbCoin;
+    } else if (userPayoutUsdb > 0n) {
       harvestedPayableUsdcCoin = await internals.bucketClient.buildPSMSwapOutTransaction(tx, {
         coinType: MAINNET_USDC_TYPE,
         usdbCoinOrAmount: rewardUsdbCoin,
@@ -1452,30 +1464,16 @@ async function buildYieldSettlementBundle(params: {
   }
 
   if (params.plan.userPayoutOwedUsdc > 0n) {
-    let payoutFundingCoin = harvestedPayableUsdcCoin;
-    if (!payoutFundingCoin) {
-      payoutFundingCoin = tx.add(
+    if (harvestedPayableUsdcCoin) {
+      tx.transferObjects([harvestedPayableUsdcCoin], params.plan.senderAddress);
+    } else {
+      const fallbackCoin = tx.add(
         coinWithBalance({
           type: MAINNET_USDC_TYPE,
           balance: params.plan.userPayoutOwedUsdc,
         }),
       ) as TransactionObjectArgument;
-    } else if (params.plan.userPayoutOwedUsdc > params.plan.harvestedPayoutUsdc) {
-      const topUpCoin = tx.add(
-        coinWithBalance({
-          type: MAINNET_USDC_TYPE,
-          balance: params.plan.userPayoutOwedUsdc - params.plan.harvestedPayoutUsdc,
-        }),
-      );
-      tx.mergeCoins(payoutFundingCoin, [topUpCoin]);
-    }
-
-    if (params.plan.harvestedPayoutUsdc > params.plan.userPayoutOwedUsdc) {
-      const [userPayoutCoin] = tx.splitCoins(payoutFundingCoin, [params.plan.userPayoutOwedUsdc]);
-      tx.transferObjects([userPayoutCoin], params.plan.senderAddress);
-      tx.transferObjects([payoutFundingCoin], managerAddress);
-    } else {
-      tx.transferObjects([payoutFundingCoin], params.plan.senderAddress);
+      tx.transferObjects([fallbackCoin], params.plan.senderAddress);
     }
   } else if (harvestedPayableUsdcCoin) {
     tx.transferObjects([harvestedPayableUsdcCoin], managerAddress);
@@ -1505,42 +1503,36 @@ async function buildYieldSettlementBundle(params: {
       retainedAccountObjectOrId = retainedAccountObject;
     }
 
-    const usdbCoinType = await internals.bucketClient.getUsdbCoinType();
-    let retainedFundingCoin: TransactionArgument | null = harvestedRetainedUsdbCoin;
-    if (!retainedFundingCoin) {
-      retainedFundingCoin = tx.add(
+    let retainedDepositCoin: TransactionArgument;
+    if (harvestedRetainedUsdbCoin) {
+      if (params.plan.userRetainedOwedUsdb < params.plan.harvestedRetainedUsdb) {
+        const [userRetainedCoin] = tx.splitCoins(
+          harvestedRetainedUsdbCoin,
+          [params.plan.userRetainedOwedUsdb],
+        );
+        retainedDepositCoin = userRetainedCoin;
+      } else {
+        retainedDepositCoin = harvestedRetainedUsdbCoin;
+      }
+    } else {
+      const usdbCoinType = await internals.bucketClient.getUsdbCoinType();
+      retainedDepositCoin = tx.add(
         coinWithBalance({
           type: usdbCoinType,
           balance: params.plan.userRetainedOwedUsdb,
         }),
       ) as TransactionObjectArgument;
-    } else if (params.plan.userRetainedOwedUsdb > params.plan.harvestedRetainedUsdb) {
-      const topUpCoin = tx.add(
-        coinWithBalance({
-          type: usdbCoinType,
-          balance: params.plan.userRetainedOwedUsdb - params.plan.harvestedRetainedUsdb,
-        }),
-      );
-      tx.mergeCoins(retainedFundingCoin, [topUpCoin]);
     }
-
-    const depositCoin =
-      params.plan.harvestedRetainedUsdb > params.plan.userRetainedOwedUsdb
-        ? tx.splitCoins(
-            retainedFundingCoin as TransactionObjectArgument,
-            [params.plan.userRetainedOwedUsdb],
-          )[0]
-        : retainedFundingCoin;
 
     await internals.bucketClient.buildDepositToSavingPoolTransaction(tx, {
       address: params.plan.senderAddress,
       accountObjectOrId: retainedAccountObjectOrId,
       lpType: stableLayerClient.getConstants().SAVING_TYPE,
-      depositCoinOrAmount: depositCoin,
+      depositCoinOrAmount: retainedDepositCoin,
     });
 
-    if (params.plan.harvestedRetainedUsdb > params.plan.userRetainedOwedUsdb) {
-      tx.transferObjects([retainedFundingCoin as TransactionObjectArgument], managerAddress);
+    if (harvestedRetainedUsdbCoin && params.plan.userRetainedOwedUsdb < params.plan.harvestedRetainedUsdb) {
+      tx.transferObjects([harvestedRetainedUsdbCoin], managerAddress);
     }
 
     if (retainedAccountObject) {
