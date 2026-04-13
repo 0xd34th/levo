@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, LoaderCircle, Sparkles, Wallet } from 'lucide-react';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
 import {
   useAuthorizationSignature,
   useIdentityToken,
@@ -29,8 +29,6 @@ import {
   parsePrivyAuthorizationRequiredResponse,
 } from '@/lib/privy-authorization';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
-import { truncateAddress } from '@/lib/received-dashboard-client';
-import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 type EarnAction = 'stake' | 'claim' | 'withdraw';
 
@@ -245,11 +243,6 @@ export default function EarnPage() {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
-  const {
-    suiAddress: embeddedWalletAddress,
-    loading: walletLoading,
-    error: walletError,
-  } = useEmbeddedWallet();
 
   const [summary, setSummary] = useState<EarnSummaryResponse | null>(null);
   const [amount, setAmount] = useState('');
@@ -517,42 +510,6 @@ export default function EarnPage() {
 
       <main className="mx-auto w-full max-w-lg px-4 pb-16 pt-6">
         <div className="flex flex-col gap-5">
-          <div className="rounded-3xl border border-border/60 bg-card px-5 py-5 dark:border-white/10 dark:bg-white/5">
-            <div className="flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Sparkles className="size-5" />
-              </span>
-              <div>
-                <p className="text-base font-semibold tracking-[-0.03em]">USDC yield, no extra token UX</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Stake, claim, and withdraw in USDC. Yield settles when you claim or withdraw.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {embeddedWalletAddress ? (
-            <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:border-primary/20 dark:bg-primary/8">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
-                  <Wallet className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-foreground">Canonical wallet</p>
-                  <p className="text-xs text-muted-foreground">{truncateAddress(embeddedWalletAddress)}</p>
-                </div>
-              </div>
-            </div>
-          ) : walletLoading ? (
-            <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-muted-foreground dark:border-white/10 dark:bg-white/4">
-              Setting up your embedded wallet...
-            </div>
-          ) : walletError ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-              {walletError}
-            </div>
-          ) : null}
-
           <section className="grid gap-4 sm:grid-cols-3">
             <div className="metric-card">
               <p className="section-eyebrow">Available USDC</p>
