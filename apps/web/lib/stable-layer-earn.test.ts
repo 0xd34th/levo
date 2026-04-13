@@ -32,6 +32,7 @@ const {
   bucketGetUsdbCoinTypeMock,
   bucketGetSavingPoolObjectInfoMock,
   bucketGetUserAccountsMock,
+  releaseRewardsMock,
   signSuiTransactionMock,
   transactionAddMock,
   transactionBuildMock,
@@ -94,6 +95,7 @@ const {
     bucketGetUsdbCoinTypeMock: vi.fn(),
     bucketGetSavingPoolObjectInfoMock: vi.fn(),
     bucketGetUserAccountsMock: vi.fn(),
+    releaseRewardsMock: vi.fn(),
     signSuiTransactionMock: vi.fn(),
     transactionAddMock: vi.fn((value) => value),
     transactionBuildMock: vi.fn(),
@@ -377,12 +379,14 @@ describe('stable-layer earn helpers', () => {
       },
     });
     bucketGetUserAccountsMock.mockResolvedValue([]);
+    releaseRewardsMock.mockResolvedValue(undefined);
     getStableLayerClientMock.mockResolvedValue({
       buildBurnTx: stableLayerBuildBurnTxMock,
       buildClaimTx: stableLayerBuildClaimTxMock,
       buildMintTx: stableLayerBuildMintTxMock,
       getConstants: stableLayerGetConstantsMock,
       getTotalSupplyByCoinType: stableLayerGetTotalSupplyByCoinTypeMock,
+      releaseRewards: releaseRewardsMock,
       bucketClient: {
         buildDepositToSavingPoolTransaction: bucketBuildDepositToSavingPoolTransactionMock,
         buildPSMSwapOutTransaction: bucketBuildPSMSwapOutTransactionMock,

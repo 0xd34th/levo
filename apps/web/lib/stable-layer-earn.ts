@@ -377,7 +377,7 @@ function getDevInspectFailureMessage(result: unknown) {
   return candidate.effects?.status?.error ?? candidate.error ?? 'unknown dev-inspect failure';
 }
 
-function parseFirstDevInspectU64(result: unknown) {
+function parseLastDevInspectU64(result: unknown) {
   if (typeof result !== 'object' || result === null) {
     return null;
   }
@@ -388,7 +388,12 @@ function parseFirstDevInspectU64(result: unknown) {
     }>;
   };
 
-  const encoded = candidate.results?.[0]?.returnValues?.[0];
+  const results = candidate.results;
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  const encoded = results[results.length - 1]?.returnValues?.[0];
   if (!encoded || encoded[1] !== 'u64') {
     return null;
   }
@@ -696,6 +701,16 @@ async function inspectGlobalClaimableRewardUsdb(params: {
   const constants = stableLayerClient.getConstants();
   const tx = new Transaction();
   tx.setSender(params.senderAddress);
+
+  // Release pending yield from Bucket saving pool into the vault farm so that
+  // claimable_amount reflects the true current yield, not just previously released rewards.
+  const maybeInternals = stableLayerClient as unknown as {
+    releaseRewards?: (tx: Transaction) => Promise<void>;
+  };
+  if (typeof maybeInternals.releaseRewards === 'function') {
+    await maybeInternals.releaseRewards(tx);
+  }
+
   tx.moveCall({
     target: `${constants.STABLE_VAULT_FARM_PACKAGE_ID}::stable_vault_farm::claimable_amount`,
     typeArguments: [
@@ -717,7 +732,7 @@ async function inspectGlobalClaimableRewardUsdb(params: {
     throw new Error(failureMessage);
   }
 
-  const amount = parseFirstDevInspectU64(result);
+  const amount = parseLastDevInspectU64(result);
   if (amount === null) {
     throw new Error('StableLayer claimable amount inspect returned no u64');
   }
