@@ -6,6 +6,7 @@ export interface EarnFormSummary {
   depositedUsdc: string;
   claimableYieldUsdc: string;
   yieldSettlementMode: 'server_payout' | 'disabled';
+  claimAllowed: boolean;
 }
 
 export interface EarnActionAvailability {
@@ -52,8 +53,7 @@ export function getEarnActionAvailability(params: {
 
   const availableUsdc = parseBaseUnitBalance(summary.availableUsdc);
   const depositedUsdc = parseBaseUnitBalance(summary.depositedUsdc);
-  const claimableYieldUsdc = parseBaseUnitBalance(summary.claimableYieldUsdc);
-  if (availableUsdc === null || depositedUsdc === null || claimableYieldUsdc === null) {
+  if (availableUsdc === null || depositedUsdc === null) {
     return {
       stake: false,
       claim: false,
@@ -65,7 +65,7 @@ export function getEarnActionAvailability(params: {
 
   return {
     stake: availableUsdc > 0n && parsedAmount !== null && parsedAmount <= availableUsdc,
-    claim: claimableYieldUsdc > 0n && summary.yieldSettlementMode === 'server_payout',
+    claim: summary.claimAllowed,
     withdraw: depositedUsdc > 0n && parsedAmount !== null && parsedAmount <= depositedUsdc,
   };
 }

@@ -32,6 +32,7 @@ import {
 
 export type EarnAction = 'stake' | 'claim' | 'withdraw';
 export type YieldSettlementMode = 'server_payout' | 'disabled';
+export type ClaimBlockedReason = 'below_minimum_net_yield';
 
 export interface EarnSummary {
   walletReady: boolean;
@@ -40,6 +41,9 @@ export interface EarnSummary {
   claimableYieldUsdc: string;
   claimableYieldReliable: boolean;
   yieldSettlementMode: YieldSettlementMode;
+  claimAllowed: boolean;
+  claimMinimumYieldUsdc: string;
+  claimBlockedReason: ClaimBlockedReason | null;
 }
 
 export interface EarnPreview extends EarnSummary {
@@ -180,12 +184,15 @@ type EarnDb = Pick<typeof prisma, 'earnAccounting' | 'earnGlobalState' | 'pendin
 export const EARN_RETAINED_ACCOUNT_ALIAS = 'levo-earn-retained';
 
 const ACC_PRECISION = 1_000_000_000_000_000_000n;
+const MIN_EARN_CLAIM_YIELD_USDC = 40_000n;
 const PREVIEW_TTL_SEC = 10 * 60;
 const AUTHORIZATION_TTL_SEC = 5 * 60;
 const PENDING_EARN_TTL_SEC = 15 * 60;
 const HARVEST_LOCK_TTL_SEC = 60;
 const SETTLEMENT_PARTIAL_MESSAGE =
   'Yield was settled, but principal withdraw did not complete. Your principal remains in Earn. Retry Withdraw to continue.';
+const CLAIM_MINIMUM_YIELD_MESSAGE =
+  'Claim available once yield reaches 0.04 USDC. Small claims cost more gas than they are worth.';
 
 const WalletBindingSchema = z.object({
   privyUserId: z.string().nullable(),
@@ -258,6 +265,9 @@ function zeroSummary(yieldSettlementMode: YieldSettlementMode): EarnSummary {
     claimableYieldUsdc: '0',
     claimableYieldReliable: true,
     yieldSettlementMode,
+    claimAllowed: false,
+    claimMinimumYieldUsdc: serializeBigInt(MIN_EARN_CLAIM_YIELD_USDC),
+    claimBlockedReason: null,
   };
 }
 
@@ -317,6 +327,41 @@ function parseBigIntLike(value: bigint | number | string) {
 
 function serializeBigInt(value: bigint) {
   return value.toString();
+}
+
+function getClaimAvailability(params: {
+  walletReady: boolean;
+  claimableYieldUsdc: bigint;
+  yieldSettlementMode: YieldSettlementMode;
+}): {
+  claimAllowed: boolean;
+  claimBlockedReason: ClaimBlockedReason | null;
+} {
+  if (!params.walletReady || params.yieldSettlementMode !== 'server_payout') {
+    return {
+      claimAllowed: false,
+      claimBlockedReason: null,
+    };
+  }
+
+  if (params.claimableYieldUsdc <= 0n) {
+    return {
+      claimAllowed: false,
+      claimBlockedReason: null,
+    };
+  }
+
+  if (params.claimableYieldUsdc < MIN_EARN_CLAIM_YIELD_USDC) {
+    return {
+      claimAllowed: false,
+      claimBlockedReason: 'below_minimum_net_yield',
+    };
+  }
+
+  return {
+    claimAllowed: true,
+    claimBlockedReason: null,
+  };
 }
 
 function scaleShare(amount: bigint, accPerShareE18: bigint) {
@@ -1875,6 +1920,11 @@ export async function getEarnSummary(params: {
     senderAddress: walletBinding.suiAddress,
     stableCoinType,
   });
+  const claimAvailability = getClaimAvailability({
+    walletReady: Boolean(walletBinding.privyWalletId && walletBinding.suiPublicKey),
+    claimableYieldUsdc: position.claimableYieldUsdc,
+    yieldSettlementMode: position.yieldSettlementMode,
+  });
 
   return {
     walletReady: Boolean(walletBinding.privyWalletId && walletBinding.suiPublicKey),
@@ -1883,6 +1933,9 @@ export async function getEarnSummary(params: {
     claimableYieldUsdc: serializeBigInt(position.claimableYieldUsdc),
     claimableYieldReliable: position.claimableYieldReliable,
     yieldSettlementMode: position.yieldSettlementMode,
+    claimAllowed: claimAvailability.claimAllowed,
+    claimMinimumYieldUsdc: serializeBigInt(MIN_EARN_CLAIM_YIELD_USDC),
+    claimBlockedReason: claimAvailability.claimBlockedReason,
   };
 }
 
@@ -1932,6 +1985,10 @@ export async function previewEarnAction(params: {
 
       if (yieldReceivesUsdc <= 0n) {
         throw new Error('No claimable yield available');
+      }
+
+      if (yieldReceivesUsdc < MIN_EARN_CLAIM_YIELD_USDC) {
+        throw new Error(CLAIM_MINIMUM_YIELD_MESSAGE);
       }
     }
   }
@@ -2083,6 +2140,9 @@ async function executeClaimFlow(params: {
     }
     if (!plan.yieldSettled || plan.userPayoutOwedUsdc <= 0n) {
       throw new Error('No claimable yield available');
+    }
+    if (plan.userPayoutOwedUsdc < MIN_EARN_CLAIM_YIELD_USDC) {
+      throw new Error(CLAIM_MINIMUM_YIELD_MESSAGE);
     }
 
     const yieldBundle = await buildYieldSettlementBundle({ plan });

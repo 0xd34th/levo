@@ -51,6 +51,9 @@ describe('GET /api/v1/earn/summary', () => {
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
       yieldSettlementMode: 'server_payout',
+      claimAllowed: true,
+      claimMinimumYieldUsdc: '40000',
+      claimBlockedReason: null,
     });
   });
 
@@ -71,6 +74,9 @@ describe('GET /api/v1/earn/summary', () => {
       claimableYieldUsdc: '90000',
       claimableYieldReliable: true,
       yieldSettlementMode: 'server_payout',
+      claimAllowed: true,
+      claimMinimumYieldUsdc: '40000',
+      claimBlockedReason: null,
     });
   });
 });

@@ -41,6 +41,9 @@ interface EarnSummaryResponse {
   claimableYieldUsdc: string;
   claimableYieldReliable: boolean;
   yieldSettlementMode: 'server_payout' | 'disabled';
+  claimAllowed: boolean;
+  claimMinimumYieldUsdc: string;
+  claimBlockedReason: 'below_minimum_net_yield' | null;
 }
 
 interface EarnPreviewResponse extends EarnSummaryResponse {
@@ -91,6 +94,9 @@ function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
     typeof candidate.claimableYieldReliable === 'boolean' &&
+    typeof candidate.claimAllowed === 'boolean' &&
+    typeof candidate.claimMinimumYieldUsdc === 'string' &&
+    (candidate.claimBlockedReason === null || candidate.claimBlockedReason === 'below_minimum_net_yield') &&
     (candidate.yieldSettlementMode === 'server_payout' || candidate.yieldSettlementMode === 'disabled') &&
     typeof candidate.walletReady === 'boolean'
   );
@@ -108,6 +114,9 @@ function isEarnSummaryResponse(payload: unknown): payload is EarnSummaryResponse
     typeof candidate.depositedUsdc === 'string' &&
     typeof candidate.claimableYieldUsdc === 'string' &&
     typeof candidate.claimableYieldReliable === 'boolean' &&
+    typeof candidate.claimAllowed === 'boolean' &&
+    typeof candidate.claimMinimumYieldUsdc === 'string' &&
+    (candidate.claimBlockedReason === null || candidate.claimBlockedReason === 'below_minimum_net_yield') &&
     (candidate.yieldSettlementMode === 'server_payout' || candidate.yieldSettlementMode === 'disabled')
   );
 }
@@ -338,6 +347,13 @@ export default function EarnPage() {
   );
 
   const previewNotice = preview ? getEarnPreviewNotice(preview) : null;
+  const claimThresholdNotice =
+    summary?.claimBlockedReason === 'below_minimum_net_yield'
+      ? `Claim available once yield reaches ${formatAmount(
+          summary.claimMinimumYieldUsdc,
+          USER_FACING_USDC_TYPE,
+        )} USDC. Small claims cost more gas than they are worth.`
+      : null;
 
   const requestPreview = useCallback(async (action: EarnAction) => {
     if (action !== 'claim' && !amount) {
@@ -602,6 +618,9 @@ export default function EarnPage() {
                 </Button>
               ))}
             </div>
+            {claimThresholdNotice ? (
+              <p className="mt-3 text-xs text-muted-foreground">{claimThresholdNotice}</p>
+            ) : null}
           </div>
 
           {error ? (

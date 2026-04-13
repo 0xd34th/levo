@@ -7,6 +7,7 @@ interface EarnFormSummary {
   depositedUsdc: string;
   claimableYieldUsdc: string;
   yieldSettlementMode: 'server_payout' | 'disabled';
+  claimAllowed: boolean;
 }
 
 interface EarnActionAvailability {
@@ -50,7 +51,7 @@ describe('earn-form helpers', () => {
     expect(parseAmountInputToBaseUnits?.('0.00', MAINNET_USDC_TYPE)).toBeNull();
   });
 
-  it('enables claim only when claimable yield is positive', async () => {
+  it('enables claim only when the backend marks claim as allowed', async () => {
     const { getEarnActionAvailability } = await loadEarnFormModule();
 
     expect(
@@ -62,8 +63,9 @@ describe('earn-form helpers', () => {
           walletReady: true,
           availableUsdc: '5000000',
           depositedUsdc: '7000000',
-          claimableYieldUsdc: '1',
+          claimableYieldUsdc: '90000',
           yieldSettlementMode: 'server_payout',
+          claimAllowed: true,
         },
       }).claim,
     ).toBe(true);
@@ -77,8 +79,9 @@ describe('earn-form helpers', () => {
           walletReady: true,
           availableUsdc: '5000000',
           depositedUsdc: '7000000',
-          claimableYieldUsdc: '0',
+          claimableYieldUsdc: '90000',
           yieldSettlementMode: 'server_payout',
+          claimAllowed: false,
         },
       }).claim,
     ).toBe(false);
@@ -92,8 +95,9 @@ describe('earn-form helpers', () => {
           walletReady: true,
           availableUsdc: '5000000',
           depositedUsdc: '7000000',
-          claimableYieldUsdc: '1',
+          claimableYieldUsdc: '90000',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).claim,
     ).toBe(false);
@@ -113,6 +117,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).stake,
     ).toBe(true);
@@ -128,6 +133,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).stake,
     ).toBe(false);
@@ -143,6 +149,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '7000000',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).stake,
     ).toBe(false);
@@ -162,6 +169,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '3000000',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).withdraw,
     ).toBe(true);
@@ -177,6 +185,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '3000000',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).withdraw,
     ).toBe(false);
@@ -192,6 +201,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '0',
           claimableYieldUsdc: '0',
           yieldSettlementMode: 'disabled',
+          claimAllowed: false,
         },
       }).withdraw,
     ).toBe(false);
@@ -211,6 +221,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '5000000',
           claimableYieldUsdc: '500000',
           yieldSettlementMode: 'server_payout',
+          claimAllowed: true,
         },
       }),
     ).toEqual({
@@ -230,6 +241,7 @@ describe('earn-form helpers', () => {
           depositedUsdc: '5000000',
           claimableYieldUsdc: '500000',
           yieldSettlementMode: 'server_payout',
+          claimAllowed: true,
         },
       }),
     ).toEqual({

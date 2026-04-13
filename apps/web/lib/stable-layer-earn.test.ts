@@ -578,6 +578,9 @@ describe('stable-layer earn helpers', () => {
       claimableYieldUsdc: '750',
       claimableYieldReliable: true,
       yieldSettlementMode: 'disabled',
+      claimAllowed: false,
+      claimMinimumYieldUsdc: '40000',
+      claimBlockedReason: null,
     });
 
     expect(stableLayerBuildClaimTxMock).not.toHaveBeenCalled();
@@ -609,6 +612,35 @@ describe('stable-layer earn helpers', () => {
     })).rejects.toThrow('Yield settlement is temporarily unavailable');
   });
 
+  it('marks small positive claimable yield as below the minimum net-yield threshold', async () => {
+    getStableLayerManagerKeypairMock.mockReturnValue({
+      toSuiAddress: () => '0xmanager',
+      signTransaction: vi.fn(async () => ({ signature: 'manager-signature' })),
+    });
+    getClaimRewardUsdbAmountMock.mockResolvedValue(20n);
+
+    await expect(getEarnSummary({
+      xUserId: 'x-user-1',
+    })).resolves.toEqual({
+      walletReady: true,
+      availableUsdc: '1000000',
+      depositedUsdc: '500000',
+      claimableYieldUsdc: '18',
+      claimableYieldReliable: true,
+      yieldSettlementMode: 'server_payout',
+      claimAllowed: false,
+      claimMinimumYieldUsdc: '40000',
+      claimBlockedReason: 'below_minimum_net_yield',
+    });
+
+    await expect(previewEarnAction({
+      xUserId: 'x-user-1',
+      action: 'claim',
+    })).rejects.toThrow(
+      'Claim available once yield reaches 0.04 USDC. Small claims cost more gas than they are worth.',
+    );
+  });
+
   it('rethrows on-chain claim settlement failures instead of downgrading them to pending', async () => {
     getStableLayerManagerKeypairMock.mockReturnValue({
       toSuiAddress: () => '0xmanager',
@@ -619,10 +651,10 @@ describe('stable-layer earn helpers', () => {
       action: 'claim',
       amount: '0',
       yieldSettlementMode: 'server_payout',
-      expectedYieldUsdc: '90',
+      expectedYieldUsdc: '90000',
       expectedPrincipalUsdc: '0',
     });
-    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100000n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xfailed',
       effects: {
@@ -653,10 +685,10 @@ describe('stable-layer earn helpers', () => {
       action: 'claim',
       amount: '0',
       yieldSettlementMode: 'server_payout',
-      expectedYieldUsdc: '90',
+      expectedYieldUsdc: '90000',
       expectedPrincipalUsdc: '0',
     });
-    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100000n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xfailed',
       effects: {
@@ -687,10 +719,10 @@ describe('stable-layer earn helpers', () => {
       action: 'claim',
       amount: '0',
       yieldSettlementMode: 'server_payout',
-      expectedYieldUsdc: '90',
+      expectedYieldUsdc: '90000',
       expectedPrincipalUsdc: '0',
     });
-    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100000n);
     executeTransactionBlockMock.mockRejectedValue(new Error('RPC timeout'));
 
     await expect(executeEarnAction({
@@ -715,10 +747,10 @@ describe('stable-layer earn helpers', () => {
       action: 'claim',
       amount: '0',
       yieldSettlementMode: 'server_payout',
-      expectedYieldUsdc: '90',
+      expectedYieldUsdc: '90000',
       expectedPrincipalUsdc: '0',
     });
-    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100000n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xyield',
       effects: {
@@ -801,5 +833,29 @@ describe('stable-layer earn helpers', () => {
         lastErrorMessage: 'principal failed',
       },
     });
+  });
+
+  it('rejects claim execution when live yield falls below the minimum claim threshold', async () => {
+    getStableLayerManagerKeypairMock.mockReturnValue({
+      toSuiAddress: () => '0xmanager',
+      signTransaction: vi.fn(async () => ({ signature: 'manager-signature' })),
+    });
+    stagePreview('preview-token', {
+      xUserId: 'x-user-1',
+      action: 'claim',
+      amount: '0',
+      yieldSettlementMode: 'server_payout',
+      expectedYieldUsdc: '90000',
+      expectedPrincipalUsdc: '0',
+    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(20n);
+
+    await expect(executeEarnAction({
+      xUserId: 'x-user-1',
+      privyUserId: 'privy-user',
+      previewToken: 'preview-token',
+    })).rejects.toThrow(
+      'Claim available once yield reaches 0.04 USDC. Small claims cost more gas than they are worth.',
+    );
   });
 });
