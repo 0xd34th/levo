@@ -697,20 +697,34 @@ async function inspectGlobalClaimableRewardUsdb(params: {
   senderAddress: string;
   stableCoinType: string;
 }) {
+  // Simulate a full claim transaction (releaseRewards → claim) to get the true
+  // claimable USDB including unreleased yield sitting in the Bucket saving pool.
+  // claimable_amount() on STABLE_VAULT_FARM only reads the farm's internal state
+  // which is NOT updated until a claim/pay actually executes, so it always returns 0
+  // when no recent settlements have occurred.
+  const managerKeypair = getStableLayerManagerKeypair();
+  if (managerKeypair) {
+    const managerAddress = managerKeypair.toSuiAddress();
+    const stableLayerClient = await getStableLayerClient(managerAddress);
+    const maybeGetClaimRewardUsdbAmount = stableLayerClient as unknown as {
+      getClaimRewardUsdbAmount?: (params: {
+        stableCoinType: string;
+        sender: string;
+      }) => Promise<bigint>;
+    };
+    if (typeof maybeGetClaimRewardUsdbAmount.getClaimRewardUsdbAmount === 'function') {
+      return await maybeGetClaimRewardUsdbAmount.getClaimRewardUsdbAmount({
+        stableCoinType: params.stableCoinType,
+        sender: managerAddress,
+      });
+    }
+  }
+
+  // Fallback: read farm's internal state directly (may undercount unreleased yield).
   const stableLayerClient = await getStableLayerClient(params.senderAddress);
   const constants = stableLayerClient.getConstants();
   const tx = new Transaction();
   tx.setSender(params.senderAddress);
-
-  // Release pending yield from Bucket saving pool into the vault farm so that
-  // claimable_amount reflects the true current yield, not just previously released rewards.
-  const maybeInternals = stableLayerClient as unknown as {
-    releaseRewards?: (tx: Transaction) => Promise<void>;
-  };
-  if (typeof maybeInternals.releaseRewards === 'function') {
-    await maybeInternals.releaseRewards(tx);
-  }
-
   tx.moveCall({
     target: `${constants.STABLE_VAULT_FARM_PACKAGE_ID}::stable_vault_farm::claimable_amount`,
     typeArguments: [

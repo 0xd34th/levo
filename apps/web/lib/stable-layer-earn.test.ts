@@ -26,6 +26,7 @@ const {
   stableLayerBuildMintTxMock,
   stableLayerGetConstantsMock,
   stableLayerGetTotalSupplyByCoinTypeMock,
+  getClaimRewardUsdbAmountMock,
   bucketBuildDepositToSavingPoolTransactionMock,
   bucketBuildPSMSwapOutTransactionMock,
   bucketGetConfigMock,
@@ -89,6 +90,7 @@ const {
     stableLayerBuildMintTxMock: vi.fn(),
     stableLayerGetConstantsMock: vi.fn(),
     stableLayerGetTotalSupplyByCoinTypeMock: vi.fn(),
+    getClaimRewardUsdbAmountMock: vi.fn(),
     bucketBuildDepositToSavingPoolTransactionMock: vi.fn(),
     bucketBuildPSMSwapOutTransactionMock: vi.fn(),
     bucketGetConfigMock: vi.fn(),
@@ -380,12 +382,14 @@ describe('stable-layer earn helpers', () => {
     });
     bucketGetUserAccountsMock.mockResolvedValue([]);
     releaseRewardsMock.mockResolvedValue(undefined);
+    getClaimRewardUsdbAmountMock.mockResolvedValue(0n);
     getStableLayerClientMock.mockResolvedValue({
       buildBurnTx: stableLayerBuildBurnTxMock,
       buildClaimTx: stableLayerBuildClaimTxMock,
       buildMintTx: stableLayerBuildMintTxMock,
       getConstants: stableLayerGetConstantsMock,
       getTotalSupplyByCoinType: stableLayerGetTotalSupplyByCoinTypeMock,
+      getClaimRewardUsdbAmount: getClaimRewardUsdbAmountMock,
       releaseRewards: releaseRewardsMock,
       bucketClient: {
         buildDepositToSavingPoolTransaction: bucketBuildDepositToSavingPoolTransactionMock,
@@ -618,23 +622,7 @@ describe('stable-layer earn helpers', () => {
       expectedYieldUsdc: '90',
       expectedPrincipalUsdc: '0',
     });
-    devInspectTransactionBlockMock.mockResolvedValueOnce({
-      effects: {
-        status: {
-          status: 'success',
-        },
-      },
-      results: [
-        {
-          returnValues: [
-            [
-              [100, 0, 0, 0, 0, 0, 0, 0],
-              'u64',
-            ],
-          ],
-        },
-      ],
-    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xfailed',
       effects: {
@@ -668,23 +656,7 @@ describe('stable-layer earn helpers', () => {
       expectedYieldUsdc: '90',
       expectedPrincipalUsdc: '0',
     });
-    devInspectTransactionBlockMock.mockResolvedValueOnce({
-      effects: {
-        status: {
-          status: 'success',
-        },
-      },
-      results: [
-        {
-          returnValues: [
-            [
-              [100, 0, 0, 0, 0, 0, 0, 0],
-              'u64',
-            ],
-          ],
-        },
-      ],
-    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xfailed',
       effects: {
@@ -718,23 +690,7 @@ describe('stable-layer earn helpers', () => {
       expectedYieldUsdc: '90',
       expectedPrincipalUsdc: '0',
     });
-    devInspectTransactionBlockMock.mockResolvedValueOnce({
-      effects: {
-        status: {
-          status: 'success',
-        },
-      },
-      results: [
-        {
-          returnValues: [
-            [
-              [100, 0, 0, 0, 0, 0, 0, 0],
-              'u64',
-            ],
-          ],
-        },
-      ],
-    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
     executeTransactionBlockMock.mockRejectedValue(new Error('RPC timeout'));
 
     await expect(executeEarnAction({
@@ -762,23 +718,7 @@ describe('stable-layer earn helpers', () => {
       expectedYieldUsdc: '90',
       expectedPrincipalUsdc: '0',
     });
-    devInspectTransactionBlockMock.mockResolvedValueOnce({
-      effects: {
-        status: {
-          status: 'success',
-        },
-      },
-      results: [
-        {
-          returnValues: [
-            [
-              [100, 0, 0, 0, 0, 0, 0, 0],
-              'u64',
-            ],
-          ],
-        },
-      ],
-    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
     executeTransactionBlockMock.mockResolvedValue({
       digest: '0xyield',
       effects: {
@@ -820,23 +760,7 @@ describe('stable-layer earn helpers', () => {
       action: 'withdraw',
       amount: '100',
     });
-    devInspectTransactionBlockMock.mockResolvedValueOnce({
-      effects: {
-        status: {
-          status: 'success',
-        },
-      },
-      results: [
-        {
-          returnValues: [
-            [
-              [100, 0, 0, 0, 0, 0, 0, 0],
-              'u64',
-            ],
-          ],
-        },
-      ],
-    });
+    getClaimRewardUsdbAmountMock.mockResolvedValueOnce(100n);
     executeTransactionBlockMock
       .mockResolvedValueOnce({
         digest: '0xyield',
