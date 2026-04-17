@@ -535,7 +535,7 @@ export default function EarnPage() {
             <label className="text-sm font-medium text-foreground" htmlFor="earn-amount">
               Amount
             </label>
-            <div className="mt-3 flex items-center gap-3 rounded-[22px] border border-border/70 bg-background/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+            <div className="mt-3 flex items-center gap-3 rounded-[22px] border border-border/70 bg-background/80 px-5 py-3 dark:border-white/10 dark:bg-white/5">
               <span className="text-sm font-semibold text-muted-foreground">USDC</span>
               <Input
                 id="earn-amount"
