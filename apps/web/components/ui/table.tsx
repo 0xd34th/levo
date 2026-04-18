@@ -17,7 +17,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot="table-header"
-      className={cn('[&_tr]:border-b [&_tr]:border-border/70 dark:[&_tr]:border-white/8', className)}
+      className={cn('[&_tr]:border-b [&_tr]:border-[color:var(--border)]', className)}
       {...props}
     />
   );
@@ -38,7 +38,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     <tr
       data-slot="table-row"
       className={cn(
-        'border-b border-border/60 transition-colors hover:bg-muted/40 dark:border-white/6 dark:hover:bg-white/[0.025]',
+        'border-b border-[color:var(--border)] transition-colors hover:bg-raise',
         className,
       )}
       {...props}
@@ -51,9 +51,10 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot="table-head"
       className={cn(
-        'h-12 px-4 text-left align-middle text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground',
+        'h-11 px-4 text-left align-middle text-[11px] font-medium uppercase tracking-[0.08em]',
         className,
       )}
+      style={{ color: 'var(--text-mute)' }}
       {...props}
     />
   );

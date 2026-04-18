@@ -23,61 +23,124 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-raise: var(--raise);
+  --color-text-soft: var(--text-soft);
+  --color-text-mute: var(--text-mute);
+  --color-text-fade: var(--text-fade);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-tile-green: var(--tile-green);
+  --color-tile-blue: var(--tile-blue);
+  --color-tile-ink: var(--tile-ink);
   --font-sans: var(--font-sans);
-  --font-display: var(--font-display);
+  --font-display: var(--font-sans);
   --font-mono: var(--font-mono);
-  --radius-sm: calc(var(--radius) * 0.65);
-  --radius-md: calc(var(--radius) * 0.85);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.3);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.8);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-4xl: 36px;
 }
 
 :root {
   color-scheme: light;
-  --background: #f8f9fc;
-  --foreground: #0f1115;
-  --card: rgba(255, 255, 255, 0.9);
-  --card-foreground: #0f1115;
-  --popover: rgba(255, 255, 255, 0.96);
-  --popover-foreground: #0f1115;
-  --primary: #4163ef;
-  --primary-foreground: #f8fbff;
-  --secondary: rgba(15, 23, 42, 0.11);
-  --secondary-foreground: #24324d;
-  --muted: rgba(15, 23, 42, 0.08);
-  --muted-foreground: #5b6d85;
-  --accent: #00b386;
-  --accent-foreground: #f0fdf9;
-  --destructive: #ef4444;
-  --border: rgba(26, 44, 86, 0.18);
-  --input: rgba(15, 23, 42, 0.11);
-  --ring: rgba(65, 99, 239, 0.42);
+
+  /* v3 · White-first, institutional finance */
+  --background: #ffffff;
+  --surface: #f5f5f3;
+  --raise: #ecece8;
+  --sunk: #fafaf8;
+
+  --foreground: #0e0e10;
+  --text-soft: #55555a;
+  --text-mute: #8a8a8f;
+  --text-fade: #b8b8bc;
+
+  --card: #f5f5f3;
+  --card-foreground: #0e0e10;
+  --popover: #ffffff;
+  --popover-foreground: #0e0e10;
+
+  /* Primary = near-black ink (institutional CTA) */
+  --primary: #0e0e10;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f5f5f3;
+  --secondary-foreground: #0e0e10;
+  --muted: #f5f5f3;
+  --muted-foreground: #8a8a8f;
+
+  /* Semantic — forest green for yield/gain, brick red for loss/risk */
+  --accent: #1f7a3e;
+  --accent-foreground: #ffffff;
+  --up: #1f7a3e;
+  --up-soft: #e6f0e8;
+  --down: #b23a3a;
+  --down-soft: #f3e4e3;
+
+  /* Tile colors for icon badges */
+  --tile-green: #1f7a3e;
+  --tile-blue: #1f5aa8;
+  --tile-ink: #0e0e10;
+
+  --destructive: #b23a3a;
+
+  --border: rgba(17, 17, 17, 0.08);
+  --border-strong: rgba(17, 17, 17, 0.14);
+  --input: rgba(17, 17, 17, 0.08);
+  --ring: rgba(14, 14, 16, 0.2);
   --radius: 1rem;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0f1115;
-  --foreground: #f5f7fb;
-  --card: rgba(19, 24, 31, 0.9);
-  --card-foreground: #f5f7fb;
-  --popover: rgba(18, 22, 30, 0.96);
-  --popover-foreground: #f5f7fb;
-  --primary: #5b7fff;
-  --primary-foreground: #f8fbff;
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: #d6def4;
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #8f9cb4;
-  --accent: #00c896;
-  --accent-foreground: #04261d;
-  --destructive: #ff6b82;
-  --border: rgba(170, 190, 255, 0.14);
+
+  /* Dark mirror — same discipline, inverted surfaces */
+  --background: #0e0e10;
+  --surface: #17171a;
+  --raise: #1f1f23;
+  --sunk: #0a0a0c;
+
+  --foreground: #f5f5f3;
+  --text-soft: #aaaab0;
+  --text-mute: #77777c;
+  --text-fade: #4d4d52;
+
+  --card: #17171a;
+  --card-foreground: #f5f5f3;
+  --popover: #17171a;
+  --popover-foreground: #f5f5f3;
+
+  --primary: #f5f5f3;
+  --primary-foreground: #0e0e10;
+
+  --secondary: #17171a;
+  --secondary-foreground: #f5f5f3;
+  --muted: #17171a;
+  --muted-foreground: #77777c;
+
+  --accent: #4aa76c;
+  --accent-foreground: #0e0e10;
+  --up: #4aa76c;
+  --up-soft: rgba(74, 167, 108, 0.15);
+  --down: #d46060;
+  --down-soft: rgba(212, 96, 96, 0.15);
+
+  --tile-green: #1f7a3e;
+  --tile-blue: #2f6dcb;
+  --tile-ink: #f5f5f3;
+
+  --destructive: #d46060;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
   --input: rgba(255, 255, 255, 0.08);
-  --ring: rgba(91, 127, 255, 0.55);
+  --ring: rgba(245, 245, 243, 0.2);
 }
 
 @layer base {
@@ -87,20 +150,22 @@
 
   html {
     @apply bg-background font-sans text-foreground;
+    font-feature-settings: "ss01", "cv11";
   }
 
   body {
     @apply min-h-screen bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
   }
 
   ::selection {
-    background: rgba(74, 108, 247, 0.2);
-    color: #0f1115;
+    background: rgba(14, 14, 16, 0.12);
+    color: #0e0e10;
   }
 
   .dark ::selection {
-    background: rgba(91, 127, 255, 0.35);
-    color: #f8fbff;
+    background: rgba(245, 245, 243, 0.18);
+    color: #f5f5f3;
   }
 
   a,
@@ -112,72 +177,27 @@
 }
 
 @layer components {
-  .app-shell {
-    @apply relative min-h-screen;
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-mute);
   }
 
-  .glass-card {
-    @apply rounded-2xl border border-border bg-card;
+  .mono-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
-  .section-eyebrow {
-    @apply text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground;
+  .surface-card {
+    background: var(--surface);
+    border-radius: 18px;
   }
 
-  .hero-heading {
-    font-family: var(--font-display), sans-serif;
-    @apply text-4xl leading-tight font-semibold tracking-[-0.04em] text-balance sm:text-5xl;
-  }
-
-  .metric-card {
-    @apply rounded-[24px] border border-border bg-card p-4;
-  }
-
-  .table-surface {
-    @apply overflow-hidden rounded-[28px] border border-border bg-card shadow-[0_22px_60px_rgba(0,0,0,0.06)] dark:shadow-[0_22px_60px_rgba(0,0,0,0.28)];
-  }
-
-  .wallet-connect-button::part(trigger) {
-    height: 2.75rem;
-    border-radius: 999px;
-    border: 1px solid rgba(26, 44, 86, 0.18);
-    background: rgba(255, 255, 255, 0.86);
-    color: var(--foreground);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.92),
-      0 12px 28px rgba(15, 23, 42, 0.08);
-    padding: 0 0.95rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition:
-      background 160ms ease,
-      border-color 160ms ease,
-      transform 160ms ease;
-  }
-
-  .wallet-connect-button::part(trigger):hover {
-    background: rgba(255, 255, 255, 0.98);
-    border-color: rgba(26, 44, 86, 0.24);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
-      0 16px 32px rgba(15, 23, 42, 0.10);
-  }
-
-  .wallet-connect-button::part(trigger):active {
-    transform: translateY(1px);
-  }
-
-  .dark .wallet-connect-button::part(trigger) {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.06);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.04),
-      0 12px 24px rgba(0, 0, 0, 0.18);
-  }
-
-  .dark .wallet-connect-button::part(trigger):hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.14);
+  .hairline {
+    border-top: 1px solid var(--border);
   }
 }
 
@@ -186,18 +206,23 @@
     text-wrap: balance;
   }
 
-  .bg-grid-fade {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 48px 48px;
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
   .scrollbar-subtle {
-    scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+    scrollbar-color: rgba(17, 17, 17, 0.18) transparent;
   }
 
   .dark .scrollbar-subtle {
-    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    scrollbar-color: rgba(245, 245, 243, 0.16) transparent;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
   }
 }

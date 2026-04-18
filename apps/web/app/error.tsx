@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+
 export default function GlobalError({
   reset,
 }: {
@@ -7,23 +9,32 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
-      <span className="flex size-16 items-center justify-center rounded-full bg-destructive text-2xl font-bold text-destructive-foreground shadow-lg">
-        !
-      </span>
-      <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">
-        Something went wrong
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        An unexpected error occurred. Please try again.
-      </p>
-      <button
-        type="button"
-        onClick={reset}
-        className="mt-6 inline-flex h-10 items-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-      >
-        Try again
-      </button>
+    <div className="flex min-h-screen items-center justify-center bg-background px-5">
+      <div className="w-full max-w-sm rounded-[20px] bg-surface px-6 py-7 text-center">
+        <span
+          className="mx-auto flex size-12 items-center justify-center rounded-[14px] text-[20px] font-semibold text-white"
+          style={{ background: 'var(--down)' }}
+        >
+          !
+        </span>
+        <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.01em]">
+          Something went wrong
+        </h1>
+        <p
+          className="mt-2 text-[14px] leading-[1.45]"
+          style={{ color: 'var(--text-soft)' }}
+        >
+          An unexpected error occurred. Try again, and if it keeps happening,
+          refresh the page.
+        </p>
+        <Button
+          size="lg"
+          className="mt-6 h-[46px] w-full rounded-[14px] text-[15px]"
+          onClick={reset}
+        >
+          Try again
+        </Button>
+      </div>
     </div>
   );
 }

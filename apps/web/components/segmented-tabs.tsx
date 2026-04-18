@@ -10,11 +10,18 @@ const tabs = [
   { href: '/tools', label: 'Tools', match: (p: string) => p.startsWith('/tools') },
 ];
 
+/**
+ * v3 pill tabs — the signature X Money element.
+ * Surface-gray inactive, near-black filled active.
+ */
 export function SegmentedTabs() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Main navigation" className="flex items-center gap-1 rounded-full border border-border/60 bg-secondary/40 p-1 dark:border-white/8 dark:bg-white/4">
+    <nav
+      aria-label="Main navigation"
+      className="no-scrollbar flex items-center gap-2 overflow-x-auto"
+    >
       {tabs.map((tab) => {
         const active = tab.match(pathname);
 
@@ -24,10 +31,10 @@ export function SegmentedTabs() {
             href={tab.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex-1 rounded-full py-2 text-center text-sm font-medium transition-colors',
+              'rounded-full px-5 py-2.5 text-[15px] font-medium whitespace-nowrap transition-colors',
               active
-                ? 'bg-background text-foreground shadow-sm dark:bg-white/10'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'bg-foreground text-background'
+                : 'bg-surface text-foreground hover:bg-raise',
             )}
           >
             {tab.label}

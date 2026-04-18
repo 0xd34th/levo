@@ -82,51 +82,55 @@ export default function SendPage() {
   };
 
   return (
-    <div className="min-h-screen">
-      <MobileTopBar title="Send Money" backHref="/" />
+    <div className="min-h-screen bg-background">
+      <MobileTopBar title="Send" backHref="/" />
 
-      <main className="mx-auto w-full max-w-lg px-4 pb-16 pt-6">
+      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3">
         <div className="flex flex-col gap-5">
-          {/* Wallet info */}
           {embeddedWalletAddress ? (
-            <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 dark:border-primary/20 dark:bg-primary/8">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
-                  <Wallet className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-foreground">Sending from</p>
-                  <p className="text-xs text-muted-foreground">
-                    Deposit funds to this wallet first.
-                  </p>
-                </div>
-                <button
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/8"
-                  onClick={copyAddress}
-                  title={embeddedWalletAddress}
-                  type="button"
+            <div className="flex items-center gap-3 rounded-[16px] bg-surface px-4 py-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-raise">
+                <Wallet className="size-[18px]" strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium">From your wallet</p>
+                <p
+                  className="mt-0.5 text-[12px]"
+                  style={{ color: 'var(--text-mute)' }}
                 >
-                  {truncateAddress(embeddedWalletAddress)}
-                  {copied ? (
-                    <Check className="size-3 text-green-500" />
-                  ) : (
-                    <Copy className="size-3 text-muted-foreground" />
-                  )}
-                </button>
+                  Deposit funds here first to send.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={copyAddress}
+                title={embeddedWalletAddress}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-raise px-3 py-1.5 text-[12px] font-medium font-mono"
+              >
+                {truncateAddress(embeddedWalletAddress)}
+                {copied ? (
+                  <Check className="size-3" style={{ color: 'var(--up)' }} />
+                ) : (
+                  <Copy className="size-3" style={{ color: 'var(--text-mute)' }} />
+                )}
+              </button>
             </div>
           ) : walletLoading ? (
-            <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm text-muted-foreground dark:border-white/10 dark:bg-white/4">
-              Setting up your embedded wallet...
+            <div className="rounded-[16px] bg-surface px-4 py-3 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+              Setting up your embedded wallet…
             </div>
           ) : embeddedWalletError ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3">
-              <p className="text-sm text-destructive">{embeddedWalletError}</p>
+            <div
+              className="rounded-[16px] px-4 py-3"
+              style={{ background: 'var(--down-soft)' }}
+            >
+              <p className="text-[13px]" style={{ color: 'var(--down)' }}>
+                {embeddedWalletError}
+              </p>
               <Button
-                className="mt-3 rounded-full"
-                size="sm"
-                type="button"
+                className="mt-3 h-9 rounded-full text-[13px]"
                 variant="outline"
+                type="button"
                 onClick={() => refetchEmbeddedWallet()}
               >
                 Retry wallet setup
@@ -155,7 +159,10 @@ export default function SendPage() {
           />
 
           {sendError ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <div
+              className="rounded-[16px] px-4 py-3 text-[13px]"
+              style={{ background: 'var(--down-soft)', color: 'var(--down)' }}
+            >
               {sendError}
             </div>
           ) : null}

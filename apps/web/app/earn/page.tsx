@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, LoaderCircle } from 'lucide-react';
+import { ArrowRight, ArrowUp, LoaderCircle } from 'lucide-react';
 import {
   useAuthorizationSignature,
   useIdentityToken,
@@ -82,10 +82,7 @@ const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const USER_FACING_USDC_TYPE = getUserFacingUsdcCoinType() ?? MAINNET_USDC_TYPE;
 
 function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse {
-  if (typeof payload !== 'object' || payload === null) {
-    return false;
-  }
-
+  if (typeof payload !== 'object' || payload === null) return false;
   const candidate = payload as Partial<EarnPreviewResponse>;
   return (
     typeof candidate.previewToken === 'string' &&
@@ -107,10 +104,7 @@ function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse
 }
 
 function isEarnSummaryResponse(payload: unknown): payload is EarnSummaryResponse {
-  if (typeof payload !== 'object' || payload === null) {
-    return false;
-  }
-
+  if (typeof payload !== 'object' || payload === null) return false;
   const candidate = payload as Partial<EarnSummaryResponse>;
   return (
     typeof candidate.walletReady === 'boolean' &&
@@ -126,15 +120,11 @@ function isEarnSummaryResponse(payload: unknown): payload is EarnSummaryResponse
 }
 
 function isExecuteEarnResponse(payload: unknown): payload is ExecuteEarnResponse {
-  if (typeof payload !== 'object' || payload === null) {
-    return false;
-  }
-
+  if (typeof payload !== 'object' || payload === null) return false;
   const candidate = payload as Partial<ExecuteEarnResponse>;
   if (candidate.status === 'authorization_required') {
     return Boolean(parsePrivyAuthorizationRequiredResponse(payload));
   }
-
   return (
     (candidate.status === 'confirmed' || candidate.status === 'pending' || candidate.status === 'partial') &&
     typeof candidate.txDigest === 'string' &&
@@ -143,10 +133,7 @@ function isExecuteEarnResponse(payload: unknown): payload is ExecuteEarnResponse
 }
 
 function isEarnFinalResponse(payload: unknown): payload is EarnFinalResponse {
-  if (typeof payload !== 'object' || payload === null) {
-    return false;
-  }
-
+  if (typeof payload !== 'object' || payload === null) return false;
   const candidate = payload as Partial<EarnFinalResponse>;
   return (
     (candidate.status === 'confirmed' || candidate.status === 'pending' || candidate.status === 'partial') &&
@@ -169,7 +156,6 @@ async function getResponseError(response: Response, fallback: string) {
   } catch {
     // Ignore malformed error payloads.
   }
-
   return fallback;
 }
 
@@ -179,23 +165,17 @@ function waitForRetryDelay(delayMs: number, signal?: AbortSignal) {
       window.setTimeout(resolve, delayMs);
     });
   }
-
-  if (signal.aborted) {
-    return Promise.reject(new DOMException('Request aborted', 'AbortError'));
-  }
-
+  if (signal.aborted) return Promise.reject(new DOMException('Request aborted', 'AbortError'));
   return new Promise<void>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       signal.removeEventListener('abort', handleAbort);
       resolve();
     }, delayMs);
-
     const handleAbort = () => {
       window.clearTimeout(timeoutId);
       signal.removeEventListener('abort', handleAbort);
       reject(new DOMException('Request aborted', 'AbortError'));
     };
-
     signal.addEventListener('abort', handleAbort, { once: true });
   });
 }
@@ -223,25 +203,21 @@ async function confirmEarnWithRetry(
       await waitForRetryDelay(2000, signal);
       continue;
     }
-
     if (!res.ok) {
       throw new Error(await getResponseError(res, 'Earn transaction is still pending. Please check Activity shortly.'));
     }
-
     const payload = await res.json();
     if (!isEarnFinalResponse(payload)) {
       throw new Error('Invalid Earn confirmation response');
     }
-
     return payload;
   }
-
   return null;
 }
 
 function actionLabel(action: EarnAction) {
-  if (action === 'stake') return 'Stake USDC';
-  if (action === 'claim') return 'Claim Yield';
+  if (action === 'stake') return 'Add funds';
+  if (action === 'claim') return 'Claim yield';
   return 'Withdraw';
 }
 
@@ -271,10 +247,7 @@ export default function EarnPage() {
       const response = await privyAuthenticatedFetch(
         getAccessToken,
         '/api/v1/earn/summary',
-        {
-          cache: 'no-store',
-          signal: controller.signal,
-        },
+        { cache: 'no-store', signal: controller.signal },
         { identityToken },
       );
 
@@ -290,16 +263,11 @@ export default function EarnPage() {
       setSummary(payload);
       setError(null);
     } catch (summaryError) {
-      if (controller.signal.aborted) {
-        return;
-      }
-
+      if (controller.signal.aborted) return;
       setSummary(null);
       setError(summaryError instanceof Error ? summaryError.message : 'Failed to load Earn summary');
     } finally {
-      if (!controller.signal.aborted) {
-        setLoadingSummary(false);
-      }
+      if (!controller.signal.aborted) setLoadingSummary(false);
     }
   }, [getAccessToken, identityToken]);
 
@@ -316,13 +284,8 @@ export default function EarnPage() {
 
   const metricSummary = useMemo(() => {
     if (!summary) {
-      return {
-        availableUsdc: '0',
-        depositedUsdc: '0',
-        claimableYieldUsdc: '0',
-      };
+      return { availableUsdc: '0', depositedUsdc: '0', claimableYieldUsdc: '0' };
     }
-
     return {
       availableUsdc: formatAmount(summary.availableUsdc, USER_FACING_USDC_TYPE),
       depositedUsdc: formatAmount(summary.depositedUsdc, USER_FACING_USDC_TYPE),
@@ -336,12 +299,13 @@ export default function EarnPage() {
   );
 
   const actionAvailability = useMemo(
-    () => getEarnActionAvailability({
-      amountInput: amount,
-      busy: executing || loadingAction !== null,
-      coinType: USER_FACING_USDC_TYPE,
-      summary,
-    }),
+    () =>
+      getEarnActionAvailability({
+        amountInput: amount,
+        busy: executing || loadingAction !== null,
+        coinType: USER_FACING_USDC_TYPE,
+        summary,
+      }),
     [amount, executing, loadingAction, summary],
   );
 
@@ -359,22 +323,18 @@ export default function EarnPage() {
       setError('Enter an amount first');
       return;
     }
-
     if (action !== 'claim' && !isValidAmountInput(amount, USER_FACING_USDC_TYPE)) {
       setError('Amount must be a valid USDC value');
       return;
     }
-
     if (action !== 'claim' && parsedAmountBaseUnits === null) {
       setError('Amount must be greater than zero');
       return;
     }
-
     if (action === 'stake' && summary && parsedAmountBaseUnits !== null && parsedAmountBaseUnits > BigInt(summary.availableUsdc)) {
       setError('Amount exceeds available USDC');
       return;
     }
-
     if (action === 'withdraw' && summary && parsedAmountBaseUnits !== null && parsedAmountBaseUnits > BigInt(summary.depositedUsdc)) {
       setError('Amount exceeds deposited USDC');
       return;
@@ -405,12 +365,10 @@ export default function EarnPage() {
       if (!response.ok) {
         throw new Error(await getResponseError(response, 'Failed to preview Earn action'));
       }
-
       const payload = await response.json();
       if (!isEarnPreviewResponse(payload)) {
         throw new Error('Invalid Earn preview response');
       }
-
       setPreview(payload);
       setError(null);
     } catch (previewError) {
@@ -422,9 +380,7 @@ export default function EarnPage() {
   }, [amount, getAccessToken, identityToken, parsedAmountBaseUnits, summary]);
 
   const executePreview = useCallback(async () => {
-    if (!preview) {
-      return;
-    }
+    if (!preview) return;
 
     setExecuting(true);
     setError(null);
@@ -458,7 +414,6 @@ export default function EarnPage() {
         const signatureResult = await generateAuthorizationSignature(
           authorizationRequired.authorizationRequest,
         );
-
         executeResponse = await requestExecute(signatureResult.signature);
         if (!executeResponse.ok) {
           throw new Error(await getResponseError(executeResponse, 'Earn execution failed'));
@@ -480,11 +435,9 @@ export default function EarnPage() {
           getAccessToken,
           identityToken,
         );
-
         if (!confirmed) {
           throw new Error('Earn transaction is still pending. Please check Activity shortly.');
         }
-
         payload = {
           ...payload,
           status: confirmed.status,
@@ -510,49 +463,74 @@ export default function EarnPage() {
     }
   }, [generateAuthorizationSignature, getAccessToken, identityToken, preview, refreshSummary]);
 
+  const yieldServerPayout = summary?.yieldSettlementMode === 'server_payout';
+  const claimableValue = metricSummary.claimableYieldUsdc;
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <MobileTopBar title="Earn" backHref="/" />
 
-      <main className="mx-auto w-full max-w-lg px-4 pb-16 pt-6">
-        <div className="flex flex-col gap-5">
-          <section className="grid gap-4 sm:grid-cols-3">
-            <div className="metric-card">
-              <p className="section-eyebrow">Available USDC</p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {loadingSummary ? '...' : metricSummary.availableUsdc}
+      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3">
+        <div className="flex flex-col gap-3">
+          {/* Hero card */}
+          <section className="rounded-[20px] bg-surface px-5 py-5">
+            <p className="eyebrow">Claimable yield</p>
+            <div
+              className="mt-4 flex items-baseline gap-0 tabular-nums"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                color: 'var(--up)',
+              }}
+            >
+              <span style={{ fontSize: 28, fontWeight: 500, marginRight: 2 }}>+$</span>
+              <span style={{ fontSize: 52, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1 }}>
+                {loadingSummary ? '…' : claimableValue}
+              </span>
+            </div>
+            <p className="mt-3 text-[13px]" style={{ color: 'var(--text-mute)' }}>
+              {yieldServerPayout
+                ? 'Accruing in real time · server-settled payout'
+                : 'Yield settlement currently disabled · balances shown are estimates'}
+            </p>
+          </section>
+
+          {/* Stats */}
+          <section className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-[18px] bg-surface px-4 py-4">
+              <p className="eyebrow">Available USDC</p>
+              <p
+                className="mt-2 tabular-nums text-[26px] font-semibold tracking-[-0.02em]"
+              >
+                ${loadingSummary ? '…' : metricSummary.availableUsdc}
               </p>
             </div>
-            <div className="metric-card">
-              <p className="section-eyebrow">Deposited USDC</p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {loadingSummary ? '...' : metricSummary.depositedUsdc}
-              </p>
-            </div>
-            <div className="metric-card">
-              <p className="section-eyebrow">Claimable Yield</p>
-              <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                {loadingSummary ? '...' : metricSummary.claimableYieldUsdc}
+            <div className="rounded-[18px] bg-surface px-4 py-4">
+              <p className="eyebrow">Earning balance</p>
+              <p
+                className="mt-2 tabular-nums text-[26px] font-semibold tracking-[-0.02em]"
+              >
+                ${loadingSummary ? '…' : metricSummary.depositedUsdc}
               </p>
             </div>
           </section>
 
-          <div className="rounded-3xl border border-border/60 bg-card px-5 py-5 dark:border-white/10 dark:bg-white/5">
-            <label className="text-sm font-medium text-foreground" htmlFor="earn-amount">
-              Amount
-            </label>
+          {/* Amount input (v3 inline) */}
+          <section className="rounded-[20px] bg-surface px-4 py-4">
+            <p className="eyebrow">Amount</p>
             <div
               className={cn(
-                'mt-3 flex items-center py-3',
+                'mt-2.5 flex items-center rounded-[14px] bg-background py-3',
                 largeFormInputSurfaceClass,
                 largeFormInputInlineInsetClass,
                 largeFormInputInlineGapClass,
               )}
+              style={{ borderColor: 'var(--border)' }}
             >
-              <span className="text-sm font-semibold text-muted-foreground">USDC</span>
+              <span className="text-[13px] font-semibold" style={{ color: 'var(--text-mute)' }}>
+                USDC
+              </span>
               <Input
-                id="earn-amount"
-                className="h-auto border-0 bg-transparent px-0 text-xl shadow-none focus-visible:ring-0"
+                className="h-auto border-0 bg-transparent px-0 text-[20px] font-semibold tabular-nums shadow-none focus-visible:ring-0"
                 inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
@@ -564,57 +542,130 @@ export default function EarnPage() {
                 }}
               />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Stake and withdraw use USDC input. Claim does not require an amount.
+            <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
+              Add funds and withdraw use USDC input. Claim doesn&rsquo;t need an amount.
             </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {(['stake', 'claim', 'withdraw'] as EarnAction[]).map((action) => (
-                <Button
-                  key={action}
-                  className="h-12 rounded-[18px]"
-                  disabled={!actionAvailability[action]}
-                  onClick={() => void requestPreview(action)}
-                  variant={action === 'claim' ? 'default' : 'outline'}
-                >
-                  {loadingAction === action ? (
-                    <span className="inline-flex items-center gap-2">
-                      <LoaderCircle className="size-4 animate-spin" />
-                      Preparing
-                    </span>
-                  ) : (
-                    actionLabel(action)
-                  )}
-                </Button>
-              ))}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <Button
+                variant="outline"
+                className="h-11 rounded-[14px] bg-background hover:bg-raise"
+                disabled={!actionAvailability.withdraw}
+                onClick={() => void requestPreview('withdraw')}
+              >
+                {loadingAction === 'withdraw' ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Preparing
+                  </span>
+                ) : (
+                  'Withdraw'
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 rounded-[14px] bg-background hover:bg-raise"
+                disabled={!actionAvailability.claim}
+                onClick={() => void requestPreview('claim')}
+              >
+                {loadingAction === 'claim' ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Preparing
+                  </span>
+                ) : (
+                  'Claim'
+                )}
+              </Button>
+              <Button
+                className="h-11 rounded-[14px]"
+                disabled={!actionAvailability.stake}
+                onClick={() => void requestPreview('stake')}
+              >
+                {loadingAction === 'stake' ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Preparing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    Add funds
+                    <ArrowUp className="size-4" />
+                  </span>
+                )}
+              </Button>
             </div>
             {claimThresholdNotice ? (
-              <p className="mt-3 text-xs text-muted-foreground">{claimThresholdNotice}</p>
+              <p className="mt-3 text-[12px]" style={{ color: 'var(--text-mute)' }}>
+                {claimThresholdNotice}
+              </p>
             ) : null}
-          </div>
+          </section>
+
+          {/* How it works */}
+          <section className="rounded-[18px] bg-surface px-4 py-4">
+            <p className="text-[15px] font-semibold">How your yield works</p>
+            <div className="mt-2.5">
+              {[
+                { t: 'Idle USDC is lent on Sui', d: 'Through StableLayer yield vaults.' },
+                { t: 'Interest accrues per second', d: 'Paid out to your wallet when you claim.' },
+                { t: 'Withdraw any time', d: 'No lock-up, no minimum.' },
+              ].map((r, i) => (
+                <div
+                  key={r.t}
+                  className={cn(
+                    'flex gap-3 py-2.5',
+                    i !== 0 ? 'border-t border-[color:var(--border)]' : null,
+                  )}
+                >
+                  <div
+                    className="flex size-[22px] shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
+                    style={{
+                      background: 'var(--up-soft)',
+                      color: 'var(--up)',
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                  <div>
+                    <div className="text-[14.5px] font-medium">{r.t}</div>
+                    <div className="mt-0.5 text-[13px]" style={{ color: 'var(--text-mute)' }}>
+                      {r.d}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {error ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <div
+              className="rounded-[16px] px-4 py-3 text-[13px]"
+              style={{ background: 'var(--down-soft)', color: 'var(--down)' }}
+            >
               {error}
             </div>
           ) : null}
 
           {notice ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-primary dark:border-primary/25 dark:bg-primary/10">
+            <div
+              className="rounded-[16px] px-4 py-3 text-[13px]"
+              style={{ background: 'var(--up-soft)', color: 'var(--up)' }}
+            >
               {notice}
             </div>
           ) : null}
 
           {preview ? (
-            <div className="rounded-3xl border border-border/60 bg-card px-5 py-5 dark:border-white/10 dark:bg-white/5">
-              <p className="section-eyebrow">Review action</p>
-              <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
+            <section className="rounded-[20px] bg-surface px-5 py-5">
+              <p className="eyebrow">Review action</p>
+              <p className="mt-2 text-[19px] font-semibold tracking-[-0.005em]">
                 {actionLabel(preview.action)}
               </p>
-              <div className="mt-4 space-y-2 text-sm">
+              <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Input</span>
-                  <span>
+                  <span style={{ color: 'var(--text-mute)' }}>Input</span>
+                  <span className="mono-nums font-medium">
                     {preview.action === 'claim'
                       ? 'No amount'
                       : `${formatAmount(preview.amount, USER_FACING_USDC_TYPE)} USDC`}
@@ -622,45 +673,52 @@ export default function EarnPage() {
                 </div>
                 {preview.action === 'withdraw' ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Principal returns</span>
-                    <span>{formatAmount(preview.principalReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                    <span style={{ color: 'var(--text-mute)' }}>Principal returns</span>
+                    <span className="mono-nums font-medium">
+                      {formatAmount(preview.principalReceivesUsdc, USER_FACING_USDC_TYPE)} USDC
+                    </span>
                   </div>
                 ) : null}
                 {preview.action !== 'stake' ? (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Yield settles</span>
-                    <span>{formatEarnEstimateAmount(preview.yieldReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                    <span style={{ color: 'var(--text-mute)' }}>Yield settles</span>
+                    <span className="mono-nums font-medium" style={{ color: 'var(--up)' }}>
+                      +{formatEarnEstimateAmount(preview.yieldReceivesUsdc, USER_FACING_USDC_TYPE)} USDC
+                    </span>
                   </div>
                 ) : null}
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">You receive</span>
-                  <span>{formatEarnEstimateAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC</span>
+                  <span style={{ color: 'var(--text-mute)' }}>You receive</span>
+                  <span className="mono-nums font-semibold">
+                    {formatEarnEstimateAmount(preview.userReceivesUsdc, USER_FACING_USDC_TYPE)} USDC
+                  </span>
                 </div>
               </div>
 
               {previewNotice ? (
                 <div
-                  className={
+                  className="mt-3 rounded-[12px] px-3 py-2 text-[12px]"
+                  style={
                     previewNotice.tone === 'warning'
-                      ? 'mt-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-xs text-amber-700 dark:text-amber-400'
-                      : 'mt-3 rounded-xl border border-border/60 bg-secondary/40 px-3 py-2 text-xs text-muted-foreground dark:border-white/10 dark:bg-white/4'
+                      ? { background: 'rgba(245, 158, 11, 0.12)', color: '#92400e' }
+                      : { background: 'var(--raise)', color: 'var(--text-mute)' }
                   }
                 >
                   {previewNotice.message}
                 </div>
               ) : null}
 
-              <div className="mt-5 flex gap-3">
+              <div className="mt-4 flex gap-2.5">
                 <Button
-                  className="flex-1 rounded-[18px]"
-                  disabled={executing}
                   variant="outline"
+                  className="h-12 flex-1 rounded-[14px] bg-background hover:bg-raise"
+                  disabled={executing}
                   onClick={() => setPreview(null)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 rounded-[18px]"
+                  className="h-12 flex-1 rounded-[14px]"
                   disabled={executing}
                   onClick={() => void executePreview()}
                 >
@@ -677,24 +735,25 @@ export default function EarnPage() {
                   )}
                 </Button>
               </div>
-            </div>
+            </section>
           ) : null}
 
           {txDigest ? (
-            <div className="rounded-3xl border border-primary/20 bg-primary/6 px-5 py-5 dark:border-primary/25 dark:bg-primary/10">
-              <p className="section-eyebrow">Latest transaction</p>
-              <p className="mt-3 break-all font-mono text-sm text-foreground">{txDigest}</p>
+            <section className="rounded-[20px] bg-surface px-5 py-5">
+              <p className="eyebrow">Latest transaction</p>
+              <p className="mt-2 break-all font-mono text-[12px]">{txDigest}</p>
               {getExplorerTransactionUrl(NETWORK, txDigest) ? (
                 <a
-                  className="mt-4 inline-flex text-sm font-medium text-primary"
+                  className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium"
                   href={getExplorerTransactionUrl(NETWORK, txDigest)!}
                   rel="noreferrer"
                   target="_blank"
                 >
                   View on explorer
+                  <ArrowRight className="size-3.5" />
                 </a>
               ) : null}
-            </div>
+            </section>
           ) : null}
         </div>
       </main>

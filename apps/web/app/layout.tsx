@@ -1,29 +1,25 @@
 import type { Metadata } from 'next';
-import { JetBrains_Mono, Manrope, Space_Grotesk } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
-const sans = Manrope({
+const sans = IBM_Plex_Sans({
   subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
   variable: '--font-sans',
   display: 'swap',
 });
 
-const display = Space_Grotesk({
+const mono = IBM_Plex_Mono({
   subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-});
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
+  weight: ['400', '500', '600'],
   variable: '--font-mono',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: 'Levo',
-  description: 'Send stablecoins to any X handle on Sui.',
+  description: 'A quiet wallet for stablecoins on Sui.',
 };
 
 export default function RootLayout({
@@ -34,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${display.variable} ${mono.variable}`}
+      className={`${sans.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground antialiased">

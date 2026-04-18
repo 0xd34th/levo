@@ -19,7 +19,7 @@ type SuiNetwork = 'testnet' | 'mainnet' | 'devnet';
  * the full form stored in env vars (`0x062241b...`). This ensures comparisons
  * are stable regardless of leading-zero formatting.
  */
-function normalizeCoinType(coinType: string): string {
+export function normalizeCoinType(coinType: string): string {
   const idx = coinType.indexOf('::');
   if (idx === -1) return coinType;
   try {

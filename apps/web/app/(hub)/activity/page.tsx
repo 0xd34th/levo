@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
 import { ArrowUpRight, Download } from 'lucide-react';
 import { PaymentTable } from '@/components/payment-table';
@@ -27,22 +27,29 @@ import { cn } from '@/lib/utils';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
-type SubTab = 'sent' | 'received';
+type SubTab = 'all' | 'sent' | 'received';
 
 function formatSentAmount(amount: string, coinType: string) {
-  if (!isDisplaySupportedCoinType(coinType)) {
-    return `${amount} raw units`;
-  }
+  if (!isDisplaySupportedCoinType(coinType)) return `${amount} raw`;
   return `${formatAmount(amount, coinType)} ${getCoinLabel(coinType)}`;
+}
+
+const dayFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+function groupKey(isoDate: string) {
+  return dayFormatter.format(new Date(isoDate));
 }
 
 export default function ActivityPage() {
   const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
   const { suiAddress: embeddedWalletAddress } = useEmbeddedWallet();
-  const [tab, setTab] = useState<SubTab>('sent');
+  const [tab, setTab] = useState<SubTab>('all');
 
-  // Sent state
   const [sentItems, setSentItems] = useState<TransactionItem[]>([]);
   const [sentCursor, setSentCursor] = useState<string | null>(null);
   const [sentLoading, setSentLoading] = useState(false);
@@ -50,7 +57,6 @@ export default function ActivityPage() {
   const [sentError, setSentError] = useState<string | null>(null);
   const sentControllerRef = useRef<AbortController | null>(null);
 
-  // Received state
   const [receivedData, setReceivedData] = useState<IncomingPaymentsResponse | null>(null);
   const [receivedLoading, setReceivedLoading] = useState(false);
   const [receivedLoadingMore, setReceivedLoadingMore] = useState(false);
@@ -60,18 +66,15 @@ export default function ActivityPage() {
   const twitterSubject = user?.twitter?.subject;
   const isLoggedIn = ready && authenticated;
 
-  // Fetch sent payments
   const fetchSent = useCallback(
     async (cursor?: string) => {
       if (!embeddedWalletAddress) return;
-
       sentControllerRef.current?.abort();
       const controller = new AbortController();
       sentControllerRef.current = controller;
 
-      if (cursor) {
-        setSentLoadingMore(true);
-      } else {
+      if (cursor) setSentLoadingMore(true);
+      else {
         setSentLoading(true);
         setSentError(null);
       }
@@ -91,11 +94,8 @@ export default function ActivityPage() {
 
         const payload = (await res.json()) as TransactionHistoryResponse;
 
-        if (cursor) {
-          setSentItems((prev) => [...prev, ...payload.items]);
-        } else {
-          setSentItems(payload.items);
-        }
+        if (cursor) setSentItems((prev) => [...prev, ...payload.items]);
+        else setSentItems(payload.items);
         setSentCursor(payload.nextCursor);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -110,18 +110,15 @@ export default function ActivityPage() {
     [embeddedWalletAddress, getAccessToken],
   );
 
-  // Fetch received payments
   const fetchReceived = useCallback(
     async (cursor?: string) => {
       if (!twitterSubject) return;
-
       receivedControllerRef.current?.abort();
       const controller = new AbortController();
       receivedControllerRef.current = controller;
 
-      if (cursor) {
-        setReceivedLoadingMore(true);
-      } else {
+      if (cursor) setReceivedLoadingMore(true);
+      else {
         setReceivedLoading(true);
         setReceivedError(null);
       }
@@ -163,13 +160,12 @@ export default function ActivityPage() {
     [twitterSubject, getAccessToken],
   );
 
-  // Initial fetch when tab or auth changes
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (tab === 'sent' && sentItems.length === 0 && !sentLoading && embeddedWalletAddress) {
+    if ((tab === 'all' || tab === 'sent') && sentItems.length === 0 && !sentLoading && embeddedWalletAddress) {
       void fetchSent();
     }
-    if (tab === 'received' && !receivedData && !receivedLoading && twitterSubject) {
+    if ((tab === 'all' || tab === 'received') && !receivedData && !receivedLoading && twitterSubject) {
       void fetchReceived();
     }
     return () => {
@@ -179,12 +175,90 @@ export default function ActivityPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, isLoggedIn, embeddedWalletAddress, twitterSubject]);
 
+  // Build a unified list + day groups + net summary.
+  const unifiedRows = useMemo(() => {
+    const rows: Array<{
+      id: string;
+      day: string;
+      timestampMs: number;
+      row: {
+        id: string;
+        counterpartyLabel: string;
+        counterpartySubLabel: string;
+        counterpartyAvatarUrl: string | null;
+        amount: string;
+        direction: 'incoming' | 'outgoing';
+        createdAt: string;
+        txUrl: string | null;
+      };
+    }> = [];
+
+    if (tab === 'all' || tab === 'sent') {
+      sentItems.forEach((item) => {
+        rows.push({
+          id: item.id,
+          day: groupKey(item.createdAt),
+          timestampMs: Date.parse(item.createdAt),
+          row: {
+            id: item.id,
+            counterpartyAvatarUrl:
+              item.recipientType === 'SUI_ADDRESS' ? null : item.recipient.profilePicture,
+            counterpartyLabel:
+              item.recipientType === 'SUI_ADDRESS'
+                ? (item.recipientAddress ? truncateAddress(item.recipientAddress) : item.recipient.username)
+                : `@${item.recipient.username}`,
+            counterpartySubLabel: item.recipientType === 'SUI_ADDRESS' ? 'Sui address' : 'X recipient',
+            amount: formatSentAmount(item.amount, item.coinType),
+            direction: 'outgoing',
+            createdAt: item.createdAt,
+            txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
+          },
+        });
+      });
+    }
+
+    if ((tab === 'all' || tab === 'received') && receivedData) {
+      receivedData.items.forEach((item) => {
+        const senderDisplay = getIncomingPaymentSenderDisplay(item);
+        rows.push({
+          id: item.id,
+          day: groupKey(item.createdAt),
+          timestampMs: Date.parse(item.createdAt),
+          row: {
+            id: item.id,
+            counterpartyAvatarUrl: senderDisplay.avatarUrl,
+            counterpartyLabel: senderDisplay.label,
+            counterpartySubLabel: senderDisplay.subLabel,
+            amount: receivedPaymentDisplay(item),
+            direction: 'incoming',
+            createdAt: item.createdAt,
+            txUrl: explorerUrl(NETWORK, item.txDigest),
+          },
+        });
+      });
+    }
+
+    return rows.sort((a, b) => b.timestampMs - a.timestampMs);
+  }, [tab, sentItems, receivedData]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof unifiedRows>();
+    for (const entry of unifiedRows) {
+      const list = map.get(entry.day) ?? [];
+      list.push(entry);
+      map.set(entry.day, list);
+    }
+    return Array.from(map.entries());
+  }, [unifiedRows]);
+
   if (ready && !authenticated) {
     return (
       <div className="flex flex-col items-center pt-12 text-center">
-        <p className="text-sm text-muted-foreground">Sign in to view your activity.</p>
+        <p className="text-[14px]" style={{ color: 'var(--text-mute)' }}>
+          Sign in to view your activity.
+        </p>
         <Button
-          className="mt-4 rounded-full"
+          className="mt-4 h-11 rounded-full px-5"
           onClick={() => {
             void initOAuth({ provider: 'twitter' }).catch(() => {});
           }}
@@ -195,141 +269,136 @@ export default function ActivityPage() {
     );
   }
 
+  const loading = (tab === 'sent' || tab === 'all') && sentLoading;
+  const loadingReceived = (tab === 'received' || tab === 'all') && receivedLoading;
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Sub-tabs */}
-      <div className="flex items-center gap-1 rounded-full border border-border/60 bg-secondary/40 p-1 dark:border-white/8 dark:bg-white/4">
-        {(['sent', 'received'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={cn(
-              'flex-1 rounded-full py-2 text-center text-sm font-medium capitalize transition-colors',
-              tab === t
-                ? 'bg-background text-foreground shadow-sm dark:bg-white/10'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
+      {/* Secondary pill tabs (All / Sent / Received) */}
+      <div className="no-scrollbar flex gap-2 overflow-x-auto">
+        {(['all', 'sent', 'received'] as const).map((t) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                'rounded-full px-4 py-1.5 text-[13px] font-medium capitalize transition-colors',
+                active
+                  ? 'bg-foreground text-background'
+                  : 'bg-surface text-foreground hover:bg-raise',
+              )}
+            >
+              {t}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Sent Tab */}
-      {tab === 'sent' ? (
-        <div>
-          {sentLoading ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Loading sent payments...</p>
-          ) : sentError ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 p-4">
-              <p className="text-sm text-destructive">{sentError}</p>
-              <Button className="mt-3 rounded-full" size="sm" variant="outline" onClick={() => fetchSent()}>
-                Retry
-              </Button>
-            </div>
-          ) : (
-            <>
-              <PaymentTable
-                counterpartyColumnLabel="Recipient"
-                emptyDescription="Once you send the first payment, it will show up here."
-                emptyTitle="No payments yet"
-                rows={sentItems.map((item) => ({
-                  id: item.id,
-                  counterpartyAvatarUrl: item.recipientType === 'SUI_ADDRESS' ? null : item.recipient.profilePicture,
-                  counterpartyLabel: item.recipientType === 'SUI_ADDRESS'
-                    ? (item.recipientAddress ? truncateAddress(item.recipientAddress) : item.recipient.username)
-                    : `@${item.recipient.username}`,
-                  counterpartySubLabel: item.recipientType === 'SUI_ADDRESS' ? 'Sui address' : 'X recipient',
-                  amount: formatSentAmount(item.amount, item.coinType),
-                  status: 'Confirmed',
-                  date: item.createdAt,
-                  txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
-                }))}
-                showTxLink
-              />
-              {sentCursor ? (
-                <div className="mt-4 flex justify-center">
-                  <Button
-                    className="rounded-full"
-                    disabled={sentLoadingMore}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fetchSent(sentCursor ?? undefined)}
-                  >
-                    {sentLoadingMore ? 'Loading...' : 'Load more'}
-                    {!sentLoadingMore ? <ArrowUpRight className="size-3.5" /> : null}
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          )}
+      {sentError && (tab === 'all' || tab === 'sent') ? (
+        <div
+          className="rounded-[16px] px-4 py-3 text-[13px]"
+          style={{ background: 'var(--down-soft)', color: 'var(--down)' }}
+        >
+          {sentError}
+          <Button className="ml-3 h-8 rounded-full text-[12px]" variant="outline" size="sm" onClick={() => fetchSent()}>
+            Retry
+          </Button>
         </div>
       ) : null}
 
-      {/* Received Tab */}
-      {tab === 'received' ? (
-        <div>
-          {receivedLoading ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Loading received payments...</p>
-          ) : receivedError ? (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/8 p-4">
-              <p className="text-sm text-destructive">{receivedError}</p>
-              <Button className="mt-3 rounded-full" size="sm" variant="outline" onClick={() => fetchReceived()}>
-                Retry
-              </Button>
-            </div>
-          ) : !twitterSubject ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              Link your X account to view received payments.
-            </p>
-          ) : receivedData ? (
-            <>
-              {receivedData.pendingBalances.length > 0 ? (
-                <div className="mb-3 rounded-2xl border border-accent/20 bg-accent/5 p-3 text-sm dark:bg-accent/8">
-                  <span className="font-semibold">{formatPendingBalances(receivedData.pendingBalances)}</span>
-                  {' '}available on-chain &middot; {walletReadyLabel(receivedData.walletReady)}
-                </div>
-              ) : null}
-
-              <PaymentTable
-                counterpartyColumnLabel="Sender"
-                emptyDescription="No confirmed incoming payments yet."
-                emptyTitle="Nothing received yet"
-                rows={receivedData.items.map((item) => {
-                  const senderDisplay = getIncomingPaymentSenderDisplay(item);
-
-                  return {
-                    id: item.id,
-                    counterpartyAvatarUrl: senderDisplay.avatarUrl,
-                    counterpartyLabel: senderDisplay.label,
-                    counterpartySubLabel: senderDisplay.subLabel,
-                    amount: receivedPaymentDisplay(item),
-                    status: 'Confirmed',
-                    date: item.createdAt,
-                    txUrl: explorerUrl(NETWORK, item.txDigest),
-                  };
-                })}
-                showTxLink
-              />
-              {receivedData.nextCursor ? (
-                <div className="mt-4 flex justify-center">
-                  <Button
-                    className="rounded-full"
-                    disabled={receivedLoadingMore}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fetchReceived(receivedData.nextCursor ?? undefined)}
-                  >
-                    {receivedLoadingMore ? 'Loading...' : 'Load more'}
-                    <Download className="size-3.5" />
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
+      {receivedError && (tab === 'all' || tab === 'received') ? (
+        <div
+          className="rounded-[16px] px-4 py-3 text-[13px]"
+          style={{ background: 'var(--down-soft)', color: 'var(--down)' }}
+        >
+          {receivedError}
+          <Button className="ml-3 h-8 rounded-full text-[12px]" variant="outline" size="sm" onClick={() => fetchReceived()}>
+            Retry
+          </Button>
         </div>
       ) : null}
+
+      {loading || loadingReceived ? (
+        <p className="py-10 text-center text-[13px]" style={{ color: 'var(--text-mute)' }}>
+          Loading activity…
+        </p>
+      ) : null}
+
+      {receivedData?.pendingBalances?.length ? (
+        <div
+          className="rounded-[16px] px-4 py-3 text-[13px]"
+          style={{ background: 'var(--up-soft)', color: 'var(--up)' }}
+        >
+          <span className="font-semibold">
+            {formatPendingBalances(receivedData.pendingBalances)}
+          </span>
+          {' '}available on-chain · {walletReadyLabel(receivedData.walletReady)}
+        </div>
+      ) : null}
+
+      {grouped.length === 0 && !loading && !loadingReceived ? (
+        <PaymentTable
+          counterpartyColumnLabel="Counterparty"
+          emptyTitle="No activity yet"
+          emptyDescription="Once you send or receive a payment, it will show up here."
+          rows={[]}
+        />
+      ) : null}
+
+      {grouped.map(([day, entries]) => (
+        <section key={day}>
+          <div className="flex items-baseline justify-between px-1 pb-2">
+            <div className="text-[15px] font-semibold" style={{ color: 'var(--text-soft)' }}>
+              {day}
+            </div>
+          </div>
+          <PaymentTable
+            counterpartyColumnLabel="Counterparty"
+            emptyTitle=""
+            emptyDescription=""
+            rows={entries.map((entry) => ({
+              id: entry.row.id,
+              counterpartyLabel: entry.row.counterpartyLabel,
+              counterpartySubLabel: entry.row.counterpartySubLabel,
+              counterpartyAvatarUrl: entry.row.counterpartyAvatarUrl,
+              amount: entry.row.amount,
+              status: 'Confirmed',
+              direction: entry.row.direction,
+              date: entry.row.createdAt,
+              txUrl: entry.row.txUrl,
+            }))}
+            showTxLink
+          />
+        </section>
+      ))}
+
+      <div className="flex items-center justify-center gap-3 pt-2">
+        {sentCursor && (tab === 'all' || tab === 'sent') ? (
+          <Button
+            variant="outline"
+            className="h-9 rounded-full text-[13px]"
+            disabled={sentLoadingMore}
+            onClick={() => fetchSent(sentCursor ?? undefined)}
+          >
+            {sentLoadingMore ? 'Loading…' : 'Load more sent'}
+            {!sentLoadingMore ? <ArrowUpRight className="size-3.5" /> : null}
+          </Button>
+        ) : null}
+
+        {receivedData?.nextCursor && (tab === 'all' || tab === 'received') ? (
+          <Button
+            variant="outline"
+            className="h-9 rounded-full text-[13px]"
+            disabled={receivedLoadingMore}
+            onClick={() => fetchReceived(receivedData.nextCursor ?? undefined)}
+          >
+            {receivedLoadingMore ? 'Loading…' : 'Load more received'}
+            {!receivedLoadingMore ? <Download className="size-3.5" /> : null}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

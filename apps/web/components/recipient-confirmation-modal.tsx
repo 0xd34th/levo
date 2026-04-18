@@ -13,7 +13,6 @@ import {
   ResolvedUserCard,
   type ResolvedUserPreview,
 } from '@/components/resolved-user-card';
-import { Card, CardContent } from '@/components/ui/card';
 import { getCoinLabel } from '@/lib/coins';
 
 export type RecipientConfirmationData =
@@ -41,9 +40,7 @@ export function RecipientConfirmationModal({
   onCancel,
   onConfirm,
 }: RecipientConfirmationModalProps) {
-  if (!data) {
-    return null;
-  }
+  if (!data) return null;
 
   const isAddressSend = data.recipientType === 'SUI_ADDRESS';
 
@@ -51,7 +48,7 @@ export function RecipientConfirmationModal({
     <Dialog open={!!data} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Confirm Recipient</DialogTitle>
+          <DialogTitle>Confirm recipient</DialogTitle>
           <DialogDescription>
             {isAddressSend
               ? 'Review the Sui address before opening your wallet.'
@@ -59,35 +56,32 @@ export function RecipientConfirmationModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Amount</span>
-            <span className="font-medium">
+        <div className="space-y-3 py-1">
+          <div className="flex items-center justify-between rounded-[12px] bg-raise px-3.5 py-2.5 text-[13px]">
+            <span style={{ color: 'var(--text-mute)' }}>Amount</span>
+            <span className="mono-nums font-semibold tabular-nums">
               {data.amount} {getCoinLabel(data.coinType)}
             </span>
           </div>
 
           {isAddressSend ? (
-            <Card>
-              <CardContent>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Sui Address
-                  </p>
-                  <p className="break-all font-mono text-sm text-foreground">
-                    {data.recipientAddress}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-[14px] bg-raise px-3.5 py-3">
+              <p className="eyebrow mb-1">Sui address</p>
+              <p className="break-all font-mono text-[12px] leading-[1.45]">
+                {data.recipientAddress}
+              </p>
+            </div>
           ) : (
             <ResolvedUserCard user={data.recipient} />
           )}
 
-          <p className="text-xs leading-5 text-muted-foreground">
+          <p
+            className="px-1 text-[12px] leading-[1.45]"
+            style={{ color: 'var(--text-mute)' }}
+          >
             {isAddressSend
               ? 'Funds will be sent directly to this address. This cannot be reversed.'
-              : 'Funds will be sent directly to the resolved canonical wallet for this X account. Confirm it matches before approving the transaction.'}
+              : 'Funds will be sent directly to the resolved canonical wallet for this X account. Confirm it matches before approving.'}
           </p>
         </div>
 
@@ -95,7 +89,7 @@ export function RecipientConfirmationModal({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>Continue to Wallet</Button>
+          <Button onClick={onConfirm}>Continue to wallet</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

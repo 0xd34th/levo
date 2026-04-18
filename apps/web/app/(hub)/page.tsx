@@ -3,16 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
-import { Wallet } from 'lucide-react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  Banknote,
+  Search,
+  Twitter,
+  Wallet,
+} from 'lucide-react';
 import { ActionButtonRow } from '@/components/action-button-row';
 import { BalanceDisplay } from '@/components/balance-display';
+import { FeatureGrid } from '@/components/feature-grid';
 import { PaymentTable } from '@/components/payment-table';
 import { PromoCard } from '@/components/promo-card';
+import { Wordmark } from '@/components/wordmark';
 import { Button } from '@/components/ui/button';
 import { subscribeAccountDataRefresh } from '@/lib/account-refresh';
-import {
-  getExplorerTransactionUrl,
-} from '@/lib/coins';
+import { getExplorerTransactionUrl } from '@/lib/coins';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import type { IncomingPaymentsResponse } from '@/lib/received-dashboard-client';
 import {
@@ -35,7 +42,6 @@ export default function AccountPage() {
   } = useEmbeddedWallet();
   const twitterSubject = user?.twitter?.subject ?? null;
 
-  // Recent transactions
   const [recentItems, setRecentItems] = useState<RecentActivityItem[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
@@ -62,10 +68,7 @@ export default function AccountPage() {
         `/api/v1/payments/history?${sentParams}`,
         { cache: 'no-store', signal: controller.signal },
       ).then(async (res) => {
-        if (!res.ok) {
-          throw new Error('Failed to load sent payments');
-        }
-
+        if (!res.ok) throw new Error('Failed to load sent payments');
         return res.json() as Promise<TransactionHistoryResponse>;
       });
 
@@ -75,10 +78,7 @@ export default function AccountPage() {
             `/api/v1/payments/received?${receivedParams}`,
             { cache: 'no-store', signal: controller.signal },
           ).then(async (res) => {
-            if (!res.ok) {
-              throw new Error('Failed to load received payments');
-            }
-
+            if (!res.ok) throw new Error('Failed to load received payments');
             return res.json() as Promise<IncomingPaymentsResponse>;
           })
         : null;
@@ -119,73 +119,156 @@ export default function AccountPage() {
     });
   }, [ready, authenticated, embeddedWalletAddress, fetchRecent]);
 
-  // Unauthenticated state
+  // Unauthenticated welcome — quiet masthead + single CTA.
   if (ready && !authenticated) {
     return (
-      <div className="flex flex-col items-center pt-16 text-center">
-        <span className="flex size-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
-          L
-        </span>
-        <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">
-          Send money to any X handle
+      <div className="flex flex-col pt-4">
+        <Wordmark size={28} className="mb-6" />
+        <h1
+          className="text-[34px] font-semibold leading-[1.05] tracking-[-0.025em]"
+          style={{ textWrap: 'balance' }}
+        >
+          A quiet wallet for
+          <br />
+          stablecoins on Sui.
         </h1>
-        <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-          Enter a handle, set an amount, and move stablecoins in one clean motion on Sui.
+        <p
+          className="mt-4 max-w-sm text-[15px] leading-[1.45]"
+          style={{ color: 'var(--text-soft)' }}
+        >
+          Send USDC to any <span className="text-foreground">@handle</span>, earn
+          yield on idle balances, and watch it all settle in about two seconds.
         </p>
         <Button
-          className="mt-8 h-12 rounded-full px-8 text-base font-semibold"
+          className="mt-8 h-[54px] w-full max-w-sm rounded-[16px] text-[16px]"
           onClick={() => {
             void initOAuth({ provider: 'twitter' }).catch(() => {});
           }}
         >
-          Sign in with X
+          <span className="inline-flex items-center gap-2">
+            Sign in with X
+            <ArrowRight className="size-4" />
+          </span>
         </Button>
+        <p
+          className="mt-4 text-[12px]"
+          style={{ color: 'var(--text-mute)' }}
+        >
+          Your embedded Sui wallet is provisioned on sign-in — no seed phrases.
+        </p>
       </div>
     );
   }
 
-  // Loading state
   if (!ready) {
     return (
       <div className="flex items-center justify-center pt-20">
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-[14px]" style={{ color: 'var(--text-mute)' }}>
+          Loading…
+        </p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Full-width hero: Balance + Actions */}
       <BalanceDisplay address={embeddedWalletAddress} />
 
       <ActionButtonRow depositHref={embeddedWalletAddress ? '/deposit' : undefined} />
 
       {embeddedWalletAddress ? (
         <PromoCard
-          icon={Wallet}
-          title="Embedded wallet"
-          description={truncateAddress(embeddedWalletAddress)}
+          icon={Banknote}
+          tile="green"
+          title="Set up direct deposit"
+          description="Get paid in USDC and earn yield from the moment it lands."
           href="/deposit"
         />
       ) : walletLoading ? (
         <PromoCard
           icon={Wallet}
+          tile="ink"
           title="Setting up wallet"
-          description="Your embedded Sui wallet is being created..."
+          description="Your embedded Sui wallet is being created…"
         />
       ) : null}
 
-      {/* Recent Transactions */}
       {embeddedWalletAddress ? (
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold">Recent</p>
-            <Link href="/activity" className="text-xs font-medium text-primary">
-              View all
+        <>
+          <div className="flex items-center justify-between pt-1">
+            <div
+              className="text-[15px] font-semibold"
+              style={{ color: 'var(--text-soft)' }}
+            >
+              Get started
+            </div>
+            <div
+              className="text-[14px]"
+              style={{ color: 'var(--text-mute)' }}
+            >
+              Explore
+            </div>
+          </div>
+
+          <FeatureGrid
+            items={[
+              {
+                icon: BadgeCheck,
+                tile: 'blue',
+                title: 'Your embedded wallet',
+                body: truncateAddress(embeddedWalletAddress),
+                href: '/deposit',
+              },
+              {
+                icon: Twitter,
+                tile: 'ink',
+                title: 'Pay any @handle',
+                body: 'Send USDC to anyone on X — no wallet address.',
+                href: '/send',
+              },
+            ]}
+          />
+
+          <FeatureGrid
+            items={[
+              {
+                icon: Search,
+                tile: 'ink',
+                title: 'Recipient lookup',
+                body: 'Check if a handle has a canonical wallet ready.',
+                href: '/lookup',
+              },
+              {
+                icon: Wallet,
+                tile: 'ink',
+                title: 'Wallet tools',
+                body: 'View on Suiscan, copy address, and more.',
+                href: '/tools',
+              },
+            ]}
+          />
+
+          <div className="flex items-center justify-between pt-4">
+            <div
+              className="text-[15px] font-semibold"
+              style={{ color: 'var(--text-soft)' }}
+            >
+              Recent activity
+            </div>
+            <Link
+              href="/activity"
+              className="text-[14px] font-medium text-foreground"
+            >
+              See all
             </Link>
           </div>
+
           {recentLoading ? (
-            <p className="py-6 text-center text-xs text-muted-foreground">Loading...</p>
+            <div className="rounded-[18px] bg-surface px-6 py-10 text-center">
+              <p className="text-[13px]" style={{ color: 'var(--text-mute)' }}>
+                Loading…
+              </p>
+            </div>
           ) : (
             <PaymentTable
               counterpartyColumnLabel="Counterparty"
@@ -197,14 +280,15 @@ export default function AccountPage() {
                 counterpartyLabel: item.counterpartyLabel,
                 counterpartySubLabel: item.counterpartySubLabel,
                 amount: item.amount,
-                status: item.direction,
+                status: 'Confirmed',
+                direction: item.direction === 'Received' ? 'incoming' : 'outgoing',
                 date: item.createdAt,
                 txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
               }))}
               showTxLink
             />
           )}
-        </div>
+        </>
       ) : null}
     </div>
   );

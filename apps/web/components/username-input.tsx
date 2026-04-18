@@ -4,7 +4,6 @@ import { useId } from 'react';
 import {
   Input,
   largeFormInputContentInsetClass,
-  largeFormInputFieldClass,
   largeFormInputPrefixOffsetClass,
   largeFormInputPrefixedContentInsetClass,
 } from '@/components/ui/input';
@@ -22,26 +21,29 @@ interface UsernameInputProps {
   onValueChange: (value: string) => void;
 }
 
+/**
+ * v3 recipient input — eyebrow label on top, surface field with leading @ or monospace address.
+ * Preserves `pl-6` / `left-6` / `pl-14` class contract used by unit tests.
+ */
 export function UsernameInput({ disabled = false, value, onValueChange }: UsernameInputProps) {
   const inputId = useId();
   const recipientType = detectRecipientType(value);
   const isAddressMode = recipientType === 'SUI_ADDRESS';
-  // Hide the visual @ when the stored value already contains one (e.g. "@0xABCD")
   const showAtPrefix = !isAddressMode && !value.startsWith('@');
 
   return (
-    <div className="space-y-3">
-      <Label htmlFor={inputId} className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+    <div className="space-y-2.5">
+      <Label htmlFor={inputId} className="eyebrow">
         {isAddressMode ? 'Sui Address' : 'X Handle'}
       </Label>
-
       <div className="relative">
         {showAtPrefix && (
           <span
             className={cn(
-              'pointer-events-none absolute top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground',
+              'pointer-events-none absolute top-1/2 -translate-y-1/2 text-[18px] font-medium',
               largeFormInputPrefixOffsetClass,
             )}
+            style={{ color: 'var(--text-mute)' }}
           >
             @
           </span>
@@ -50,8 +52,7 @@ export function UsernameInput({ disabled = false, value, onValueChange }: Userna
           id={inputId}
           autoComplete="off"
           className={cn(
-            largeFormInputFieldClass,
-            'pr-14 text-lg font-medium text-foreground placeholder:text-muted-foreground/60',
+            'h-[60px] rounded-[16px] border-0 bg-surface text-[17px] font-medium placeholder:text-[color:var(--text-fade)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-0',
             isAddressMode ? 'font-mono text-sm' : null,
             isAddressMode || !showAtPrefix
               ? largeFormInputContentInsetClass
@@ -59,7 +60,7 @@ export function UsernameInput({ disabled = false, value, onValueChange }: Userna
           )}
           disabled={disabled}
           maxLength={MAX_SUI_ADDRESS_LENGTH}
-          placeholder={isAddressMode ? '0x...' : 'username'}
+          placeholder={isAddressMode ? '0x…' : 'username'}
           spellCheck={false}
           type="text"
           value={value}
