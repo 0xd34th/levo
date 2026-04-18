@@ -3,6 +3,16 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "@/lib/utils"
 
+const largeFormInputFieldClass =
+  "h-16 rounded-[22px] border-border/70 bg-background/80 dark:border-white/10 dark:bg-white/5"
+const largeFormInputSurfaceClass =
+  "rounded-[22px] border border-border/70 bg-background/80 dark:border-white/10 dark:bg-white/5"
+const largeFormInputContentInsetClass = "pl-6"
+const largeFormInputPrefixedContentInsetClass = "pl-14"
+const largeFormInputPrefixOffsetClass = "left-6"
+const largeFormInputInlineInsetClass = "px-6"
+const largeFormInputInlineGapClass = "gap-4"
+
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <InputPrimitive
@@ -17,4 +27,13 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   )
 }
 
-export { Input }
+export {
+  Input,
+  largeFormInputContentInsetClass,
+  largeFormInputFieldClass,
+  largeFormInputInlineGapClass,
+  largeFormInputInlineInsetClass,
+  largeFormInputPrefixOffsetClass,
+  largeFormInputPrefixedContentInsetClass,
+  largeFormInputSurfaceClass,
+}

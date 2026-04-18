@@ -1,7 +1,13 @@
 'use client';
 
 import { useId } from 'react';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+  largeFormInputContentInsetClass,
+  largeFormInputFieldClass,
+  largeFormInputPrefixOffsetClass,
+  largeFormInputPrefixedContentInsetClass,
+} from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usesDollarAmountPrefix } from '@/lib/send-form';
 import { formatAmount, getCoinLabel, isValidAmountInput } from '@/lib/coins';
@@ -48,7 +54,12 @@ export function AmountInput({ amount, onAmountChange, coinType, disabled = false
       </div>
       <div className="relative">
         {showsDollarPrefix ? (
-          <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-foreground">
+          <span
+            className={cn(
+              'pointer-events-none absolute top-1/2 -translate-y-1/2 text-xl font-semibold text-foreground',
+              largeFormInputPrefixOffsetClass,
+            )}
+          >
             $
           </span>
         ) : null}
@@ -61,8 +72,9 @@ export function AmountInput({ amount, onAmountChange, coinType, disabled = false
           onChange={handleChange}
           disabled={disabled}
           className={cn(
-            'h-16 rounded-[22px] border-border/70 bg-background/80 pr-24 text-2xl font-semibold tracking-[-0.04em] text-foreground placeholder:text-muted-foreground/45 dark:border-white/10 dark:bg-white/5',
-            showsDollarPrefix ? 'pl-10' : 'pl-5',
+            largeFormInputFieldClass,
+            'pr-24 text-2xl font-semibold tracking-[-0.04em] text-foreground placeholder:text-muted-foreground/45',
+            showsDollarPrefix ? largeFormInputPrefixedContentInsetClass : largeFormInputContentInsetClass,
           )}
           autoComplete="off"
         />

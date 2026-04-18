@@ -9,7 +9,12 @@ import {
 } from '@privy-io/react-auth';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+  largeFormInputInlineGapClass,
+  largeFormInputInlineInsetClass,
+  largeFormInputSurfaceClass,
+} from '@/components/ui/input';
 import { emitAccountDataRefresh, subscribeAccountDataRefresh } from '@/lib/account-refresh';
 import {
   MAINNET_USDC_TYPE,
@@ -29,6 +34,7 @@ import {
   parsePrivyAuthorizationRequiredResponse,
 } from '@/lib/privy-authorization';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
+import { cn } from '@/lib/utils';
 
 type EarnAction = 'stake' | 'claim' | 'withdraw';
 
@@ -535,7 +541,14 @@ export default function EarnPage() {
             <label className="text-sm font-medium text-foreground" htmlFor="earn-amount">
               Amount
             </label>
-            <div className="mt-3 flex items-center gap-3 rounded-[22px] border border-border/70 bg-background/80 px-5 py-3 dark:border-white/10 dark:bg-white/5">
+            <div
+              className={cn(
+                'mt-3 flex items-center py-3',
+                largeFormInputSurfaceClass,
+                largeFormInputInlineInsetClass,
+                largeFormInputInlineGapClass,
+              )}
+            >
               <span className="text-sm font-semibold text-muted-foreground">USDC</span>
               <Input
                 id="earn-amount"

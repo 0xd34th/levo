@@ -1,13 +1,20 @@
 'use client';
 
 import { useId } from 'react';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+  largeFormInputContentInsetClass,
+  largeFormInputFieldClass,
+  largeFormInputPrefixOffsetClass,
+  largeFormInputPrefixedContentInsetClass,
+} from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { detectRecipientType } from '@/lib/recipient';
 import {
   MAX_SUI_ADDRESS_LENGTH,
   normalizeRecipientInput,
 } from '@/lib/send-form';
+import { cn } from '@/lib/utils';
 
 interface UsernameInputProps {
   disabled?: boolean;
@@ -30,16 +37,26 @@ export function UsernameInput({ disabled = false, value, onValueChange }: Userna
 
       <div className="relative">
         {showAtPrefix && (
-          <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
+          <span
+            className={cn(
+              'pointer-events-none absolute top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground',
+              largeFormInputPrefixOffsetClass,
+            )}
+          >
             @
           </span>
         )}
         <Input
           id={inputId}
           autoComplete="off"
-          className={`h-16 rounded-[22px] border-border/70 bg-background/80 pr-14 text-lg font-medium text-foreground placeholder:text-muted-foreground/60 dark:border-white/10 dark:bg-white/5 ${
-            isAddressMode ? 'pl-5 font-mono text-sm' : showAtPrefix ? 'pl-12' : 'pl-5'
-          }`}
+          className={cn(
+            largeFormInputFieldClass,
+            'pr-14 text-lg font-medium text-foreground placeholder:text-muted-foreground/60',
+            isAddressMode ? 'font-mono text-sm' : null,
+            isAddressMode || !showAtPrefix
+              ? largeFormInputContentInsetClass
+              : largeFormInputPrefixedContentInsetClass,
+          )}
           disabled={disabled}
           maxLength={MAX_SUI_ADDRESS_LENGTH}
           placeholder={isAddressMode ? '0x...' : 'username'}

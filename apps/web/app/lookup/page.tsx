@@ -7,7 +7,12 @@ import { PaymentTable } from '@/components/payment-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+  largeFormInputFieldClass,
+  largeFormInputPrefixOffsetClass,
+  largeFormInputPrefixedContentInsetClass,
+} from '@/components/ui/input';
 import {
   explorerUrl,
   formatPendingBalances,
@@ -19,6 +24,7 @@ import {
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
+import { cn } from '@/lib/utils';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
@@ -110,11 +116,20 @@ export default function LookupPage() {
             <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
               <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
                 <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
+                  <span
+                    className={cn(
+                      'pointer-events-none absolute top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground',
+                      largeFormInputPrefixOffsetClass,
+                    )}
+                  >
                     @
                   </span>
                   <Input
-                    className="h-16 rounded-[22px] border-border/70 bg-background/80 pl-12 text-lg font-medium dark:border-white/10 dark:bg-white/5"
+                    className={cn(
+                      largeFormInputFieldClass,
+                      largeFormInputPrefixedContentInsetClass,
+                      'text-lg font-medium',
+                    )}
                     maxLength={MAX_X_HANDLE_LENGTH + 1}
                     placeholder="username"
                     value={handle}
