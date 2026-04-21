@@ -8,6 +8,7 @@ describe('getAnnouncements', () => {
     process.env.NEXT_PUBLIC_STRAPI_URL =
       'https://jumper.krilly.ai/api/jumper/strapi';
     process.env.NEXT_PUBLIC_ENVIRONMENT = 'production';
+    Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_SITE_URL');
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: [], meta: {} }), {
         status: 200,
@@ -23,14 +24,23 @@ describe('getAnnouncements', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads announcements from the same-origin Strapi proxy without an auth header', async () => {
+  it('loads announcements from the configured Strapi origin without an auth header', async () => {
     await expect(getAnnouncements()).resolves.toEqual({
       data: [],
       meta: {},
     });
 
+    const requestUrl = vi.mocked(fetch).mock.calls[0]?.[0];
+    expect(typeof requestUrl).toBe('string');
+
+    const apiUrl = new URL(requestUrl as string);
+    expect(apiUrl.origin).toBe('https://jumper.krilly.ai');
+    expect(apiUrl.pathname).toBe('/api/jumper/strapi/api/announcements');
+    expect(apiUrl.searchParams.get('populate[0]')).toBe('Logo');
+    expect(apiUrl.searchParams.get('sort[0]')).toBe('Priority:desc');
+
     expect(fetch).toHaveBeenCalledWith(
-      'https://jumper.krilly.ai/api/jumper/strapi/api/announcements?sort=createdAt:DESC',
+      requestUrl,
       expect.objectContaining({
         next: {
           revalidate: 600,
