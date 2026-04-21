@@ -12,6 +12,75 @@ declare global {
 
 let config: RuntimeConfig;
 
+const PUBLIC_ENV_DEFAULTS: RuntimeConfig = {
+  NEXT_PUBLIC_ENVIRONMENT: '',
+  NEXT_PUBLIC_SITE_URL: '',
+  NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID: '',
+  NEXT_PUBLIC_LIFI_BACKEND_URL: '',
+  NEXT_PUBLIC_WIDGET_INTEGRATOR: '',
+  NEXT_PUBLIC_WIDGET_INTEGRATOR_REFUEL: '',
+  NEXT_PUBLIC_WIDGET_INTEGRATOR_BLOG: '',
+  NEXT_PUBLIC_ADDRESSABLE_TID: '',
+  NEXT_PUBLIC_CUSTOM_RPCS: '{}',
+  NEXT_PUBLIC_DKEY: '',
+  NEXT_PUBLIC_BACKEND_URL: '',
+  NEXT_PUBLIC_STRAPI_URL: '',
+  NEXT_PUBLIC_PRIVY_APP_ID: '',
+  NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID: '',
+  NEXT_PUBLIC_LIFI_API_KEY: '',
+  NEXT_PUBLIC_SOLANA_RPC_URI: '',
+  NEXT_PUBLIC_SPINDL_API_KEY: '',
+  NEXT_PUBLIC_SPINDL_API_URL: '',
+  NEXT_PUBLIC_INTERCOM_APP_ID: '',
+  NEXT_PUBLIC_WIDGET_INTEGRATOR_EARN: '',
+  NEXT_PUBLIC_VERCEL_BRANCH_URL: '',
+  NEXT_PUBLIC_NOTIFICATIONS_URL: '',
+};
+
+const PUBLIC_PROXY_PATHS = {
+  NEXT_PUBLIC_BACKEND_URL: '/api/jumper/v1',
+  NEXT_PUBLIC_LIFI_BACKEND_URL: '/api/jumper/pipeline',
+  NEXT_PUBLIC_STRAPI_URL: '/api/jumper/strapi',
+} as const;
+
+function getPublicSiteOrigin(env: RuntimeConfig): string {
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!siteUrl) {
+    return '';
+  }
+
+  try {
+    return new URL(siteUrl).origin;
+  } catch (error) {
+    console.warn('NEXT_PUBLIC_SITE_URL is not a valid URL.', error);
+    return '';
+  }
+}
+
+function buildPublicProxyUrl(origin: string, pathname: string): string {
+  return origin ? `${origin}${pathname}` : pathname;
+}
+
+export function normalizePublicEnvVars(env: RuntimeConfig): RuntimeConfig {
+  const siteOrigin = getPublicSiteOrigin(env);
+  const publicEnv = Object.keys(env)
+    .filter((key) => key.startsWith('NEXT_PUBLIC_'))
+    .reduce<RuntimeConfig>((acc, key) => {
+      if (key !== 'NEXT_PUBLIC_STRAPI_API_TOKEN') {
+        acc[key] = env[key] ?? '';
+      }
+      return acc;
+    }, { ...PUBLIC_ENV_DEFAULTS });
+
+  for (const [key, pathname] of Object.entries(PUBLIC_PROXY_PATHS)) {
+    publicEnv[key] = siteOrigin
+      ? buildPublicProxyUrl(siteOrigin, pathname)
+      : publicEnv[key] || pathname;
+  }
+
+  return publicEnv;
+}
+
 export function getEnvVars(): RuntimeConfig {
   if (typeof window !== 'undefined') {
     throw new Error('getEnvVars is not available on the client');
@@ -25,12 +94,7 @@ export function getPublicEnvVars(): RuntimeConfig {
     throw new Error('getPublicEnvVars is not available on the client');
   }
 
-  return Object.keys(process.env)
-    .filter((key) => key.startsWith('NEXT_PUBLIC_'))
-    .reduce<RuntimeConfig>((acc, key) => {
-      acc[key] = process.env[key] ?? '';
-      return acc;
-    }, {});
+  return normalizePublicEnvVars(process.env as RuntimeConfig);
 }
 
 // Build-time fallback for the client: Next.js statically replaces each
@@ -38,37 +102,7 @@ export function getPublicEnvVars(): RuntimeConfig {
 // baked into the bundle. They serve as a fallback when window._env_ is not
 // set (e.g. RSC streaming prevents the inline <script> tag from executing).
 const clientBuildTimeEnv: RuntimeConfig = {
-  NEXT_PUBLIC_ENVIRONMENT: process.env.NEXT_PUBLIC_ENVIRONMENT ?? '',
-  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? '',
-  NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID:
-    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID ?? '',
-  NEXT_PUBLIC_LIFI_BACKEND_URL: process.env.NEXT_PUBLIC_LIFI_BACKEND_URL ?? '',
-  NEXT_PUBLIC_WIDGET_INTEGRATOR:
-    process.env.NEXT_PUBLIC_WIDGET_INTEGRATOR ?? '',
-  NEXT_PUBLIC_WIDGET_INTEGRATOR_REFUEL:
-    process.env.NEXT_PUBLIC_WIDGET_INTEGRATOR_REFUEL ?? '',
-  NEXT_PUBLIC_WIDGET_INTEGRATOR_BLOG:
-    process.env.NEXT_PUBLIC_WIDGET_INTEGRATOR_BLOG ?? '',
-  NEXT_PUBLIC_ADDRESSABLE_TID: process.env.NEXT_PUBLIC_ADDRESSABLE_TID ?? '',
-  NEXT_PUBLIC_CUSTOM_RPCS: process.env.NEXT_PUBLIC_CUSTOM_RPCS ?? '{}',
-  NEXT_PUBLIC_DKEY: process.env.NEXT_PUBLIC_DKEY ?? '',
-  NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL ?? '',
-  NEXT_PUBLIC_STRAPI_URL: process.env.NEXT_PUBLIC_STRAPI_URL ?? '',
-  NEXT_PUBLIC_STRAPI_API_TOKEN: process.env.NEXT_PUBLIC_STRAPI_API_TOKEN ?? '',
-  NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? '',
-  NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID:
-    process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? '',
-  NEXT_PUBLIC_LIFI_API_KEY: process.env.NEXT_PUBLIC_LIFI_API_KEY ?? '',
-  NEXT_PUBLIC_SOLANA_RPC_URI: process.env.NEXT_PUBLIC_SOLANA_RPC_URI ?? '',
-  NEXT_PUBLIC_SPINDL_API_KEY: process.env.NEXT_PUBLIC_SPINDL_API_KEY ?? '',
-  NEXT_PUBLIC_SPINDL_API_URL: process.env.NEXT_PUBLIC_SPINDL_API_URL ?? '',
-  NEXT_PUBLIC_INTERCOM_APP_ID: process.env.NEXT_PUBLIC_INTERCOM_APP_ID ?? '',
-  NEXT_PUBLIC_WIDGET_INTEGRATOR_EARN:
-    process.env.NEXT_PUBLIC_WIDGET_INTEGRATOR_EARN ?? '',
-  NEXT_PUBLIC_VERCEL_BRANCH_URL:
-    process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL ?? '',
-  NEXT_PUBLIC_NOTIFICATIONS_URL:
-    process.env.NEXT_PUBLIC_NOTIFICATIONS_URL ?? '',
+  ...normalizePublicEnvVars(process.env as RuntimeConfig),
 };
 
 // Initialize config based on environment

@@ -28,21 +28,28 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [{ data: perksResponse }, { data: merklRewardsResponse }] =
-    await Promise.all([
-      getPerks({
-        page: 1,
-        pageSize: PAGE_SIZE,
-        withCount: true,
-      }),
-      getMerklRewards(),
-    ]);
+  const [perksResult, merklRewardsResult] = await Promise.allSettled([
+    getPerks({
+      page: 1,
+      pageSize: PAGE_SIZE,
+      withCount: true,
+    }),
+    getMerklRewards(),
+  ]);
 
+  const perksResponse =
+    perksResult.status === 'fulfilled'
+      ? perksResult.value.data
+      : { data: [], meta: { pagination: { total: 0 } } };
   const perks = perksResponse.data;
   const totalPerks = perksResponse.meta.pagination?.total || 0;
   const hasMorePerks = totalPerks > perks.length;
 
-  const merklRewards = merklRewardsResponse.data;
+  const merklRewards =
+    merklRewardsResult.status === 'fulfilled'
+      ? merklRewardsResult.value.data.data
+      : undefined;
+
   return (
     <Suspense fallback={<ProfilePageSkeleton />}>
       <ProfilePage

@@ -1,7 +1,7 @@
 import {
-  getStrapiApiAccessToken,
-  getStrapiBaseUrl,
-} from 'src/utils/strapi/strapiHelper';
+  getServerStrapiHeaders,
+  getServerStrapiBaseUrl,
+} from 'src/utils/strapi/strapiServer';
 import envConfig from '@/config/env-config';
 import type { StrapiResponse } from '@/types/strapi';
 
@@ -22,8 +22,8 @@ export interface MiniAppSettingAttributes {
 export async function getMiniAppSettings(): Promise<MiniAppSettingAttributes> {
   const publicUrl = new URL(envConfig.NEXT_PUBLIC_SITE_URL);
 
-  const baseUrl = getStrapiBaseUrl();
-  const accessToken = getStrapiApiAccessToken();
+  const baseUrl = getServerStrapiBaseUrl();
+  const headers = getServerStrapiHeaders();
 
   const apiUrl = new URL(
     `${baseUrl}/api/${BASE_MINI_APP_SETTING_API_ENDPOINT}`,
@@ -31,9 +31,7 @@ export async function getMiniAppSettings(): Promise<MiniAppSettingAttributes> {
   apiUrl.searchParams.set('filters[url][$eq]', publicUrl.origin);
 
   const res = await fetch(apiUrl.toString(), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers,
     next: { revalidate: 60 * 5 },
   });
 

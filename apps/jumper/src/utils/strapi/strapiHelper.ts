@@ -1,19 +1,26 @@
 import config from '@/config/env-config';
+import {
+  getServerStrapiBaseUrl,
+  getServerStrapiHeaders,
+} from './strapiServer';
 
 export function getStrapiBaseUrl() {
-  // Use default Strapi URL for other environments
-  if (!config.NEXT_PUBLIC_STRAPI_URL) {
+  // Server-side reads always target the direct Strapi origin so the bearer
+  // token attached by `getStrapiRequestHeaders()` never traverses the public
+  // app-origin proxy hop. The browser receives the normalized same-origin
+  // proxy URL from `config.NEXT_PUBLIC_STRAPI_URL` and never carries a bearer.
+  const strapiUrl =
+    typeof window === 'undefined'
+      ? getServerStrapiBaseUrl()
+      : config.NEXT_PUBLIC_STRAPI_URL;
+
+  if (!strapiUrl) {
     console.error('Strapi URL is not provided.');
     throw new Error('Strapi URL is not provided.');
   }
-  return `${config.NEXT_PUBLIC_STRAPI_URL}`;
+  return strapiUrl.replace(/\/+$/, '');
 }
 
-export function getStrapiApiAccessToken() {
-  // Check production token
-  if (!config.NEXT_PUBLIC_STRAPI_API_TOKEN) {
-    console.error('Strapi API token is not provided.');
-    throw new Error('Strapi API token is not provided.');
-  }
-  return config.NEXT_PUBLIC_STRAPI_API_TOKEN;
+export function getStrapiRequestHeaders(): HeadersInit | undefined {
+  return typeof window === 'undefined' ? getServerStrapiHeaders() : undefined;
 }

@@ -13,7 +13,10 @@ export const metadata: Metadata = {
 };
 
 export default async function InfosLayout({ children }: PropsWithChildren) {
-  const partnerThemes = await getPartnerThemes();
+  // Degrade to a 404 when the CMS read fails so a Strapi outage (or a fork
+  // deployment without this theme configured) does not abort the whole
+  // prerender. This mirrors the optional-read pattern in `[lng]/layout.tsx`.
+  const partnerThemes = await getPartnerThemes().catch(() => ({ data: [] }));
 
   const partnerThemesData = partnerThemes.data?.find(
     (d) => d?.uid === PARTNER_THEME,

@@ -1,17 +1,18 @@
-import { AnnouncementStrapiApi } from '@/utils/strapi/StrapiApi';
 import type { StrapiResponse } from '@/types/strapi';
 import type { AnnouncementData } from '@/types/announcement';
-import { getStrapiApiAccessToken } from '@/utils/strapi/strapiHelper';
+import config from '@/config/env-config';
+import { getStrapiBaseUrl } from '@/utils/strapi/strapiHelper';
 
 export async function getAnnouncements() {
-  const urlParams = new AnnouncementStrapiApi().sort('desc');
-  const apiUrl = urlParams.getApiUrl();
-  const accessToken = getStrapiApiAccessToken();
+  const apiUrl = new URL(`${getStrapiBaseUrl()}/api/announcements`);
+  apiUrl.searchParams.set('populate[0]', 'Logo');
+  apiUrl.searchParams.set('sort[0]', 'Priority:desc');
 
-  const res = await fetch(decodeURIComponent(apiUrl), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  if (config.NEXT_PUBLIC_ENVIRONMENT !== 'production') {
+    apiUrl.searchParams.set('status', 'draft');
+  }
+
+  const res = await fetch(decodeURIComponent(apiUrl.href), {
     next: {
       revalidate: 60 * 10,
     },

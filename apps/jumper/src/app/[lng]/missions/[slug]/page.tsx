@@ -23,15 +23,22 @@ const getPageTitle = (title: string) => {
 const formatSlugToTitle = (slug: string) => slug.replaceAll('-', ' ');
 
 export async function generateStaticParams() {
-  const { data: missionsResponse } = await getQuestsWithNoCampaignAttached(
-    {
-      page: 1,
-      pageSize: 12,
-    },
-    UPCOMING_DAYS_AHEAD,
-  );
+  try {
+    const { data: missionsResponse } = await getQuestsWithNoCampaignAttached(
+      {
+        page: 1,
+        pageSize: 12,
+      },
+      UPCOMING_DAYS_AHEAD,
+    );
 
-  return missionsResponse.data.map((mission) => ({ slug: mission.Slug || '' }));
+    return missionsResponse.data.map((mission) => ({
+      slug: mission.Slug || '',
+    }));
+  } catch (error) {
+    console.warn('Failed to precompute mission slugs.', error);
+    return [];
+  }
 }
 
 export async function generateMetadata({

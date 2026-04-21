@@ -63,11 +63,16 @@ export default async function Page({ params }: { params: Params }) {
   }
 
   const sanitizedAddress = result.data;
-  const { data: perksResponse } = await getPerks({
+  const perksResponse = await getPerks({
     page: 1,
     pageSize: PAGE_SIZE,
     withCount: true,
-  });
+  })
+    .then((response) => response.data)
+    .catch(() => ({
+      data: [],
+      meta: { pagination: { total: 0 } },
+    }));
 
   const perks = perksResponse.data;
   const totalPerks = perksResponse.meta.pagination?.total || 0;

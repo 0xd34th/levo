@@ -9,7 +9,7 @@ import { MissionsSection } from './MissionsSection';
 import { MissionPageTracking } from '@/components/headless/tracking/MissionPageTracking';
 
 export const MissionsPage = async () => {
-  const [{ data: campaigns }, { data: missionsResponse }] = await Promise.all([
+  const [campaignsResult, missionsResult] = await Promise.allSettled([
     getProfileBannerCampaigns(),
     getQuestsWithNoCampaignAttached(
       {
@@ -20,6 +20,28 @@ export const MissionsPage = async () => {
       UPCOMING_DAYS_AHEAD,
     ),
   ]);
+
+  if (campaignsResult.status === 'rejected') {
+    console.warn('Failed to fetch mission banner campaigns.', campaignsResult.reason);
+  }
+
+  if (missionsResult.status === 'rejected') {
+    console.warn('Failed to fetch missions page data.', missionsResult.reason);
+  }
+
+  const campaigns =
+    campaignsResult.status === 'fulfilled' ? campaignsResult.value.data : [];
+  const missionsResponse =
+    missionsResult.status === 'fulfilled'
+      ? missionsResult.value.data
+      : {
+          data: [],
+          meta: {
+            pagination: {
+              total: 0,
+            },
+          },
+        };
   const missions = missionsResponse.data;
   const totalMissions = missionsResponse.meta.pagination?.total || 0;
   const hasMoreMissions = totalMissions > missions.length;
