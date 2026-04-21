@@ -69,4 +69,48 @@ describe('GET /api/jumper/strapi/[...path]', () => {
     expect(response.headers.get('content-type')).toContain('application/json');
     await expect(response.json()).resolves.toEqual({ data: [] });
   });
+
+  it('forwards upload assets without attaching the server bearer token', async () => {
+    const request = new NextRequest(
+      'https://jumper.krilly.ai/api/jumper/strapi/uploads/logo.png',
+      {
+        headers: {
+          accept: 'image/png',
+        },
+      },
+    );
+
+    await GET(request, {
+      params: Promise.resolve({ path: ['uploads', 'logo.png'] }),
+    });
+
+    const [target, init] = vi.mocked(fetch).mock.calls[0] as [
+      URL,
+      {
+        headers: Headers;
+      },
+    ];
+
+    expect(String(target)).toBe(
+      'https://strapi-staging.jumper.exchange/uploads/logo.png',
+    );
+    expect(init.headers.get('Authorization')).toBeNull();
+    expect(init.headers.get('accept')).toBe('image/png');
+  });
+
+  it('rejects dot-segment traversal attempts before reaching upstream Strapi', async () => {
+    const request = new NextRequest(
+      'https://jumper.krilly.ai/api/jumper/strapi/%2E%2E/api/users?populate=*',
+    );
+
+    const response = await GET(request, {
+      params: Promise.resolve({ path: ['..', 'api', 'users'] }),
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid Strapi proxy path.',
+    });
+  });
 });
