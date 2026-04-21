@@ -29,6 +29,24 @@ test.describe('API env-config.js', () => {
         nonPublicKeys,
         `Non-NEXT_PUBLIC keys exposed: ${nonPublicKeys.join(', ')}`,
       ).toHaveLength(0);
+      expect(env).not.toHaveProperty('NEXT_PUBLIC_STRAPI_API_TOKEN');
+
+      const siteOrigin = env.NEXT_PUBLIC_SITE_URL
+        ? new URL(env.NEXT_PUBLIC_SITE_URL).origin
+        : '';
+      expect(env.NEXT_PUBLIC_BACKEND_URL).toBe(
+        siteOrigin ? `${siteOrigin}/api/jumper/v1` : '/api/jumper/v1',
+      );
+      expect(env.NEXT_PUBLIC_LIFI_BACKEND_URL).toBe(
+        siteOrigin
+          ? `${siteOrigin}/api/jumper/pipeline`
+          : '/api/jumper/pipeline',
+      );
+      expect(env.NEXT_PUBLIC_STRAPI_URL).toBe(
+        siteOrigin
+          ? `${siteOrigin}/api/jumper/strapi`
+          : '/api/jumper/strapi',
+      );
     },
   );
 });

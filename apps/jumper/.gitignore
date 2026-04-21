@@ -23,6 +23,9 @@ yarn-error.log*
 **node_modules**
 **dist**
 **next**
+!next.config.mjs
+!src/i18n/i18next-locales.ts
+!src/i18n/i18next-settings.ts
 !.github/workflows/
 !.github/workflows/**
 /.pnp
