@@ -20,6 +20,7 @@ describe('normalizePublicEnvVars', () => {
         'https://jumper.krilly.ai/api/jumper/pipeline',
       NEXT_PUBLIC_STRAPI_URL: 'https://jumper.krilly.ai/api/jumper/strapi',
       NEXT_PUBLIC_ENVIRONMENT: 'production',
+      NEXT_PUBLIC_JUMPER_TRACKING_ENABLED: '',
     });
     expect(env).not.toHaveProperty('NEXT_PUBLIC_STRAPI_API_TOKEN');
   });
@@ -32,6 +33,7 @@ describe('normalizePublicEnvVars', () => {
     expect(env.NEXT_PUBLIC_BACKEND_URL).toBe('/api/jumper/v1');
     expect(env.NEXT_PUBLIC_LIFI_BACKEND_URL).toBe('/api/jumper/pipeline');
     expect(env.NEXT_PUBLIC_STRAPI_URL).toBe('/api/jumper/strapi');
+    expect(env.NEXT_PUBLIC_JUMPER_TRACKING_ENABLED).toBe('');
   });
 
   it('preserves explicit public API origins when site url is missing', () => {
@@ -39,6 +41,7 @@ describe('normalizePublicEnvVars', () => {
       NEXT_PUBLIC_BACKEND_URL: 'https://api.jumper.exchange/v1',
       NEXT_PUBLIC_LIFI_BACKEND_URL: 'https://api.jumper.exchange/pipeline',
       NEXT_PUBLIC_STRAPI_URL: 'https://strapi-staging.jumper.exchange',
+      NEXT_PUBLIC_JUMPER_TRACKING_ENABLED: 'true',
     });
 
     expect(env.NEXT_PUBLIC_BACKEND_URL).toBe('https://api.jumper.exchange/v1');
@@ -48,5 +51,6 @@ describe('normalizePublicEnvVars', () => {
     expect(env.NEXT_PUBLIC_STRAPI_URL).toBe(
       'https://strapi-staging.jumper.exchange',
     );
+    expect(env.NEXT_PUBLIC_JUMPER_TRACKING_ENABLED).toBe('true');
   });
 });

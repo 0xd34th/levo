@@ -11,6 +11,7 @@ describe('getTrackingScriptConfig', () => {
     ).toEqual({
       googleAnalyticsTrackingId: '',
       addressableTrackingId: '',
+      jumperTrackingEnabled: false,
     });
   });
 
@@ -19,10 +20,12 @@ describe('getTrackingScriptConfig', () => {
       getTrackingScriptConfig({
         NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID: ' G-TEST ',
         NEXT_PUBLIC_ADDRESSABLE_TID: ' tid-123 ',
+        NEXT_PUBLIC_JUMPER_TRACKING_ENABLED: ' true ',
       }),
     ).toEqual({
       googleAnalyticsTrackingId: 'G-TEST',
       addressableTrackingId: 'tid-123',
+      jumperTrackingEnabled: true,
     });
   });
 });

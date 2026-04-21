@@ -2,6 +2,7 @@ import initTranslations from '@/app/i18n';
 import Background from '@/components/Background';
 import { NotFoundComponent } from '@/components/NotFound/NotFound';
 import config, { getPublicEnvVars } from '@/config/env-config';
+import { getTrackingScriptConfig } from '@/config/trackingScripts';
 import { fonts } from '@/fonts/fonts';
 import {
   MUIThemeProvider,
@@ -20,6 +21,7 @@ import { getPartnerThemes } from './lib/getPartnerThemes';
 export default async function NotFound() {
   const { resources } = await initTranslations(fallbackLng, namespaces);
   const partnerThemes = await getPartnerThemes().catch(() => ({ data: [] }));
+  const { googleAnalyticsTrackingId } = getTrackingScriptConfig(config);
 
   return (
     <html
@@ -37,18 +39,22 @@ export default async function NotFound() {
             __html: `window._env_ = ${JSON.stringify(getPublicEnvVars())};`,
           }}
         />
-        <Script
-          async
-          src={`https://www.googletagmanager.com/gtag/js?id=${config.NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID}`}
-        />
-        <Script id="google-analytics">
-          {`
+        {googleAnalyticsTrackingId ? (
+          <>
+            <Script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsTrackingId}`}
+            />
+            <Script id="google-analytics">
+              {`
               window.dataLayer = window.dataLayer || [];
               function gtag() { dataLayer.push(arguments); }
               gtag('js', new Date());
-              gtag('config', '${config.NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID}');
+              gtag('config', '${googleAnalyticsTrackingId}');
           `}
-        </Script>
+            </Script>
+          </>
+        ) : null}
       </head>
 
       <body suppressHydrationWarning>

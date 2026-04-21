@@ -8,6 +8,7 @@ declare namespace NodeJS {
     NEXT_PUBLIC_SITE_URL: string;
     NEXT_PUBLIC_ADDRESSABLE_TID: string;
     NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID: string;
+    NEXT_PUBLIC_JUMPER_TRACKING_ENABLED: string;
     SENTRY_AUTH_TOKEN: string;
     NEXT_PUBLIC_CUSTOM_RPCS: string;
     NEXT_PUBLIC_DKEY: string;

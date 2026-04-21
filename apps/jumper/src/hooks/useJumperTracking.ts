@@ -9,6 +9,7 @@ import {
 import type { AbTestVariants } from 'src/const/abtests';
 import type { TransformedRoute } from 'src/types/internal';
 import config from '@/config/env-config';
+import { isJumperTrackingEnabled } from '@/config/trackingScripts';
 
 export type JumperEventData = {
   [key: string]:
@@ -40,7 +41,7 @@ interface JumperDataTrackEventProps {
 
 const track = async (data: object, path: string) => {
   const backendUrl = config.NEXT_PUBLIC_BACKEND_URL;
-  if (!backendUrl) {
+  if (!backendUrl || !isJumperTrackingEnabled(config)) {
     return;
   }
 
