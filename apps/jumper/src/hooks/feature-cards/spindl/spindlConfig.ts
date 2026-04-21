@@ -1,18 +1,26 @@
 import config from '@/config/env-config';
-export const getSpindlConfig = () => {
-  if (
-    !config.NEXT_PUBLIC_SPINDL_API_KEY ||
-    !config.NEXT_PUBLIC_SPINDL_API_URL
-  ) {
-    throw new Error(
-      'Error fetching Spindl configuration! Please check your environment variables.',
-    );
+
+export interface SpindlConfig {
+  apiUrl: string;
+  headers: {
+    'Content-Type': 'application/json';
+    'X-API-ACCESS-KEY': string;
+  };
+}
+
+export const getSpindlConfig = (): SpindlConfig | null => {
+  const apiKey = config.NEXT_PUBLIC_SPINDL_API_KEY?.trim();
+  const apiUrl = config.NEXT_PUBLIC_SPINDL_API_URL?.trim();
+
+  if (!apiKey || !apiUrl) {
+    return null;
   }
+
   return {
-    apiUrl: config.NEXT_PUBLIC_SPINDL_API_URL,
+    apiUrl,
     headers: {
       'Content-Type': 'application/json',
-      'X-API-ACCESS-KEY': config.NEXT_PUBLIC_SPINDL_API_KEY,
+      'X-API-ACCESS-KEY': apiKey,
     },
   };
 };

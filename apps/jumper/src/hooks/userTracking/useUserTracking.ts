@@ -35,11 +35,14 @@ const googleEvent = ({
           | Record<number, TransformedRoute>;
       };
 }) => {
-  typeof window !== 'undefined' &&
-    window?.gtag('event', action, {
-      category: category,
-      ...data,
-    });
+  if (typeof window === 'undefined' || typeof window.gtag !== 'function') {
+    return;
+  }
+
+  window.gtag('event', action, {
+    category: category,
+    ...data,
+  });
 };
 
 const addressableEvent = ({

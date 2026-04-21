@@ -44,7 +44,7 @@ export const DEFAULT_WALLET_ADDRESS =
 export function getSiteUrl() {
   return config.NEXT_PUBLIC_VERCEL_BRANCH_URL
     ? `https://${config.NEXT_PUBLIC_VERCEL_BRANCH_URL}`
-    : config.NEXT_PUBLIC_SITE_URL;
+    : config.NEXT_PUBLIC_SITE_URL || '';
 }
 
 export enum AppPaths {

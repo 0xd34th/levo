@@ -11,6 +11,7 @@ import {
   type SpindlFetchData,
   type SpindlFetchParams,
 } from 'src/types/spindl';
+import config from '@/config/env-config';
 import { callRequest } from 'src/utils/callRequest';
 import { getLocale } from 'src/utils/getLocale';
 import { getSpindlConfig } from './spindlConfig';
@@ -22,8 +23,10 @@ export const useSpindlCards = () => {
   const { account } = useAccount();
   const widgetEvents = useWidgetEvents();
   const processSpindlData = useSpindlProcessData();
-  const spindlConfig = getSpindlConfig();
   const { fetchData } = useCallRequest();
+  const spindlConfig = useMemo(() => {
+    return getSpindlConfig();
+  }, [config.NEXT_PUBLIC_SPINDL_API_KEY, config.NEXT_PUBLIC_SPINDL_API_URL]);
 
   // Feature Flag logic: Show Spindl for ~30% of users
   const showSpindle = useMemo(() => {
@@ -32,7 +35,7 @@ export const useSpindlCards = () => {
 
   const fetchSpindlData = useCallback(
     async ({ country, chainId, tokenAddress, address }: SpindlFetchParams) => {
-      if (!showSpindle) {
+      if (!showSpindle || !spindlConfig) {
         // console.log('User is not part of the Spindl A/B test group.');
         return; // Exit early if the user is not in the A/B test group
       }
@@ -67,10 +70,14 @@ export const useSpindlCards = () => {
         console.error('Error fetching Spindl data:', error);
       }
     },
-    [fetchData, processSpindlData, spindlConfig.apiUrl, spindlConfig.headers],
+    [fetchData, processSpindlData, showSpindle, spindlConfig],
   );
 
   useEffect(() => {
+    if (!spindlConfig) {
+      return;
+    }
+
     const handleRouteUpdated = async (route: RouteExecutionUpdate) => {
       await fetchSpindlData({
         address: account?.address,
@@ -84,7 +91,7 @@ export const useSpindlCards = () => {
     return () => {
       widgetEvents.off(WidgetEvent.RouteExecutionUpdated, handleRouteUpdated);
     };
-  }, [account?.address, fetchSpindlData, widgetEvents]);
+  }, [account?.address, fetchSpindlData, spindlConfig, widgetEvents]);
 
   return { fetchSpindlData };
 };

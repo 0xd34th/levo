@@ -16,6 +16,9 @@ export async function trackSpindl(
   adCreativeId: string,
 ): Promise<void> {
   const spindlConfig = getSpindlConfig();
+  if (!spindlConfig) {
+    return;
+  }
 
   const payload: ImpressionPayload = {
     type,

@@ -14,6 +14,7 @@ import initTranslations from '@/app/i18n';
 import { getPartnerThemes } from '@/app/lib/getPartnerThemes';
 import config, { getPublicEnvVars } from '@/config/env-config';
 import envConfig from '@/config/env-config';
+import { getTrackingScriptConfig } from '@/config/trackingScripts';
 import { getSiteUrl } from '@/const/urls';
 import { fonts } from '@/fonts/fonts';
 import { ReactQueryProvider } from '@/providers/ReactQueryProvider';
@@ -116,6 +117,8 @@ export default async function RootLayout({
     }),
     initTranslations(lng || fallbackLng, namespaces),
   ]);
+  const { googleAnalyticsTrackingId, addressableTrackingId } =
+    getTrackingScriptConfig(config);
 
   return (
     <html
@@ -186,20 +189,25 @@ export default async function RootLayout({
           }}
         />
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <Script
-          strategy="lazyOnload"
-          src={`https://www.googletagmanager.com/gtag/js?id=${config.NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID}`}
-        />
-        <Script id="google-analytics">
-          {`
+        {googleAnalyticsTrackingId ? (
+          <>
+            <Script
+              strategy="lazyOnload"
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsTrackingId}`}
+            />
+            <Script id="google-analytics">
+              {`
               window.dataLayer = window.dataLayer || [];
               function gtag() { dataLayer.push(arguments); }
               gtag('js', new Date());
-              gtag('config', '${config.NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID}');
+              gtag('config', '${googleAnalyticsTrackingId}');
           `}
-        </Script>
-        <Script strategy="lazyOnload" id="addressable-tracker">
-          {`
+            </Script>
+          </>
+        ) : null}
+        {addressableTrackingId ? (
+          <Script strategy="lazyOnload" id="addressable-tracker">
+            {`
             !function(w, d){
               w.__adrsbl = {
                   queue: [],
@@ -209,12 +217,13 @@ export default async function RootLayout({
               };
               var s = d.createElement('script');
               s.async = true;
-              s.src = 'https://tag.adrsbl.io/p.js?tid=${config.NEXT_PUBLIC_ADDRESSABLE_TID}';
+              s.src = 'https://tag.adrsbl.io/p.js?tid=${addressableTrackingId}';
               var b = d.getElementsByTagName('script')[0];
               b.parentNode.insertBefore(s, b);
             }(window, document);
           `}
-        </Script>
+          </Script>
+        ) : null}
       </head>
 
       <body suppressHydrationWarning>

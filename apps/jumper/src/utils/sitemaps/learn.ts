@@ -45,21 +45,41 @@ export const getLearnSitemapChunkIds = async (): Promise<string[]> => {
     return ['0'];
   }
 
-  const total = await getArticlesTotal();
-  const numberOfChunks = Math.ceil(total / SITEMAP_LIMIT);
-  return Array.from({ length: numberOfChunks }, (_, index) => String(index));
+  try {
+    const total = await getArticlesTotal();
+    const numberOfChunks = Math.ceil(total / SITEMAP_LIMIT);
+    return Array.from({ length: numberOfChunks }, (_, index) => String(index));
+  } catch (error) {
+    console.warn('Failed to precompute learn sitemap chunk ids.', error);
+    return [];
+  }
 };
 
 export const getLearnSitemapEntriesForChunk = async (
   chunkId: number,
 ): Promise<SitemapXmlEntry[]> => {
-  const articles = await fetchArticlesChunk(chunkId);
+  try {
+    const articles = await fetchArticlesChunk(chunkId);
 
-  return articles.map(({ Slug, updatedAt, publishedAt, Image }) => ({
-    loc: buildUrl(AppPaths.Learn, Slug),
-    lastModified: toSitemapDate(updatedAt ?? publishedAt ?? Date.now()),
-    changeFrequency: 'weekly',
-    priority: 0.8,
-    images: Image?.url && strapiUrl ? [`${strapiUrl}${Image.url}`] : undefined,
-  }));
+    return articles.flatMap(({ Slug, updatedAt, publishedAt, Image }) => {
+      const slug = Slug?.trim();
+      if (!slug) {
+        return [];
+      }
+
+      return [
+        {
+          loc: buildUrl(AppPaths.Learn, slug),
+          lastModified: toSitemapDate(updatedAt ?? publishedAt ?? Date.now()),
+          changeFrequency: 'weekly',
+          priority: 0.8,
+          images:
+            Image?.url && strapiUrl ? [`${strapiUrl}${Image.url}`] : undefined,
+        },
+      ];
+    });
+  } catch (error) {
+    console.warn(`Failed to generate learn sitemap chunk ${chunkId}.`, error);
+    return [];
+  }
 };

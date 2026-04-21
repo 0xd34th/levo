@@ -7,12 +7,26 @@ import type { SitemapXmlEntry } from '@/utils/sitemaps/xml';
 export const getSwapSitemapEntries = async (
   lastModified = toSitemapDate(Date.now()),
 ): Promise<SitemapXmlEntry[]> => {
-  const { chains } = await getChainsQuery();
+  try {
+    const { chains } = await getChainsQuery();
 
-  return chains.map((chain) => ({
-    loc: buildUrl(AppPaths.Swap, slugify(chain.name)),
-    lastModified,
-    changeFrequency: 'weekly',
-    priority: 0.4,
-  }));
+    return chains.flatMap((chain) => {
+      const chainName = chain.name?.trim();
+      if (!chainName) {
+        return [];
+      }
+
+      return [
+        {
+          loc: buildUrl(AppPaths.Swap, slugify(chainName)),
+          lastModified,
+          changeFrequency: 'weekly',
+          priority: 0.4,
+        },
+      ];
+    });
+  } catch (error) {
+    console.warn('Failed to generate swap sitemap entries.', error);
+    return [];
+  }
 };

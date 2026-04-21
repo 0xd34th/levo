@@ -65,21 +65,31 @@ const toRouteEntry = (
 };
 
 export const getBridgeSitemapChunkIds = async (): Promise<string[]> => {
-  const { pairs } = await getChainData();
-  const numberOfChunks = Math.ceil(pairs.length / SITEMAP_LIMIT);
-  return Array.from({ length: numberOfChunks }, (_, index) => String(index));
+  try {
+    const { pairs } = await getChainData();
+    const numberOfChunks = Math.ceil(pairs.length / SITEMAP_LIMIT);
+    return Array.from({ length: numberOfChunks }, (_, index) => String(index));
+  } catch (error) {
+    console.warn('Failed to precompute bridge sitemap chunk ids.', error);
+    return [];
+  }
 };
 
 export const getBridgeSitemapEntriesForChunk = async (
   chunkIndex: number,
   lastModified = toSitemapDate(Date.now()),
 ): Promise<SitemapXmlEntry[]> => {
-  const { chains, pairs } = await getChainData();
+  try {
+    const { chains, pairs } = await getChainData();
 
-  return pairs
-    .slice(chunkIndex * SITEMAP_LIMIT, (chunkIndex + 1) * SITEMAP_LIMIT)
-    .flatMap((pair) => {
-      const entry = toRouteEntry(chains, pair, lastModified);
-      return entry ? [entry] : [];
-    });
+    return pairs
+      .slice(chunkIndex * SITEMAP_LIMIT, (chunkIndex + 1) * SITEMAP_LIMIT)
+      .flatMap((pair) => {
+        const entry = toRouteEntry(chains, pair, lastModified);
+        return entry ? [entry] : [];
+      });
+  } catch (error) {
+    console.warn(`Failed to generate bridge sitemap chunk ${chunkIndex}.`, error);
+    return [];
+  }
 };
