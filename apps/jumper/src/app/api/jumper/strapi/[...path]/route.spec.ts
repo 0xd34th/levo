@@ -113,4 +113,33 @@ describe('GET /api/jumper/strapi/[...path]', () => {
       error: 'Invalid Strapi proxy path.',
     });
   });
+
+  it('rejects server-only Strapi collections outside the public allowlist', async () => {
+    const request = new NextRequest(
+      'https://jumper.krilly.ai/api/jumper/strapi/api/base-mini-app-settings?filters[url][$eq]=https://jumper.krilly.ai',
+    );
+
+    const response = await GET(request, {
+      params: Promise.resolve({ path: ['api', 'base-mini-app-settings'] }),
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid Strapi proxy path.',
+    });
+  });
+
+  it('rejects Strapi Content API requests that omit a collection segment', async () => {
+    const request = new NextRequest(
+      'https://jumper.krilly.ai/api/jumper/strapi/api',
+    );
+
+    const response = await GET(request, {
+      params: Promise.resolve({ path: ['api'] }),
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+  });
 });
