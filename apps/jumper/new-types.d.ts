@@ -1,0 +1,25 @@
+/// <reference types="next" />
+
+declare namespace NodeJS {
+  interface ProcessEnv {
+    BASE_URL: string;
+    DEV: boolean;
+    NEXT_PUBLIC_ENVIRONMENT: string;
+    NEXT_PUBLIC_SITE_URL: string;
+    NEXT_PUBLIC_ADDRESSABLE_TID: string;
+    NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID: string;
+    SENTRY_AUTH_TOKEN: string;
+    NEXT_PUBLIC_CUSTOM_RPCS: string;
+    NEXT_PUBLIC_DKEY: string;
+    NEXT_PUBLIC_WIDGET_INTEGRATOR: string;
+    NEXT_PUBLIC_INTEGRATOR_REFUEL: string;
+    NEXT_PUBLIC_WIDGET_INTEGRATOR_EARN: string;
+    NEXT_PUBLIC_LIFI_BACKEND_URL: string;
+    NEXT_PUBLIC_STRAPI_URL: string;
+    NEXT_PUBLIC_STRAPI_API_TOKEN: string;
+    NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID: string;
+    NEXT_PUBLIC_BACKEND_URL: string;
+    NEXT_PUBLIC_INTERCOM_APP_ID: string;
+    NEXT_PUBLIC_NOTIFICATIONS_URL: string;
+  }
+}

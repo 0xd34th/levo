@@ -1,0 +1,165 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useActiveAccountByChainType } from 'src/hooks/useActiveAccountByChainType';
+import { useWalletAddressImg } from 'src/hooks/useAddressImg';
+import { useLoyaltyPass } from 'src/hooks/useLoyaltyPass';
+import { useChains } from '@/hooks/useChains';
+import { useEnsName } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
+import { getAddressLabel } from 'src/utils/getAddressLabel';
+import { getConnectorIcon, useAccount } from '@lifi/wallet-management';
+import type { Chain } from '@lifi/sdk';
+import type { Address } from 'viem';
+import { walletDigest } from 'src/utils/walletDigest';
+import { AppPaths } from 'src/const/urls';
+import { useTranslation } from 'react-i18next';
+import { usePathnameWithoutLocale } from 'src/hooks/routing/usePathnameWithoutLocale';
+import {
+  isEarnFeatureEnabled,
+  isPortfolioFeatureEnabled,
+} from 'src/app/lib/getFeatureFlag';
+import { useABTest } from '@/hooks/useABTest';
+import { AB_TEST_NAME } from '@/const/abtests';
+import { useWalletFleet } from '@/hooks/useWalletFleet';
+
+export const useLevelDisplayData = () => {
+  const activeAccount = useActiveAccountByChainType();
+  const imageUrl = useWalletAddressImg({
+    userAddress: activeAccount?.address,
+  });
+  const { level, isLoading } = useLoyaltyPass(activeAccount?.address);
+
+  return {
+    isLoading,
+    imageAlt: activeAccount?.address,
+    imageUrl,
+    value: level,
+  };
+};
+
+export const useWalletDisplayData = () => {
+  const activeAccount = useActiveAccountByChainType();
+  const walletFleet = useWalletFleet();
+  const { chains, isSuccess } = useChains();
+  const { data: ensName, isSuccess: isSuccessEnsName } = useEnsName({
+    address: activeAccount?.address as Address | undefined,
+    chainId: mainnet.id,
+  });
+
+  const addressLabel = getAddressLabel({
+    isSuccess: isSuccessEnsName,
+    ensName,
+    address: activeAccount?.address,
+  });
+
+  const activeChain = useMemo(
+    () =>
+      chains?.find((chainEl: Chain) => chainEl.id === activeAccount?.chainId),
+    [chains, activeAccount?.chainId],
+  );
+
+  const walletConnectorIcon = useMemo(
+    () => getConnectorIcon(activeAccount?.connector),
+    [activeAccount?.connector],
+  );
+
+  const accountLabel = useMemo(() => {
+    const email = walletFleet.data?.user.email?.trim();
+    if (!email) {
+      return addressLabel ?? walletDigest(activeAccount?.address);
+    }
+
+    const [localPart] = email.split('@');
+    return localPart.length > 18 ? `${localPart.slice(0, 15)}...` : localPart;
+  }, [activeAccount?.address, addressLabel, walletFleet.data?.user.email]);
+
+  return {
+    badgeSrc: isSuccess ? activeChain?.logoURI : undefined,
+    avatarSrc: walletConnectorIcon,
+    label: accountLabel,
+    isDisconnected: !activeAccount?.address,
+  };
+};
+
+export const useIsDisconnected = () => {
+  const activeAccount = useActiveAccountByChainType();
+  return !activeAccount?.address;
+};
+
+interface MainLink {
+  value: AppPaths;
+  label: string;
+  subLinks?: AppPaths[];
+  testId?: string;
+}
+
+export const useMainLinks = () => {
+  const { t } = useTranslation();
+  const pathname = usePathnameWithoutLocale();
+  const { account } = useAccount();
+
+  const isEarnEnabled = isEarnFeatureEnabled();
+  const isPortfolioEnabled = isPortfolioFeatureEnabled();
+
+  const tradeABTest = useABTest({
+    feature: AB_TEST_NAME.A_B_TEST_TRADE_DISPLAY,
+    address: account?.address ?? '',
+  });
+
+  const links = useMemo(() => {
+    const _links: MainLink[] = [
+      {
+        value: AppPaths.Main,
+        label:
+          tradeABTest.isEnabled && tradeABTest.value === 'test'
+            ? t('navbar.links.trade')
+            : t('navbar.links.exchange'),
+        subLinks: [AppPaths.Gas],
+        testId: 'navbar-exchange-button',
+      },
+    ];
+
+    if (isPortfolioEnabled) {
+      _links.push({
+        value: AppPaths.Portfolio,
+        label: t('navbar.links.portfolio'),
+        subLinks: [AppPaths.Portfolio],
+        testId: 'navbar-portfolio-button',
+      });
+    }
+
+    _links.push({
+      value: AppPaths.Missions,
+      label: t('navbar.links.missions'),
+      subLinks: [AppPaths.Missions, AppPaths.Campaign, AppPaths.Zap],
+      testId: 'navbar-missions-button',
+    });
+
+    if (isEarnEnabled) {
+      _links.push({
+        value: AppPaths.Earn,
+        label: t('navbar.links.earn'),
+        subLinks: [AppPaths.Earn],
+        testId: 'navbar-earn-button',
+      });
+    }
+
+    return _links;
+  }, [t, isEarnEnabled, isPortfolioEnabled, tradeABTest]);
+
+  const activeLink = useMemo(
+    () =>
+      links.find(
+        ({ value, subLinks }) =>
+          pathname === value ||
+          subLinks?.some((subLink) => pathname.startsWith(subLink)),
+      ),
+    [pathname, links],
+  );
+
+  return {
+    links,
+    activeLink,
+  };
+};
