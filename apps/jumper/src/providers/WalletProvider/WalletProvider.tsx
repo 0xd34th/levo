@@ -10,6 +10,7 @@ import { useWalletFleet } from '@/hooks/useWalletFleet';
 import { useChains } from '@/hooks/useChains';
 import { signBitcoinPsbt } from '@/lib/privy/bitcoin';
 import { PrivySuiSigner } from '@/lib/privy/sui';
+import { resolveConnectedAccount } from '@/providers/WalletProvider/resolveConnectedAccount';
 import { useUserTracking } from '@/hooks/userTracking';
 import { useMenuStore } from '@/stores/menu';
 import {
@@ -201,8 +202,10 @@ const WalletContextsProvider: FC<
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
   const wagmiAccount = useWagmiAccount();
+  const fleetEvmWallet = walletFleet.data?.wallets.evm;
+  const fleetSolanaWallet = walletFleet.data?.wallets.solana;
 
-  const evmAccount = useMemo<Account>(() => {
+  const baseEvmAccount = useMemo<Account>(() => {
     if (!ready || !authenticated || !wagmiAccount.address) {
       return disconnectedAccounts[ChainType.EVM];
     }
@@ -230,20 +233,42 @@ const WalletContextsProvider: FC<
     wagmiAccount.status,
   ]);
 
+  const evmAccount = useMemo<Account>(
+    () =>
+      resolveConnectedAccount({
+        account: baseEvmAccount,
+        authenticated,
+        canUseFallback: wagmiAccount.status === 'connected' && Boolean(wagmiAccount.chainId),
+        connector: privyConnector,
+        defaultChainId: mainnet.id,
+        fallbackAddress: connectedEvmWallets[0]?.address ?? fleetEvmWallet?.address,
+        ready,
+      }),
+    [
+      authenticated,
+      baseEvmAccount,
+      connectedEvmWallets,
+      fleetEvmWallet?.address,
+      ready,
+      wagmiAccount.chainId,
+      wagmiAccount.status,
+    ],
+  );
+
   const solanaWallet = connectedSolanaWallets[0];
-  const solanaAddress =
+  const connectedSolanaAddress =
     (solanaWallet as { address?: string; accounts?: Array<{ address: string }> } | undefined)
       ?.address ??
     (solanaWallet as { accounts?: Array<{ address: string }> } | undefined)?.accounts?.[0]
       ?.address;
 
-  const solanaAccount = useMemo<Account>(() => {
-    if (!ready || !authenticated || !solanaAddress) {
+  const baseSolanaAccount = useMemo<Account>(() => {
+    if (!ready || !authenticated || !connectedSolanaAddress) {
       return disconnectedAccounts[ChainType.SVM];
     }
 
     return {
-      address: solanaAddress,
+      address: connectedSolanaAddress,
       chainId: 1151111081099710,
       chainType: ChainType.SVM,
       connector: privyConnector,
@@ -253,7 +278,28 @@ const WalletContextsProvider: FC<
       isReconnecting: false,
       status: 'connected',
     };
-  }, [authenticated, ready, solanaAddress]);
+  }, [authenticated, connectedSolanaAddress, ready]);
+
+  const solanaAccount = useMemo<Account>(
+    () =>
+      resolveConnectedAccount({
+        account: baseSolanaAccount,
+        authenticated,
+        canUseFallback: Boolean(solanaWallet && connectedSolanaAddress),
+        connector: privyConnector,
+        defaultChainId: 1151111081099710,
+        fallbackAddress: fleetSolanaWallet?.address,
+        ready,
+      }),
+    [
+      authenticated,
+      baseSolanaAccount,
+      connectedSolanaAddress,
+      fleetSolanaWallet?.address,
+      ready,
+      solanaWallet,
+    ],
+  );
 
   const suiWallet = walletFleet.data?.wallets.sui;
   const suiAccount = useMemo<Account>(() => {

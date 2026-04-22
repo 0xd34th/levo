@@ -2,9 +2,13 @@
 
 import { useWalletFleet } from '@/hooks/useWalletFleet';
 import { canonicalWalletFleetOrder, type WalletFleetChain } from '@/lib/privy/wallet-fleet';
+import { TrackingAction, TrackingCategory } from '@/const/trackingKeys';
+import { useUserTracking } from '@/hooks/userTracking';
 import { useMenuStore } from '@/stores/menu';
+import { copyTextToClipboard } from '@/utils/copyTextToClipboard';
 import { walletDigest } from '@/utils/walletDigest';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import {
   alpha,
   Box,
@@ -17,6 +21,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { usePrivy } from '@privy-io/react-auth';
+import { useTranslation } from 'react-i18next';
 import { WalletButton, CustomDrawer } from './WalletMenu.style';
 
 const chainLabels: Record<WalletFleetChain, string> = {
@@ -28,16 +33,33 @@ const chainLabels: Record<WalletFleetChain, string> = {
 
 export const WalletMenu = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { logout } = usePrivy();
+  const { trackEvent } = useUserTracking();
   const walletFleet = useWalletFleet();
-  const { openWalletMenu, setWalletMenuState } = useMenuStore((state) => ({
+  const { openWalletMenu, setSnackbarState, setWalletMenuState } = useMenuStore((state) => ({
     openWalletMenu: state.openWalletMenu,
+    setSnackbarState: state.setSnackbarState,
     setWalletMenuState: state.setWalletMenuState,
   }));
 
   const email = walletFleet.data?.user.email ?? 'Privy account';
   const loginMethod =
     walletFleet.data?.user.loginMethod === 'google' ? 'Google' : 'Email';
+
+  const handleCopyAddress = async (address: string) => {
+    const copied = await copyTextToClipboard(address);
+    if (!copied) {
+      return;
+    }
+
+    setSnackbarState(true, t('navbar.walletMenu.copiedMsg'), 'success');
+    trackEvent({
+      category: TrackingCategory.WalletMenu,
+      action: TrackingAction.CopyAddressToClipboard,
+      label: 'copy_addr_to_clipboard',
+    });
+  };
 
   return (
     <CustomDrawer
@@ -146,12 +168,25 @@ export const WalletMenu = () => {
                 {wallet?.address ?? 'Wallet is being provisioned'}
               </Typography>
               {wallet?.address ? (
-                <Typography
-                  variant="bodyXSmall"
-                  sx={{ color: (theme.vars || theme).palette.text.secondary, mt: 0.5 }}
-                >
-                  {walletDigest(wallet.address)}
-                </Typography>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }}>
+                  <Typography
+                    variant="bodyXSmall"
+                    sx={{ color: (theme.vars || theme).palette.text.secondary }}
+                  >
+                    {walletDigest(wallet.address)}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    aria-label={`${t('navbar.walletMenu.copy')} ${chainLabels[chain]} wallet address`}
+                    onClick={() => handleCopyAddress(wallet.address)}
+                    sx={{
+                      color: (theme.vars || theme).palette.text.secondary,
+                      p: 0.5,
+                    }}
+                  >
+                    <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Stack>
               ) : null}
             </Box>
           );
