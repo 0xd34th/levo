@@ -33,11 +33,9 @@ describe("/api/jumper/pipeline/[...path]", () => {
         headers: {
           accept: "application/json",
           "content-type": "application/json",
-          "cf-connecting-ip": "198.51.100.10",
           origin: "https://jumper.krilly.ai",
           referer: "https://jumper.krilly.ai/en",
           "user-agent": "codex-test",
-          "x-forwarded-for": "198.51.100.10, 10.0.0.1",
           "x-lifi-integrator": "jumper.krilly.ai",
           "x-lifi-sdk": "4.0.0-beta.5",
           "x-lifi-widget": "4.0.0-beta.14",
@@ -76,12 +74,9 @@ describe("/api/jumper/pipeline/[...path]", () => {
     expect(new TextDecoder().decode(init.body)).toContain('"fromAmount"');
     expect(init.headers.get("content-type")).toBe("application/json");
     expect(init.headers.get("x-lifi-integrator")).toBe("jumper.krilly.ai");
-    expect(init.headers.get("cf-connecting-ip")).toBe("198.51.100.10");
     expect(init.headers.get("origin")).toBeNull();
     expect(init.headers.get("referer")).toBe("https://jumper.krilly.ai/en");
-    expect(init.headers.get("x-forwarded-for")).toBe(
-      "198.51.100.10, 10.0.0.1",
-    );
+    expect(init.headers.get("x-forwarded-for")).toBeNull();
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
@@ -93,7 +88,6 @@ describe("/api/jumper/pipeline/[...path]", () => {
         headers: {
           accept: "application/json",
           "accept-language": "en-US",
-          "x-forwarded-for": "203.0.113.11",
         },
       },
     );
@@ -117,7 +111,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     expect(init.headers.get("accept")).toBe("application/json");
     expect(init.headers.get("accept-language")).toBe("en-US");
     expect(init.headers.get("referer")).toBeNull();
-    expect(init.headers.get("x-forwarded-for")).toBe("203.0.113.11");
+    expect(init.headers.get("x-forwarded-for")).toBeNull();
   });
 
   it("ignores same-origin public env values that would loop back into the proxy", async () => {
