@@ -24,7 +24,7 @@ describe("/api/jumper/v1/[...path]", () => {
     vi.restoreAllMocks();
   });
 
-  it("proxies POST requests without forwarding browser-origin CORS headers", async () => {
+  it("proxies POST requests while preserving referer but stripping origin", async () => {
     const request = new NextRequest(
       "https://jumper.krilly.ai/api/jumper/v1/users/events",
       {
@@ -67,7 +67,7 @@ describe("/api/jumper/v1/[...path]", () => {
     expect(new TextDecoder().decode(init.body)).toContain('"action"');
     expect(init.headers.get("cf-connecting-ip")).toBe("198.51.100.12");
     expect(init.headers.get("origin")).toBeNull();
-    expect(init.headers.get("referer")).toBeNull();
+    expect(init.headers.get("referer")).toBe("https://jumper.krilly.ai/en");
     expect(init.headers.get("x-forwarded-for")).toBe(
       "198.51.100.12, 10.0.0.2",
     );

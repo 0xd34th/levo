@@ -25,7 +25,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     vi.restoreAllMocks();
   });
 
-  it("proxies POST advanced/routes without forwarding browser-origin CORS headers", async () => {
+  it("proxies POST advanced/routes while preserving referer but stripping origin", async () => {
     const request = new NextRequest(
       "https://jumper.krilly.ai/api/jumper/pipeline/v1/advanced/routes",
       {
@@ -78,7 +78,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     expect(init.headers.get("x-lifi-integrator")).toBe("jumper.krilly.ai");
     expect(init.headers.get("cf-connecting-ip")).toBe("198.51.100.10");
     expect(init.headers.get("origin")).toBeNull();
-    expect(init.headers.get("referer")).toBeNull();
+    expect(init.headers.get("referer")).toBe("https://jumper.krilly.ai/en");
     expect(init.headers.get("x-forwarded-for")).toBe(
       "198.51.100.10, 10.0.0.1",
     );
@@ -116,6 +116,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     expect(init.method).toBe("GET");
     expect(init.headers.get("accept")).toBe("application/json");
     expect(init.headers.get("accept-language")).toBe("en-US");
+    expect(init.headers.get("referer")).toBeNull();
     expect(init.headers.get("x-forwarded-for")).toBe("203.0.113.11");
   });
 

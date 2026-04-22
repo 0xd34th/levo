@@ -15,6 +15,7 @@ const FORWARDED_REQUEST_HEADERS = new Set([
   "if-modified-since",
   "if-none-match",
   "range",
+  "referer",
   "true-client-ip",
   "user-agent",
   "x-forwarded-for",
