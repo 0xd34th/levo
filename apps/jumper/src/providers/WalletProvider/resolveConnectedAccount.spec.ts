@@ -48,6 +48,7 @@ describe('resolveConnectedAccount', () => {
       resolveConnectedAccount({
         account: buildDisconnectedAccount(ChainType.SVM),
         authenticated: true,
+        canUseFallback: true,
         connector: privyConnector,
         defaultChainId: 1151111081099710,
         fallbackAddress: 'So11111111111111111111111111111111111111112',
@@ -71,6 +72,7 @@ describe('resolveConnectedAccount', () => {
       resolveConnectedAccount({
         account: buildDisconnectedAccount(ChainType.UTXO),
         authenticated: true,
+        canUseFallback: true,
         connector: privyConnector,
         defaultChainId: 20000000000001,
         fallbackAddress: 'bc1qexample',
@@ -104,10 +106,25 @@ describe('resolveConnectedAccount', () => {
       resolveConnectedAccount({
         account: buildDisconnectedAccount(ChainType.EVM),
         authenticated: true,
+        canUseFallback: true,
         connector: privyConnector,
         defaultChainId: 1,
         fallbackAddress: '0xfallback',
         ready: false,
+      }),
+    ).toEqual(buildDisconnectedAccount(ChainType.EVM));
+  });
+
+  it('keeps the account disconnected when the signer is not ready for fallback promotion', () => {
+    expect(
+      resolveConnectedAccount({
+        account: buildDisconnectedAccount(ChainType.EVM),
+        authenticated: true,
+        canUseFallback: false,
+        connector: privyConnector,
+        defaultChainId: 1,
+        fallbackAddress: '0xfallback',
+        ready: true,
       }),
     ).toEqual(buildDisconnectedAccount(ChainType.EVM));
   });
