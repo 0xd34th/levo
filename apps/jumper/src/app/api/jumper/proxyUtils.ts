@@ -10,11 +10,18 @@ const FORWARDED_REQUEST_HEADERS = new Set([
   "accept-language",
   "authorization",
   "cache-control",
+  "cf-connecting-ip",
   "content-type",
   "if-modified-since",
   "if-none-match",
   "range",
+  "true-client-ip",
   "user-agent",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-port",
+  "x-forwarded-proto",
+  "x-real-ip",
 ]);
 
 export interface ProxyRouteConfig extends ServerProxyTargetOptions {

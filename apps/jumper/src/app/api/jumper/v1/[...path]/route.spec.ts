@@ -32,9 +32,11 @@ describe("/api/jumper/v1/[...path]", () => {
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          "cf-connecting-ip": "198.51.100.12",
           origin: "https://jumper.krilly.ai",
           referer: "https://jumper.krilly.ai/en",
           "user-agent": "codex-test",
+          "x-forwarded-for": "198.51.100.12, 10.0.0.2",
         },
         body: JSON.stringify({
           action: "codex_probe",
@@ -63,8 +65,12 @@ describe("/api/jumper/v1/[...path]", () => {
     expect(init.method).toBe("POST");
     expect(init.redirect).toBe("follow");
     expect(new TextDecoder().decode(init.body)).toContain('"action"');
+    expect(init.headers.get("cf-connecting-ip")).toBe("198.51.100.12");
     expect(init.headers.get("origin")).toBeNull();
     expect(init.headers.get("referer")).toBeNull();
+    expect(init.headers.get("x-forwarded-for")).toBe(
+      "198.51.100.12, 10.0.0.2",
+    );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
