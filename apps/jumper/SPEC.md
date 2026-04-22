@@ -1,36 +1,29 @@
 ## Goal
 
-修复 `jumper.krilly.ai` 首页因可选营销/广告配置缺失或被后端拒绝的埋点请求而产生错误噪声的问题，并确保主交易流在缺少这些配置时仍可正常渲染。
+修复 `apps/jumper` 钱包地址展示链路不一致的问题：`Send to Wallet` 的 `Connected wallets` 必须显示当前 Privy 账户下的完整 canonical wallet fleet，navbar 右上角钱包抽屉里的地址必须可直接复制。
 
 ## Scope
 
-- 将 Spindl 配置改为 fail-open：
-  - 缺少 `NEXT_PUBLIC_SPINDL_API_KEY` 或 `NEXT_PUBLIC_SPINDL_API_URL` 时不再抛异常
-  - `useSpindlCards()` / `trackSpindl()` 在无配置时直接 no-op
-- 仅在公开配置存在时才注入 Google Analytics 与 Addressable 脚本，避免浏览器请求 `id=undefined` / `tid=undefined`
-- 将 Jumper 自有 analytics 请求改为显式开启的可选集成：
-  - 新增公开 env 开关控制 `/users/events` 与 `/wallets/transactions` 是否发送
-  - 默认关闭，避免当前 fork 在无后端埋点 contract 时继续触发 `403` / `429`
-- 防止未注入 GA 脚本时的前端追踪调用再触发运行时错误
-- 增加针对上述降级行为的回归测试
+- 统一 `WalletProvider` 暴露给 widget / `@lifi/wallet-management` 的账户集合，让其与服务端 `walletFleet` 使用同一份 canonical embedded wallet truth。
+- 修复 `Send to Wallet` / 自动填充等依赖 `useAccount()` 的路径，确保它们不再漏掉当前 Privy 账户下的链上地址。
+- 为 navbar 钱包抽屉中的每条链地址补复制交互、成功反馈和必要的可点击 affordance。
+- 补充针对账户解析与复制交互的回归测试。
 
 ## Non-Goals
 
-- 不为当前 fork 补配新的生产埋点 ID
-- 不改造 upstream analytics backend 的 CORS 策略
-- 不重构与本次线上错误无关的交易、钱包或 Strapi 逻辑
+- 不改动 Privy 登录方式、外部钱包策略或新的钱包产品范围。
+- 不重构 `@lifi/widget` / `@lifi/wallet-management` 上游实现，也不引入 node_modules 直改。
+- 不改动与本次问题无关的交易执行、路由选择或营销 UI。
 
 ## Constraints
 
-- 有效的 Spindl 配置存在时，现有广告卡片抓取和 impression tracking 行为必须保持不变
-- 缺少可选营销配置时，首页和主交易流必须继续可用，不能再因为旁路功能失败而进入错误边界
-- 变更应保持最小充分；如需新增公开 env 契约，必须默认 fail-open 并保持未配置时的线上稳定性
+- `walletFleet` 作为当前 fork 下 embedded wallet 地址集合的真值；widget 侧展示和 navbar 抽屉不能再各读一套更窄/更宽的数据。
+- 保持现有 source wallet / destination wallet 自动填充语义不变，只修正地址集合不完整的问题。
+- 复制交互必须 fail-safe：浏览器允许时应成功写入剪贴板并给出反馈；失败时不能打断抽屉或页面渲染。
 
 ## Acceptance
 
-1. 在 `NEXT_PUBLIC_SPINDL_API_KEY` / `NEXT_PUBLIC_SPINDL_API_URL` 为空时，首页不再因为 `Error fetching Spindl configuration!` 进入错误页。
-2. `trackSpindl()` 与 `useSpindlCards()` 在无 Spindl 配置时静默跳过，不发请求、不抛异常。
-3. 当 `NEXT_PUBLIC_GOOGLE_ANALYTICS_TRACKING_ID` 或 `NEXT_PUBLIC_ADDRESSABLE_TID` 为空时，页面不再注入对应第三方脚本。
-4. 当 `NEXT_PUBLIC_JUMPER_TRACKING_ENABLED` 未显式开启时，`useJumperTracking()` 不再向 `/users/events` 或 `/wallets/transactions` 发请求。
-5. 未注入 GA 脚本时，`useUserTracking()` 的 GA 调用不会抛运行时错误。
-6. 相关单测通过，且 `apps/jumper` 的 `test:unit`、`typecheck`、`build` 通过。
+1. 登录后的 `Send to Wallet > Connected wallets` 能显示当前 canonical fleet 中所有已就绪地址，不再遗漏 EVM / Solana / Sui / Bitcoin 中的任一已生成地址。
+2. 依赖 `useAccount()` 的 destination auto-fill / 选择逻辑读取到的地址集合与 navbar 钱包抽屉保持一致。
+3. 点击 navbar 右上角个人昵称打开的钱包抽屉后，每个已显示的钱包地址都能直接复制，并复用现有 snackbar 成功提示。
+4. 针对账户解析与抽屉复制交互的回归测试通过，且 `apps/jumper` 的相关测试、`typecheck`、必要构建验证通过。
