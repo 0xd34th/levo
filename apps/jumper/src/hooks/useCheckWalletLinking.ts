@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
+import config from "@/config/env-config";
 
 export interface useCheckWalletLinkingProps {
   userAddress?: string;
@@ -14,35 +15,35 @@ export const useCheckWalletLinking = ({
   userAddress,
   checkWalletLinking,
 }: useCheckWalletLinkingProps): WalletLinkCheckProps => {
-  const POST_ENDPOINT = 'https://li.quest/v1/advanced/routes';
+  const postEndpoint = `${config.NEXT_PUBLIC_LIFI_BACKEND_URL}/v1/advanced/routes`;
   const {
     data: isWalletLinked,
     isSuccess,
     isLoading,
   } = useQuery({
-    queryKey: ['SeiWalletLinking' + userAddress],
+    queryKey: ["SeiWalletLinking" + userAddress],
     queryFn: async () => {
       const payload = {
         fromAddress: userAddress,
-        fromAmount: '1000000000000000000',
+        fromAmount: "1000000000000000000",
         fromChainId: 1329,
-        fromTokenAddress: '0x0000000000000000000000000000000000000000',
+        fromTokenAddress: "0x0000000000000000000000000000000000000000",
         toChainId: 1329,
-        toTokenAddress: '0xE30feDd158A2e3b13e9badaeABaFc5516e95e8C7',
+        toTokenAddress: "0xE30feDd158A2e3b13e9badaeABaFc5516e95e8C7",
         options: {
-          integrator: 'check.jmp.exchange',
-          order: 'CHEAPEST',
+          integrator: "check.jmp.exchange",
+          order: "CHEAPEST",
           slippage: 0.005,
           maxPriceImpact: 0.4,
           jitoBundle: true,
           allowSwitchChain: true,
         },
       };
-      const res = await fetch(POST_ENDPOINT, {
+      const res = await fetch(postEndpoint, {
         body: JSON.stringify(payload),
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
       if (!res.ok) {
@@ -52,7 +53,7 @@ export const useCheckWalletLinking = ({
       const data = await res.json();
       const errorReason = data?.unavailableRoutes?.filteredOut?.[0]?.reason;
       const isSeiErrorMessage = String(errorReason).includes(
-        'wallet is not linked to the original SEI address, please go to https://app.sei.io/',
+        "wallet is not linked to the original SEI address, please go to https://app.sei.io/",
       );
       const walletIsNotLink = isSeiErrorMessage && data?.routes.length === 0;
 

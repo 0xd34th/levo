@@ -1,58 +1,44 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
-import { withSentryConfig } from '@sentry/nextjs';
-import withBundleAnalyzer from '@next/bundle-analyzer';
-import {
-  resolveBackendRewriteTarget,
-  resolvePipelineRewriteTarget,
-} from './src/config/proxy-rewrites.mjs';
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { withSentryConfig } from "@sentry/nextjs";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
-const workspaceRoot = path.join(appDir, '../..');
+const workspaceRoot = path.join(appDir, "../..");
 const hostRepoRoot =
-  path.basename(path.dirname(workspaceRoot)) === '.worktrees'
+  path.basename(path.dirname(workspaceRoot)) === ".worktrees"
     ? path.dirname(path.dirname(workspaceRoot))
     : workspaceRoot;
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = process.env.NODE_ENV === "production";
 
 for (const envPath of [
-  path.join(workspaceRoot, '.env.local'),
-  path.join(workspaceRoot, '.env'),
-  path.join(workspaceRoot, 'apps/web/.env.local'),
-  path.join(workspaceRoot, 'apps/web/.env'),
-  path.join(hostRepoRoot, '.env.local'),
-  path.join(hostRepoRoot, '.env'),
-  path.join(hostRepoRoot, 'apps/web/.env.local'),
-  path.join(hostRepoRoot, 'apps/web/.env'),
-  ...(isProduction ? [] : [path.join(appDir, 'tests/.env.test')]),
+  path.join(workspaceRoot, ".env.local"),
+  path.join(workspaceRoot, ".env"),
+  path.join(workspaceRoot, "apps/web/.env.local"),
+  path.join(workspaceRoot, "apps/web/.env"),
+  path.join(hostRepoRoot, ".env.local"),
+  path.join(hostRepoRoot, ".env"),
+  path.join(hostRepoRoot, "apps/web/.env.local"),
+  path.join(hostRepoRoot, "apps/web/.env"),
+  ...(isProduction ? [] : [path.join(appDir, "tests/.env.test")]),
 ]) {
   dotenv.config({ path: envPath, override: false });
 }
 
-// The browser env contract rewrites `NEXT_PUBLIC_BACKEND_URL` /
-// `NEXT_PUBLIC_LIFI_BACKEND_URL` to same-origin proxy paths whenever
-// `NEXT_PUBLIC_SITE_URL` is set (see `src/config/env-config.ts`). The
-// corresponding Next.js rewrites must therefore be installed for any valid
-// absolute upstream, not only the canonical Jumper hosts — otherwise fork
-// deployments that point at a custom backend/pipeline origin will 404 on the
-// same-origin proxy paths their own browser bundle was told to call.
-const backendRewriteTarget = resolveBackendRewriteTarget(process.env);
-const pipelineRewriteTarget = resolvePipelineRewriteTarget(process.env);
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  output: "standalone",
   trailingSlash: false,
   reactCompiler: true,
   productionBrowserSourceMaps: false,
-  serverExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
+  serverExternalPackages: ["pino", "pino-pretty", "thread-stream"],
   experimental: {
     serverSourceMaps: false,
     optimizePackageImports: [
-      'recharts',
-      '@mui/material-nextjs',
-      '@sentry/nextjs',
+      "recharts",
+      "@mui/material-nextjs",
+      "@sentry/nextjs",
     ],
   },
   turbopack: {
@@ -60,15 +46,15 @@ const nextConfig = {
   },
   webpack: (config) => {
     config.resolve.extensionAlias = {
-      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      ".js": [".ts", ".tsx", ".js", ".jsx"],
     };
     config.resolve.fallback = { fs: false, net: false, tls: false };
     // Walletconnect configuration is blocking the build, pino-pretty needs to be added as an external
-    config.externals.push('pino-pretty', 'pino', 'thread-stream');
+    config.externals.push("pino-pretty", "pino", "thread-stream");
     //trying to reduce RAM usage
     if (config.cache) {
       config.cache = Object.freeze({
-        type: 'memory',
+        type: "memory",
       });
     }
     return config;
@@ -76,70 +62,70 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '1337',
-        pathname: '/**',
+        protocol: "http",
+        hostname: "localhost",
+        port: "1337",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'raw.githubusercontent.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "raw.githubusercontent.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'assets.coingecko.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "assets.coingecko.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 's2.coinmarketcap.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "s2.coinmarketcap.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'cdn.sei.io',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "cdn.sei.io",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'static.debank.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "static.debank.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'strapi-staging.jumper.xyz',
-        port: '',
-        pathname: '/uploads/**',
+        protocol: "https",
+        hostname: "strapi-staging.jumper.xyz",
+        port: "",
+        pathname: "/uploads/**",
       },
       {
-        protocol: 'https',
-        hostname: 'strapi-staging.jumper.exchange',
-        port: '',
-        pathname: '/uploads/**',
+        protocol: "https",
+        hostname: "strapi-staging.jumper.exchange",
+        port: "",
+        pathname: "/uploads/**",
       },
       {
-        protocol: 'https',
-        hostname: 'strapi.jumper.exchange',
-        port: '',
-        pathname: '/uploads/**',
+        protocol: "https",
+        hostname: "strapi.jumper.exchange",
+        port: "",
+        pathname: "/uploads/**",
       },
       {
-        protocol: 'https',
-        hostname: 'strapi.jumper.xyz',
-        port: '',
-        pathname: '/uploads/**',
+        protocol: "https",
+        hostname: "strapi.jumper.xyz",
+        port: "",
+        pathname: "/uploads/**",
       },
       {
-        protocol: 'https',
-        hostname: 'storage.googleapis.com',
-        port: '',
-        pathname: '/jumper-static-assets/upload/**',
+        protocol: "https",
+        hostname: "storage.googleapis.com",
+        port: "",
+        pathname: "/jumper-static-assets/upload/**",
       },
       // {
       //   protocol: 'https',
@@ -148,112 +134,92 @@ const nextConfig = {
       //   pathname: '/**',
       // },
       {
-        protocol: 'https',
-        hostname: '*.etherscan.io',
-        port: '',
-        pathname: '/token/images/**',
+        protocol: "https",
+        hostname: "*.etherscan.io",
+        port: "",
+        pathname: "/token/images/**",
       },
       {
-        protocol: 'https',
-        hostname: 'resolve.mercle.xyz',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "resolve.mercle.xyz",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'assets.gravity.xyz',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "assets.gravity.xyz",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'raw.githubusercontent.com', // TODO: this one can be dangerous
-        port: '',
-        pathname: '/lifinance/types/main/src/assets/**',
+        protocol: "https",
+        hostname: "raw.githubusercontent.com", // TODO: this one can be dangerous
+        port: "",
+        pathname: "/lifinance/types/main/src/assets/**",
       },
       {
-        protocol: 'https',
-        hostname: 'assets.coingecko.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "assets.coingecko.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 's2.coinmarketcap.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "s2.coinmarketcap.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'static.debank.com',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "static.debank.com",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: 'cdn.sei.io',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "cdn.sei.io",
+        port: "",
+        pathname: "/**",
       },
       {
-        protocol: 'https',
-        hostname: '*.etherscan.io',
-        port: '',
-        pathname: '/token/images/**',
+        protocol: "https",
+        hostname: "*.etherscan.io",
+        port: "",
+        pathname: "/token/images/**",
       },
     ],
   },
   async redirects() {
     return [
       {
-        source: '/:lng?/swap',
-        destination: '/',
+        source: "/:lng?/swap",
+        destination: "/",
         permanent: true,
       },
       {
-        source: '/:lng?/exchange',
-        destination: '/',
+        source: "/:lng?/exchange",
+        destination: "/",
         permanent: true,
       },
       {
-        source: '/:lng?/refuel',
-        destination: '/gas',
+        source: "/:lng?/refuel",
+        destination: "/gas",
         permanent: true,
       },
-    ];
-  },
-  async rewrites() {
-    return [
-      ...(pipelineRewriteTarget
-        ? [
-            {
-              source: '/api/jumper/pipeline/:path*',
-              destination: `${pipelineRewriteTarget}/:path*`,
-            },
-          ]
-        : []),
-      ...(backendRewriteTarget
-        ? [
-            {
-              source: '/api/jumper/v1/:path*',
-              destination: `${backendRewriteTarget}/:path*`,
-            },
-          ]
-        : []),
     ];
   },
 };
 
 const withBundleAnalyzerConfig = withBundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
+  enabled: process.env.ANALYZE === "true",
 })(nextConfig);
 
 export default withSentryConfig(withBundleAnalyzerConfig, {
   // For all available options, see:
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/build/
 
-  org: 'jumper-exchange',
-  project: 'jumper-front',
+  org: "jumper-exchange",
+  project: "jumper-front",
 
   // For providing readable stack traces for errors using source maps, we need to setup the auth token
   authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -274,9 +240,9 @@ export default withSentryConfig(withBundleAnalyzerConfig, {
   // tunnelRoute: "/monitoring",
 
   sourcemaps: {
-    disable: process.env.VERCEL === '1', // Disable on Vercel to avoid timeouts
-    assets: ['**/*.js', '**/*.js.map'], // Specify which files to upload
-    ignore: ['**/node_modules/**'], // Files to exclude
+    disable: process.env.VERCEL === "1", // Disable on Vercel to avoid timeouts
+    assets: ["**/*.js", "**/*.js.map"], // Specify which files to upload
+    ignore: ["**/node_modules/**"], // Files to exclude
     deleteSourcemapsAfterUpload: true, // Security: delete after upload
   },
 
