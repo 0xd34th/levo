@@ -32,7 +32,7 @@ import {
 import { SolanaProvider as SolanaSDKProvider } from '@lifi/sdk-provider-solana';
 import { SuiProvider as SuiSDKProvider } from '@lifi/sdk-provider-sui';
 import { convertExtendedChain } from '@lifi/widget-provider-ethereum';
-import { ChainType, type ExtendedChain } from '@lifi/sdk';
+import { ChainId, ChainType, type ExtendedChain } from '@lifi/sdk';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
 import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
@@ -302,23 +302,19 @@ const WalletContextsProvider: FC<
   );
 
   const suiWallet = walletFleet.data?.wallets.sui;
-  const suiAccount = useMemo<Account>(() => {
-    if (!ready || !authenticated || !suiWallet?.address) {
-      return disconnectedAccounts[ChainType.MVM];
-    }
-
-    return {
-      address: suiWallet.address,
-      chainId: 784,
-      chainType: ChainType.MVM,
-      connector: privyConnector,
-      isConnected: true,
-      isConnecting: false,
-      isDisconnected: false,
-      isReconnecting: false,
-      status: 'connected',
-    };
-  }, [authenticated, ready, suiWallet?.address]);
+  const suiAccount = useMemo<Account>(
+    () =>
+      resolveConnectedAccount({
+        account: disconnectedAccounts[ChainType.MVM],
+        authenticated,
+        canUseFallback: Boolean(suiWallet?.publicKey),
+        connector: privyConnector,
+        defaultChainId: ChainId.SUI,
+        fallbackAddress: suiWallet?.address,
+        ready,
+      }),
+    [authenticated, ready, suiWallet?.address, suiWallet?.publicKey],
+  );
 
   const bitcoinWallet = walletFleet.data?.wallets.bitcoin;
   const bitcoinAccount = useMemo<Account>(() => {
@@ -441,7 +437,7 @@ const WalletContextsProvider: FC<
         }
 
         if (suiAccount.address) {
-          onSuccess?.(suiAccount.address, suiAccount.chainId ?? 784);
+          onSuccess?.(suiAccount.address, suiAccount.chainId ?? ChainId.SUI);
         }
       },
       disconnect: async () => {
