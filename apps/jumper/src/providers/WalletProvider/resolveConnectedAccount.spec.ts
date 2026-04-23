@@ -128,4 +128,46 @@ describe('resolveConnectedAccount', () => {
       }),
     ).toEqual(buildDisconnectedAccount(ChainType.EVM));
   });
+
+  it('keeps a Sui fleet entry disconnected when only the address is hydrated', () => {
+    // Mirrors WalletProvider.suiAccount: an address-only Privy Sui wallet
+    // (publicKey: null) cannot build a PrivySuiSigner, so canUseFallback is
+    // false and the account must stay disconnected even though an address
+    // exists.
+    expect(
+      resolveConnectedAccount({
+        account: buildDisconnectedAccount(ChainType.MVM),
+        authenticated: true,
+        canUseFallback: false,
+        connector: privyConnector,
+        defaultChainId: 784,
+        fallbackAddress:
+          '0x0000000000000000000000000000000000000000000000000000000000000001',
+        ready: true,
+      }),
+    ).toEqual(buildDisconnectedAccount(ChainType.MVM));
+  });
+
+  it('promotes a Sui fleet entry once the publicKey is available', () => {
+    expect(
+      resolveConnectedAccount({
+        account: buildDisconnectedAccount(ChainType.MVM),
+        authenticated: true,
+        canUseFallback: true,
+        connector: privyConnector,
+        defaultChainId: 784,
+        fallbackAddress:
+          '0x0000000000000000000000000000000000000000000000000000000000000001',
+        ready: true,
+      }),
+    ).toMatchObject({
+      address:
+        '0x0000000000000000000000000000000000000000000000000000000000000001',
+      chainId: 784,
+      chainType: ChainType.MVM,
+      connector: privyConnector,
+      isConnected: true,
+      status: 'connected',
+    });
+  });
 });
