@@ -20,6 +20,7 @@ import {
 } from './useSharedConfigs';
 import { useWidgetDependencies } from './useWidgetDependencies';
 import { useZapWidgetConfig } from './useZapWidgetConfig';
+import { applySuiExchangeGuards } from './exchangeGuards';
 import FeeContribution from '../../FeeContribution/FeeContribution';
 
 /**
@@ -119,6 +120,11 @@ export function useWidgetConfig<T extends WidgetType>(
         ...context.hiddenUI,
       ];
     }
+
+    baseConfig.exchanges = applySuiExchangeGuards(
+      baseConfig.exchanges,
+      context.formData,
+    );
 
     if (priceImpactABTest.isEnabled && priceImpactABTest.value === 'test') {
       baseConfig.hiddenUI = [
