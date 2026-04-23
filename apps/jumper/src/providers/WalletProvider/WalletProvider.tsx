@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
 import {
   TrackingAction,
   TrackingCategory,
   TrackingEventParameter,
-} from '@/const/trackingKeys';
-import envConfig from '@/config/env-config';
-import { useWalletFleet } from '@/hooks/useWalletFleet';
-import { useChains } from '@/hooks/useChains';
-import { signBitcoinPsbt } from '@/lib/privy/bitcoin';
-import { PrivySuiSigner } from '@/lib/privy/sui';
-import { resolveConnectedAccount } from '@/providers/WalletProvider/resolveConnectedAccount';
-import { useUserTracking } from '@/hooks/userTracking';
-import { useMenuStore } from '@/stores/menu';
+} from "@/const/trackingKeys";
+import envConfig from "@/config/env-config";
+import { useWalletFleet } from "@/hooks/useWalletFleet";
+import { useChains } from "@/hooks/useChains";
+import { signBitcoinPsbt } from "@/lib/privy/bitcoin";
+import { PrivySuiSigner } from "@/lib/privy/sui";
+import { resolveConnectedAccount } from "@/providers/WalletProvider/resolveConnectedAccount";
+import { useUserTracking } from "@/hooks/userTracking";
+import { useMenuStore } from "@/stores/menu";
 import {
   BitcoinContext,
   EthereumContext,
@@ -22,41 +22,52 @@ import {
   type EthereumProviderContext,
   type WalletConnector,
   type WidgetProviderContext,
-} from '@lifi/widget-provider';
-import { BitcoinProvider as BitcoinSDKProvider } from '@lifi/sdk-provider-bitcoin';
-import { EthereumProvider as EthereumSDKProvider } from '@lifi/sdk-provider-ethereum';
+} from "@lifi/widget-provider";
+import { BitcoinProvider as BitcoinSDKProvider } from "@lifi/sdk-provider-bitcoin";
+import { EthereumProvider as EthereumSDKProvider } from "@lifi/sdk-provider-ethereum";
 import {
   WalletMenuContext,
   type WalletMenuOpenArgs,
-} from '@lifi/wallet-management';
-import { SolanaProvider as SolanaSDKProvider } from '@lifi/sdk-provider-solana';
-import { SuiProvider as SuiSDKProvider } from '@lifi/sdk-provider-sui';
-import { convertExtendedChain } from '@lifi/widget-provider-ethereum';
-import { ChainId, ChainType, type ExtendedChain } from '@lifi/sdk';
-import { SuiGrpcClient } from '@mysten/sui/grpc';
-import { getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
-import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
-import { useWallets as usePrivyEvmWallets } from '@privy-io/react-auth';
-import { useWallets as usePrivySolanaWallets } from '@privy-io/react-auth/solana';
+} from "@lifi/wallet-management";
+import { SolanaProvider as SolanaSDKProvider } from "@lifi/sdk-provider-solana";
+import { SuiProvider as SuiSDKProvider } from "@lifi/sdk-provider-sui";
+import { convertExtendedChain } from "@lifi/widget-provider-ethereum";
+import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
+import { SuiGrpcClient } from "@mysten/sui/grpc";
+import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
+import {
+  getIdentityToken,
+  PrivyProvider,
+  usePrivy,
+} from "@privy-io/react-auth";
+import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
+import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
 import {
   WagmiProvider as PrivyWagmiProvider,
   createConfig as createPrivyWagmiConfig,
-} from '@privy-io/wagmi';
-import { type FC, type PropsWithChildren, useCallback, useEffect, useMemo, useRef } from 'react';
-import { http, type Chain } from 'viem';
-import { mainnet } from 'viem/chains';
-import { useAccount as useWagmiAccount } from 'wagmi';
+} from "@privy-io/wagmi";
+import {
+  type FC,
+  type PropsWithChildren,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+import { http, type Chain } from "viem";
+import { mainnet } from "viem/chains";
+import { useAccount as useWagmiAccount } from "wagmi";
 import {
   getBytecode,
   getConnectorClient,
   getTransactionCount,
   switchChain,
-} from 'wagmi/actions';
+} from "wagmi/actions";
 
 const privyConnector: WalletConnector = {
-  icon: '/favicon.png',
-  id: 'privy-account',
-  name: 'Privy Account',
+  icon: "/favicon.png",
+  id: "privy-account",
+  name: "Privy Account",
 };
 
 const disconnectedAccounts: Record<ChainType, Account> = {
@@ -66,7 +77,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
   [ChainType.SVM]: {
     chainType: ChainType.SVM,
@@ -74,7 +85,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
   [ChainType.MVM]: {
     chainType: ChainType.MVM,
@@ -82,7 +93,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
   [ChainType.UTXO]: {
     chainType: ChainType.UTXO,
@@ -90,7 +101,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
   [ChainType.TVM]: {
     chainType: ChainType.TVM,
@@ -98,7 +109,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
   [ChainType.STL]: {
     chainType: ChainType.STL,
@@ -106,7 +117,7 @@ const disconnectedAccounts: Record<ChainType, Account> = {
     isConnecting: false,
     isDisconnected: true,
     isReconnecting: false,
-    status: 'disconnected',
+    status: "disconnected",
   },
 };
 
@@ -116,8 +127,8 @@ function getSolanaRpcUrl(): string {
   }
 
   try {
-    const customRpcs = JSON.parse(envConfig.NEXT_PUBLIC_CUSTOM_RPCS || '{}');
-    const solanaRpcs = customRpcs['1151111081099710'];
+    const customRpcs = JSON.parse(envConfig.NEXT_PUBLIC_CUSTOM_RPCS || "{}");
+    const solanaRpcs = customRpcs["1151111081099710"];
     if (Array.isArray(solanaRpcs) && solanaRpcs.length > 0) {
       return solanaRpcs[0];
     }
@@ -125,7 +136,7 @@ function getSolanaRpcUrl(): string {
     // ignore malformed custom rpc config and fall back to the default Privy chain setup
   }
 
-  return 'https://api.mainnet-beta.solana.com';
+  return "https://api.mainnet-beta.solana.com";
 }
 
 function useCanonicalEvmChains(chains: ExtendedChain[]): [Chain, ...Chain[]] {
@@ -197,7 +208,7 @@ const WalletContextsProvider: FC<
     wagmiConfig: ReturnType<typeof createPrivyWagmiConfig>;
   }>
 > = ({ children, wagmiConfig }) => {
-  const { authenticated, getAccessToken, login, logout, ready } = usePrivy();
+  const { authenticated, login, logout, ready } = usePrivy();
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
@@ -238,10 +249,12 @@ const WalletContextsProvider: FC<
       resolveConnectedAccount({
         account: baseEvmAccount,
         authenticated,
-        canUseFallback: wagmiAccount.status === 'connected' && Boolean(wagmiAccount.chainId),
+        canUseFallback:
+          wagmiAccount.status === "connected" && Boolean(wagmiAccount.chainId),
         connector: privyConnector,
         defaultChainId: mainnet.id,
-        fallbackAddress: connectedEvmWallets[0]?.address ?? fleetEvmWallet?.address,
+        fallbackAddress:
+          connectedEvmWallets[0]?.address ?? fleetEvmWallet?.address,
         ready,
       }),
     [
@@ -257,10 +270,13 @@ const WalletContextsProvider: FC<
 
   const solanaWallet = connectedSolanaWallets[0];
   const connectedSolanaAddress =
-    (solanaWallet as { address?: string; accounts?: Array<{ address: string }> } | undefined)
-      ?.address ??
-    (solanaWallet as { accounts?: Array<{ address: string }> } | undefined)?.accounts?.[0]
-      ?.address;
+    (
+      solanaWallet as
+        | { address?: string; accounts?: Array<{ address: string }> }
+        | undefined
+    )?.address ??
+    (solanaWallet as { accounts?: Array<{ address: string }> } | undefined)
+      ?.accounts?.[0]?.address;
 
   const baseSolanaAccount = useMemo<Account>(() => {
     if (!ready || !authenticated || !connectedSolanaAddress) {
@@ -276,7 +292,7 @@ const WalletContextsProvider: FC<
       isConnecting: false,
       isDisconnected: false,
       isReconnecting: false,
-      status: 'connected',
+      status: "connected",
     };
   }, [authenticated, connectedSolanaAddress, ready]);
 
@@ -332,7 +348,7 @@ const WalletContextsProvider: FC<
       isConnecting: false,
       isDisconnected: false,
       isReconnecting: false,
-      status: 'connected',
+      status: "connected",
     };
   }, [authenticated, bitcoinWallet?.address, ready]);
 
@@ -395,7 +411,10 @@ const WalletContextsProvider: FC<
         }
 
         if (solanaAccount.address) {
-          onSuccess?.(solanaAccount.address, solanaAccount.chainId ?? 1151111081099710);
+          onSuccess?.(
+            solanaAccount.address,
+            solanaAccount.chainId ?? 1151111081099710,
+          );
         }
       },
       disconnect: async () => {
@@ -408,21 +427,28 @@ const WalletContextsProvider: FC<
       sdkProvider: SolanaSDKProvider({
         getWallet: async () => {
           if (!solanaWallet) {
-            throw new Error('Missing Privy Solana wallet');
+            throw new Error("Missing Privy Solana wallet");
           }
 
           return solanaWallet as never;
         },
       }) as never,
     }),
-    [authenticated, installedWallets, login, logout, solanaAccount, solanaWallet],
+    [
+      authenticated,
+      installedWallets,
+      login,
+      logout,
+      solanaAccount,
+      solanaWallet,
+    ],
   );
 
   const suiClient = useMemo(
     () =>
       new SuiGrpcClient({
-        baseUrl: getJsonRpcFullnodeUrl('mainnet'),
-        network: 'mainnet',
+        baseUrl: getJsonRpcFullnodeUrl("mainnet"),
+        network: "mainnet",
       }),
     [],
   );
@@ -451,24 +477,23 @@ const WalletContextsProvider: FC<
         getClient: async () => suiClient,
         getSigner: async () => {
           if (!suiWallet?.publicKey) {
-            throw new Error('Missing Privy Sui wallet');
+            throw new Error("Missing Privy Sui wallet");
           }
 
-          const accessToken = await getAccessToken();
-          if (!accessToken) {
-            throw new Error('Missing Privy access token');
+          const userJwt = await getIdentityToken();
+          if (!userJwt) {
+            throw new Error("Missing Privy identity token");
           }
 
           return new PrivySuiSigner({
-            accessToken,
             publicKey: suiWallet.publicKey,
+            userJwt,
           });
         },
       }) as never,
     }),
     [
       authenticated,
-      getAccessToken,
       installedWallets,
       login,
       logout,
@@ -488,7 +513,10 @@ const WalletContextsProvider: FC<
         }
 
         if (bitcoinAccount.address) {
-          onSuccess?.(bitcoinAccount.address, bitcoinAccount.chainId ?? 20000000000001);
+          onSuccess?.(
+            bitcoinAccount.address,
+            bitcoinAccount.chainId ?? 20000000000001,
+          );
         }
       },
       disconnect: async () => {
@@ -501,28 +529,33 @@ const WalletContextsProvider: FC<
       sdkProvider: BitcoinSDKProvider({
         getWalletClient: async () => {
           if (!bitcoinWallet?.publicKey) {
-            throw new Error('Missing Privy bitcoin wallet');
+            throw new Error("Missing Privy bitcoin wallet");
           }
 
-          const accessToken = await getAccessToken();
-          if (!accessToken) {
-            throw new Error('Missing Privy access token');
+          const userJwt = await getIdentityToken();
+          if (!userJwt) {
+            throw new Error("Missing Privy identity token");
           }
 
           return {
             account: {
               address: bitcoinWallet.address,
-              publicKey: bitcoinWallet.publicKey.startsWith('0x')
+              publicKey: bitcoinWallet.publicKey.startsWith("0x")
                 ? bitcoinWallet.publicKey
                 : `0x${bitcoinWallet.publicKey}`,
             },
-            async request(request: { method: string; params: { psbt: string } }) {
-              if (request.method !== 'signPsbt') {
-                throw new Error(`Unsupported bitcoin wallet method: ${request.method}`);
+            async request(request: {
+              method: string;
+              params: { psbt: string };
+            }) {
+              if (request.method !== "signPsbt") {
+                throw new Error(
+                  `Unsupported bitcoin wallet method: ${request.method}`,
+                );
               }
 
               return signBitcoinPsbt({
-                accessToken,
+                userJwt,
                 psbt: request.params.psbt,
               });
             },
@@ -535,7 +568,6 @@ const WalletContextsProvider: FC<
       bitcoinAccount,
       bitcoinWallet?.address,
       bitcoinWallet?.publicKey,
-      getAccessToken,
       installedWallets,
       login,
       logout,
@@ -575,7 +607,7 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
 
   useEffect(() => {
     if (!privyAppId) {
-      console.error('NEXT_PUBLIC_PRIVY_APP_ID is required for apps/jumper');
+      console.error("NEXT_PUBLIC_PRIVY_APP_ID is required for apps/jumper");
     }
   }, [privyAppId]);
 
@@ -588,22 +620,22 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
       appId={privyAppId}
       config={{
         appearance: {
-          walletChainType: 'ethereum-and-solana',
+          walletChainType: "ethereum-and-solana",
         },
         defaultChain: evmChains[0],
         embeddedWallets: {
           ethereum: {
-            createOnLogin: 'all-users',
+            createOnLogin: "all-users",
           },
           showWalletUIs: false,
           solana: {
-            createOnLogin: 'all-users',
+            createOnLogin: "all-users",
           },
         },
         externalWallets: {
           disableAllExternalWallets: true,
         },
-        loginMethods: ['email', 'google'],
+        loginMethods: ["email", "google"],
         supportedChains: evmChains,
       }}
     >
@@ -613,8 +645,8 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
         setActiveWalletForWagmi={({ wallets }) =>
           wallets.find(
             (wallet) =>
-              wallet.type === 'ethereum' &&
-              wallet.walletClientType?.startsWith('privy'),
+              wallet.type === "ethereum" &&
+              wallet.walletClientType?.startsWith("privy"),
           )
         }
       >
@@ -632,7 +664,7 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
 
 const WalletTrackingProvider: FC<
   PropsWithChildren<{
-    trackEvent: ReturnType<typeof useUserTracking>['trackEvent'];
+    trackEvent: ReturnType<typeof useUserTracking>["trackEvent"];
   }>
 > = ({ children, trackEvent }) => {
   const walletFleet = useWalletFleet();
@@ -654,7 +686,7 @@ const WalletTrackingProvider: FC<
       trackEvent({
         category: TrackingCategory.Connect,
         action: TrackingAction.ConnectWallet,
-        label: 'connect-wallet',
+        label: "connect-wallet",
         data: {
           [TrackingEventParameter.Wallet]: wallet.connectorName,
           [TrackingEventParameter.Ecosystem]: wallet.chain,

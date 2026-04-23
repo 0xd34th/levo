@@ -1,11 +1,11 @@
-import type { User } from '@privy-io/node';
-import { InvalidAuthTokenError, PrivyClient } from '@privy-io/node';
-import { NextResponse } from 'next/server';
+import type { User } from "@privy-io/node";
+import { InvalidAuthTokenError, PrivyClient } from "@privy-io/node";
+import { NextResponse } from "next/server";
 import {
   buildWalletFleetResponse,
   getMissingPrivyWalletChains,
   type WalletFleetResponse,
-} from './wallet-fleet';
+} from "./wallet-fleet";
 
 let privyClientSingleton: PrivyClient | null = null;
 
@@ -15,14 +15,14 @@ function jsonError(message: string, status: number) {
     {
       status,
       headers: {
-        'Cache-Control': 'no-store',
+        "Cache-Control": "no-store",
       },
     },
   );
 }
 
 function getBearerToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
+  const header = req.headers.get("authorization");
   if (!header) {
     return null;
   }
@@ -37,7 +37,7 @@ export function getPrivyClient(): PrivyClient {
     const appSecret = process.env.PRIVY_APP_SECRET?.trim();
 
     if (!appId || !appSecret) {
-      throw new Error('Missing Privy configuration');
+      throw new Error("Missing Privy configuration");
     }
 
     privyClientSingleton = new PrivyClient({ appId, appSecret });
@@ -74,17 +74,17 @@ export async function ensureWalletFleetForUser(
 
 export async function requirePrivySession(req: Request): Promise<
   | {
-      accessToken: string;
       privy: PrivyClient;
+      userJwt: string;
       user: User;
       walletFleet: WalletFleetResponse;
     }
   | { response: NextResponse }
 > {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
+  const userJwt = getBearerToken(req);
+  if (!userJwt) {
     return {
-      response: jsonError('Missing Privy access token', 401),
+      response: jsonError("Missing Privy session token", 401),
     };
   }
 
@@ -92,33 +92,47 @@ export async function requirePrivySession(req: Request): Promise<
   try {
     privy = getPrivyClient();
   } catch (error) {
-    console.error('Failed to initialize Privy client', error);
+    console.error("Failed to initialize Privy client", error);
     return {
-      response: jsonError('Missing Privy configuration', 500),
+      response: jsonError("Missing Privy configuration", 500),
     };
   }
 
   try {
-    const auth = await privy.utils().auth().verifyAccessToken(accessToken);
-    const user = await privy.users()._get(auth.user_id);
+    const authUtils = privy.utils().auth();
+
+    let userId: string;
+    try {
+      const auth = await authUtils.verifyAccessToken(userJwt);
+      userId = auth.user_id;
+    } catch (error) {
+      if (!(error instanceof InvalidAuthTokenError)) {
+        throw error;
+      }
+
+      const identityUser = await authUtils.verifyIdentityToken(userJwt);
+      userId = identityUser.id;
+    }
+
+    const user = await privy.users()._get(userId);
     const walletFleet = await ensureWalletFleetForUser(privy, user);
 
     return {
-      accessToken,
       privy,
+      userJwt,
       user,
       walletFleet,
     };
   } catch (error) {
     if (error instanceof InvalidAuthTokenError) {
       return {
-        response: jsonError('Invalid or expired Privy session', 401),
+        response: jsonError("Invalid or expired Privy session", 401),
       };
     }
 
-    console.error('Failed to verify Privy session', error);
+    console.error("Failed to verify Privy session", error);
     return {
-      response: jsonError('Privy authentication unavailable', 503),
+      response: jsonError("Privy authentication unavailable", 503),
     };
   }
 }

@@ -1,6 +1,5 @@
-1. 用用户给出的 `Ethereum 100 USDT -> ETH` 场景作为主验收真值，并补查 `/api/jumper/v1/users/events`，确认 fork 域名下不只是 pipeline，backend POST 也会被 rewrite 转发后的 upstream CORS 拒绝。
-2. 抽出 shared proxy helper，在 `src/app/api/jumper/pipeline/[...path]/route.ts` 和 `src/app/api/jumper/v1/[...path]/route.ts` 统一实现服务端 proxy：解析真实 upstream、过滤 `origin` / `referer` 等 CORS-sensitive 来源头、保留请求体与必要业务头。
-3. 删除已被 route proxy 替代的 Next rewrite 和相关旧 helper/test，避免新旧双轨与误导性配置。
-4. 把仓库里唯一仍直连 `https://li.quest/v1/advanced/routes` 的 `useCheckWalletLinking` 收回 same-origin pipeline 合同。
-5. 补 backend/pipeline/apiOrigins 回归测试，覆盖 POST `advanced/routes`、backend POST、GET 查询转发，以及 same-origin 公共 env 不会让服务端自循环。
-6. 运行针对性单测与 `typecheck`，确认满足 `SPEC.md`。
+1. 用现网报错和服务器 `Invalid JWT token provided` 日志压实根因，确认失败点落在共享 `/api/privy/*` session 校验而不是 Sui route 或交易字节本身。
+2. 重构 `src/lib/privy/server.ts`：把 bearer token 视为通用 user JWT，优先校验 access token，失败后回退到 identity token，并统一产出完整 user + wallet fleet。
+3. 同步更新 `useWalletFleet`、Sui signer、bitcoin signer 与对应 route handler，统一使用新的 session JWT 命名和合同，清掉误导性的 `accessToken` 语义残留。
+4. 为 `requirePrivySession` 新增回归测试，覆盖 access-token 成功、identity-token fallback 成功和双重失败返回 401。
+5. 运行针对性单测与 `typecheck`，确认满足 `SPEC.md` 且不引入 wallet-fleet / bitcoin 回归。
