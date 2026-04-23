@@ -8,10 +8,12 @@ import {
 import envConfig from "@/config/env-config";
 import { useWalletFleet } from "@/hooks/useWalletFleet";
 import { useChains } from "@/hooks/useChains";
-import { signBitcoinPsbt } from "@/lib/privy/bitcoin";
-import { PrivySuiSigner } from "@/lib/privy/sui";
+import {
+  buildPrivyBitcoinSdkProvider,
+  buildPrivySuiSdkProvider,
+} from "@/providers/WalletProvider/privySignerProviders";
 import { resolveConnectedAccount } from "@/providers/WalletProvider/resolveConnectedAccount";
-import { resolvePrivySignerTokens } from "@/providers/WalletProvider/resolvePrivySignerTokens";
+import { resolvePrivyExecutionSignerSession } from "@/providers/WalletProvider/resolvePrivySignerSession";
 import { useUserTracking } from "@/hooks/userTracking";
 import { useMenuStore } from "@/stores/menu";
 import {
@@ -36,11 +38,7 @@ import { convertExtendedChain } from "@lifi/widget-provider-ethereum";
 import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
-import {
-  PrivyProvider,
-  useIdentityToken,
-  usePrivy,
-} from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
 import {
@@ -210,7 +208,6 @@ const WalletContextsProvider: FC<
   }>
 > = ({ children, wagmiConfig }) => {
   const { authenticated, getAccessToken, login, logout, ready } = usePrivy();
-  const { identityToken } = useIdentityToken();
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
@@ -455,6 +452,31 @@ const WalletContextsProvider: FC<
     [],
   );
 
+  const resolvePrivySignerSession = useCallback(
+    () =>
+      resolvePrivyExecutionSignerSession({
+        getAccessToken,
+      }),
+    [getAccessToken],
+  );
+
+  const suiSdkProvider = useMemo(() => {
+    if (!suiWallet?.publicKey) {
+      return SuiSDKProvider({
+        getClient: async () => suiClient,
+        getSigner: async () => {
+          throw new Error("Missing Privy Sui wallet");
+        },
+      });
+    }
+
+    return buildPrivySuiSdkProvider({
+      getClient: async () => suiClient,
+      publicKey: suiWallet.publicKey,
+      resolveSignerSession: resolvePrivySignerSession,
+    });
+  }, [resolvePrivySignerSession, suiClient, suiWallet?.publicKey]);
+
   const suiContextValue = useMemo<WidgetProviderContext>(
     () => ({
       account: suiAccount,
@@ -475,38 +497,37 @@ const WalletContextsProvider: FC<
       isConnected: suiAccount.isConnected,
       isEnabled: true,
       isExternalContext: true,
-      sdkProvider: SuiSDKProvider({
-        getClient: async () => suiClient,
-        getSigner: async () => {
-          if (!suiWallet?.publicKey) {
-            throw new Error("Missing Privy Sui wallet");
-          }
-
-          const signerTokens = await resolvePrivySignerTokens({
-            cachedIdentityToken: identityToken,
-            getAccessToken,
-          });
-
-          return new PrivySuiSigner({
-            identityToken: signerTokens.identityToken,
-            publicKey: suiWallet.publicKey,
-            sessionJwt: signerTokens.sessionJwt,
-          });
-        },
-      }) as never,
+      sdkProvider: suiSdkProvider as never,
     }),
     [
       authenticated,
-      getAccessToken,
-      identityToken,
       installedWallets,
       login,
       logout,
       suiAccount,
-      suiClient,
-      suiWallet?.publicKey,
+      suiSdkProvider,
     ],
   );
+
+  const bitcoinSdkProvider = useMemo(() => {
+    if (!bitcoinWallet?.address || !bitcoinWallet?.publicKey) {
+      return BitcoinSDKProvider({
+        getWalletClient: async () => {
+          throw new Error("Missing Privy bitcoin wallet");
+        },
+      });
+    }
+
+    return buildPrivyBitcoinSdkProvider({
+      address: bitcoinWallet.address,
+      publicKey: bitcoinWallet.publicKey,
+      resolveSignerSession: resolvePrivySignerSession,
+    });
+  }, [
+    bitcoinWallet?.address,
+    bitcoinWallet?.publicKey,
+    resolvePrivySignerSession,
+  ]);
 
   const bitcoinContextValue = useMemo<WidgetProviderContext>(
     () => ({
@@ -531,51 +552,12 @@ const WalletContextsProvider: FC<
       isConnected: bitcoinAccount.isConnected,
       isEnabled: true,
       isExternalContext: true,
-      sdkProvider: BitcoinSDKProvider({
-        getWalletClient: async () => {
-          if (!bitcoinWallet?.publicKey) {
-            throw new Error("Missing Privy bitcoin wallet");
-          }
-
-          const signerTokens = await resolvePrivySignerTokens({
-            cachedIdentityToken: identityToken,
-            getAccessToken,
-          });
-
-          return {
-            account: {
-              address: bitcoinWallet.address,
-              publicKey: bitcoinWallet.publicKey.startsWith("0x")
-                ? bitcoinWallet.publicKey
-                : `0x${bitcoinWallet.publicKey}`,
-            },
-            async request(request: {
-              method: string;
-              params: { psbt: string };
-            }) {
-              if (request.method !== "signPsbt") {
-                throw new Error(
-                  `Unsupported bitcoin wallet method: ${request.method}`,
-                );
-              }
-
-              return signBitcoinPsbt({
-                identityToken: signerTokens.identityToken,
-                psbt: request.params.psbt,
-                sessionJwt: signerTokens.sessionJwt,
-              });
-            },
-          } as never;
-        },
-      }) as never,
+      sdkProvider: bitcoinSdkProvider as never,
     }),
     [
       authenticated,
       bitcoinAccount,
-      bitcoinWallet?.address,
-      bitcoinWallet?.publicKey,
-      getAccessToken,
-      identityToken,
+      bitcoinSdkProvider,
       installedWallets,
       login,
       logout,

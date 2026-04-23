@@ -5,7 +5,7 @@ import {
 } from "@mysten/sui/verify";
 import type { PublicKey } from "@mysten/sui/cryptography";
 import { Signer, type SignatureScheme } from "@mysten/sui/cryptography";
-import { PRIVY_IDENTITY_TOKEN_HEADER } from "./constants";
+import { LiFiErrorCode, ProviderError } from "@lifi/sdk";
 
 export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
   const normalizedHex = publicKey.startsWith("0x")
@@ -29,7 +29,6 @@ export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
 }
 
 async function signSuiDigest(params: {
-  identityToken: string;
   sessionJwt: string;
   digest: Uint8Array;
 }): Promise<Uint8Array<ArrayBuffer>> {
@@ -38,7 +37,6 @@ async function signSuiDigest(params: {
     headers: {
       Authorization: `Bearer ${params.sessionJwt}`,
       "Content-Type": "application/json",
-      [PRIVY_IDENTITY_TOKEN_HEADER]: params.identityToken,
     },
     body: JSON.stringify({
       digest: Buffer.from(params.digest).toString("hex"),
@@ -46,7 +44,14 @@ async function signSuiDigest(params: {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to sign Sui transaction");
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+
+    throw new ProviderError(
+      LiFiErrorCode.ProviderUnavailable,
+      payload?.error || "Failed to sign Sui transaction",
+    );
   }
 
   const payload = (await response.json()) as { signature: string };
@@ -58,17 +63,14 @@ async function signSuiDigest(params: {
 }
 
 export class PrivySuiSigner extends Signer {
-  #identityToken: string;
   #publicKey: PublicKey;
   #sessionJwt: string;
 
   constructor(params: {
-    identityToken: string;
     publicKey: string;
     sessionJwt: string;
   }) {
     super();
-    this.#identityToken = params.identityToken;
     this.#publicKey = decodeStoredSuiPublicKey(params.publicKey);
     this.#sessionJwt = params.sessionJwt;
   }
@@ -76,7 +78,6 @@ export class PrivySuiSigner extends Signer {
   override async sign(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
     return signSuiDigest({
       digest: bytes,
-      identityToken: this.#identityToken,
       sessionJwt: this.#sessionJwt,
     });
   }

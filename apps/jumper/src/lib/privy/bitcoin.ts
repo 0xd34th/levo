@@ -1,13 +1,12 @@
 import * as ecc from "@bitcoinerlab/secp256k1";
 import { initEccLib, Psbt } from "bitcoinjs-lib";
-import { PRIVY_IDENTITY_TOKEN_HEADER } from "./constants";
+import { LiFiErrorCode, ProviderError } from "@lifi/sdk";
 
 function normalizeHex(value: string): string {
   return value.startsWith("0x") ? value.slice(2) : value;
 }
 
 export async function signBitcoinPsbt(params: {
-  identityToken: string;
   psbt: string;
   sessionJwt: string;
 }): Promise<string> {
@@ -16,7 +15,6 @@ export async function signBitcoinPsbt(params: {
     headers: {
       Authorization: `Bearer ${params.sessionJwt}`,
       "Content-Type": "application/json",
-      [PRIVY_IDENTITY_TOKEN_HEADER]: params.identityToken,
     },
     body: JSON.stringify({
       psbt: params.psbt,
@@ -24,7 +22,14 @@ export async function signBitcoinPsbt(params: {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to sign bitcoin transaction");
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+
+    throw new ProviderError(
+      LiFiErrorCode.ProviderUnavailable,
+      payload?.error || "Failed to sign bitcoin transaction",
+    );
   }
 
   const payload = (await response.json()) as { psbt: string };
@@ -45,7 +50,7 @@ export async function signPrivyBitcoinPsbt(params: {
   };
   psbt: string;
   publicKey: string;
-  identityToken: string;
+  sessionJwt: string;
   walletId: string;
 }): Promise<string> {
   initEccLib(ecc);
@@ -61,7 +66,7 @@ export async function signPrivyBitcoinPsbt(params: {
       const digestHex = Buffer.from(hash).toString("hex");
       const result = await params.privy.wallets().rawSign(params.walletId, {
         authorization_context: {
-          user_jwts: [params.identityToken],
+          user_jwts: [params.sessionJwt],
         },
         params: {
           hash: `0x${digestHex}`,

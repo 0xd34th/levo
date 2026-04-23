@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  requirePrivyIdentityToken,
-  requirePrivySession,
-} from "@/lib/privy/server";
+import { requirePrivySession } from "@/lib/privy/server";
 
 export const runtime = "nodejs";
 
@@ -15,11 +12,6 @@ export async function POST(req: Request) {
   const session = await requirePrivySession(req);
   if ("response" in session) {
     return session.response;
-  }
-
-  const identity = await requirePrivyIdentityToken(req, session);
-  if ("response" in identity) {
-    return identity.response;
   }
 
   const body = await req.json().catch(() => null);
@@ -42,7 +34,7 @@ export async function POST(req: Request) {
 
   const signature = await session.privy.wallets().rawSign(wallet.walletId, {
     authorization_context: {
-      user_jwts: [identity.identityToken],
+      user_jwts: [session.sessionJwt],
     },
     params: {
       hash: `0x${parsed.data.digest}`,

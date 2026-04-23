@@ -151,7 +151,7 @@ describe("requirePrivySession", () => {
     vi.restoreAllMocks();
   });
 
-  it("prefers access-token verification when the bearer token is a valid access token", async () => {
+  it("accepts a valid access-token session for Sui signing requests", async () => {
     const {
       PrivyClient,
       getUser,
@@ -162,7 +162,7 @@ describe("requirePrivySession", () => {
     } = await loadServerModule();
 
     const session = await requirePrivySession(
-      new Request("http://localhost/api/privy/wallet-fleet", {
+      new Request("http://localhost/api/privy/sui/sign", {
         headers: {
           Authorization: "Bearer access-token-jwt",
         },
@@ -185,6 +185,34 @@ describe("requirePrivySession", () => {
     expect(session.sessionJwt).toBe("access-token-jwt");
     expect(session.sessionJwtType).toBe("access");
     expect(session.walletFleet.wallets.sui?.walletId).toBe("wallet-sui");
+  });
+
+  it("accepts a valid access-token session for bitcoin signing requests", async () => {
+    const {
+      getUser,
+      requirePrivySession,
+      verifyAccessToken,
+      verifyIdentityToken,
+    } = await loadServerModule();
+
+    const session = await requirePrivySession(
+      new Request("http://localhost/api/privy/bitcoin/sign-psbt", {
+        headers: {
+          Authorization: "Bearer access-token-jwt",
+        },
+      }),
+    );
+
+    expect("response" in session).toBe(false);
+    if ("response" in session) {
+      return;
+    }
+
+    expect(verifyAccessToken).toHaveBeenCalledWith("access-token-jwt");
+    expect(verifyIdentityToken).not.toHaveBeenCalled();
+    expect(getUser).toHaveBeenCalledWith("privy-user-1");
+    expect(session.sessionJwt).toBe("access-token-jwt");
+    expect(session.walletFleet.wallets.bitcoin?.walletId).toBe("wallet-btc");
   });
 
   it("falls back to identity-token verification when access-token verification rejects as invalid", async () => {
@@ -249,147 +277,6 @@ describe("requirePrivySession", () => {
     expect(session.response.status).toBe(401);
     await expect(session.response.json()).resolves.toEqual({
       error: "Invalid or expired Privy session",
-    });
-  });
-});
-
-describe("requirePrivyIdentityToken", () => {
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_PRIVY_APP_ID = "privy-app-id";
-    process.env.PRIVY_APP_SECRET = "privy-app-secret";
-  });
-
-  afterEach(() => {
-    if (privyEnvBackup.NEXT_PUBLIC_PRIVY_APP_ID === undefined) {
-      delete process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-    } else {
-      process.env.NEXT_PUBLIC_PRIVY_APP_ID =
-        privyEnvBackup.NEXT_PUBLIC_PRIVY_APP_ID;
-    }
-
-    if (privyEnvBackup.PRIVY_APP_SECRET === undefined) {
-      delete process.env.PRIVY_APP_SECRET;
-    } else {
-      process.env.PRIVY_APP_SECRET = privyEnvBackup.PRIVY_APP_SECRET;
-    }
-
-    vi.restoreAllMocks();
-  });
-
-  it("accepts an explicit identity-token header for the same Privy user", async () => {
-    const { requirePrivyIdentityToken, requirePrivySession } =
-      await loadServerModule();
-
-    const req = new Request("http://localhost/api/privy/sui/sign", {
-      headers: {
-        Authorization: "Bearer access-token-jwt",
-        "x-privy-identity-token": "identity-token-jwt",
-      },
-    });
-
-    const session = await requirePrivySession(req);
-    expect("response" in session).toBe(false);
-    if ("response" in session) {
-      return;
-    }
-
-    const identity = await requirePrivyIdentityToken(req, session);
-    expect("response" in identity).toBe(false);
-    if ("response" in identity) {
-      return;
-    }
-
-    expect(identity.identityToken).toBe("identity-token-jwt");
-  });
-
-  it("falls back to the session JWT when the session was already established with an identity token", async () => {
-    const { requirePrivyIdentityToken, requirePrivySession } =
-      await loadServerModule({
-        accessResult: "invalid",
-      });
-
-    const req = new Request("http://localhost/api/privy/sui/sign", {
-      headers: {
-        Authorization: "Bearer identity-token-jwt",
-      },
-    });
-
-    const session = await requirePrivySession(req);
-    expect("response" in session).toBe(false);
-    if ("response" in session) {
-      return;
-    }
-
-    const identity = await requirePrivyIdentityToken(req, session);
-    expect("response" in identity).toBe(false);
-    if ("response" in identity) {
-      return;
-    }
-
-    expect(identity.identityToken).toBe("identity-token-jwt");
-  });
-
-  it("rejects signing requests that only provide an access-token session without an identity-token header", async () => {
-    const { requirePrivyIdentityToken, requirePrivySession } =
-      await loadServerModule();
-
-    const req = new Request("http://localhost/api/privy/sui/sign", {
-      headers: {
-        Authorization: "Bearer access-token-jwt",
-      },
-    });
-
-    const session = await requirePrivySession(req);
-    expect("response" in session).toBe(false);
-    if ("response" in session) {
-      return;
-    }
-
-    const identity = await requirePrivyIdentityToken(req, session);
-    expect("response" in identity).toBe(true);
-    if (!("response" in identity)) {
-      return;
-    }
-
-    expect(identity.response.status).toBe(401);
-    await expect(identity.response.json()).resolves.toEqual({
-      error: "Missing Privy identity token",
-    });
-  });
-
-  it("rejects identity tokens that belong to a different Privy user than the active session", async () => {
-    const {
-      requirePrivyIdentityToken,
-      requirePrivySession,
-      verifyIdentityToken,
-    } = await loadServerModule();
-
-    verifyIdentityToken.mockResolvedValueOnce(
-      buildUserFixture("privy-other-user"),
-    );
-
-    const req = new Request("http://localhost/api/privy/sui/sign", {
-      headers: {
-        Authorization: "Bearer access-token-jwt",
-        "x-privy-identity-token": "identity-token-jwt",
-      },
-    });
-
-    const session = await requirePrivySession(req);
-    expect("response" in session).toBe(false);
-    if ("response" in session) {
-      return;
-    }
-
-    const identity = await requirePrivyIdentityToken(req, session);
-    expect("response" in identity).toBe(true);
-    if (!("response" in identity)) {
-      return;
-    }
-
-    expect(identity.response.status).toBe(401);
-    await expect(identity.response.json()).resolves.toEqual({
-      error: "Mismatched Privy identity token",
     });
   });
 });
