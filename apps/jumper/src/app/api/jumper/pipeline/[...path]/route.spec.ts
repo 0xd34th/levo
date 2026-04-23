@@ -59,7 +59,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     const [target, init] = vi.mocked(fetch).mock.calls[0] as [
       URL,
       {
-        body: ArrayBuffer;
+        body: string;
         headers: Headers;
         method: string;
         redirect: string;
@@ -71,7 +71,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     );
     expect(init.method).toBe("POST");
     expect(init.redirect).toBe("follow");
-    expect(new TextDecoder().decode(init.body)).toContain('"fromAmount"');
+    expect(init.body).toContain('"fromAmount"');
     expect(init.headers.get("content-type")).toBe("application/json");
     expect(init.headers.get("x-lifi-integrator")).toBe("jumper.krilly.ai");
     expect(init.headers.get("origin")).toBeNull();
@@ -79,6 +79,86 @@ describe("/api/jumper/pipeline/[...path]", () => {
     expect(init.headers.get("x-forwarded-for")).toBeNull();
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("adds an aftermath deny guard to Sui advanced/routes requests", async () => {
+    const request = new NextRequest(
+      "https://jumper.krilly.ai/api/jumper/pipeline/v1/advanced/routes",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          referer: "https://jumper.krilly.ai/en/swap/sui",
+        },
+        body: JSON.stringify({
+          fromAmount: "100000000",
+          fromChainId: 9270000000000000,
+          fromTokenAddress:
+            "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+          toChainId: 9270000000000000,
+          toTokenAddress:
+            "0x375f70cf2ae4c00bf37117d0c85a2c71545e6ee05c4a5c7d282cd66a4504b068::usdt::USDT",
+          options: {
+            order: "RECOMMENDED",
+            exchanges: {
+              allow: ["aftermath", "cetus"],
+            },
+          },
+        }),
+      },
+    );
+
+    await POST(request, {
+      params: Promise.resolve({ path: ["v1", "advanced", "routes"] }),
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [
+      URL,
+      {
+        body: string;
+      },
+    ];
+
+    expect(JSON.parse(init.body)).toMatchObject({
+      options: {
+        order: "RECOMMENDED",
+        exchanges: {
+          allow: ["cetus"],
+          deny: ["aftermath"],
+        },
+      },
+    });
+  });
+
+  it("short-circuits Sui aftermath stepTransaction requests before upstream", async () => {
+    const request = new NextRequest(
+      "https://jumper.krilly.ai/api/jumper/pipeline/v1/advanced/stepTransaction",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          tool: "aftermath",
+          action: {
+            fromToken: { chainId: 9270000000000000 },
+            toToken: { chainId: 9270000000000000 },
+          },
+        }),
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ path: ["v1", "advanced", "stepTransaction"] }),
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      message:
+        "[sui] Aftermath routes are temporarily disabled on Jumper because transaction generation is failing upstream",
+      code: 1001,
+    });
   });
 
   it("proxies GET requests with the original query string intact", async () => {
