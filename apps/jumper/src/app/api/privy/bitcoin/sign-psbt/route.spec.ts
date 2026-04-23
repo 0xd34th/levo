@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const envBackup = {
+  PRIVY_AUTHORIZATION_PRIVATE_KEY: process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY,
+};
 
 async function loadRouteModule() {
   vi.resetModules();
@@ -22,6 +26,8 @@ async function loadRouteModule() {
   });
 
   vi.doMock("@/lib/privy/server", () => ({
+    getPrivyAuthorizationPrivateKey: () =>
+      process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY ?? "",
     requirePrivySession,
   }));
   vi.doMock("@/lib/privy/bitcoin", () => ({
@@ -40,9 +46,19 @@ async function loadRouteModule() {
 describe("POST /api/privy/bitcoin/sign-psbt", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY = "wallet-auth:test-priv-key";
   });
 
-  it("passes the verified session JWT into bitcoin rawSign helpers and ignores legacy identity-token headers", async () => {
+  afterEach(() => {
+    if (envBackup.PRIVY_AUTHORIZATION_PRIVATE_KEY === undefined) {
+      delete process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY;
+    } else {
+      process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY =
+        envBackup.PRIVY_AUTHORIZATION_PRIVATE_KEY;
+    }
+  });
+
+  it("delegates PSBT signing to signPrivyBitcoinPsbt with the app authorization key", async () => {
     const { POST, requirePrivySession, signPrivyBitcoinPsbt } =
       await loadRouteModule();
 
@@ -52,7 +68,6 @@ describe("POST /api/privy/bitcoin/sign-psbt", () => {
         headers: {
           Authorization: "Bearer session-access-token",
           "Content-Type": "application/json",
-          "x-privy-identity-token": "legacy-identity-token",
         },
         body: JSON.stringify({
           psbt: "unsigned-psbt",
@@ -62,10 +77,10 @@ describe("POST /api/privy/bitcoin/sign-psbt", () => {
 
     expect(requirePrivySession).toHaveBeenCalledTimes(1);
     expect(signPrivyBitcoinPsbt).toHaveBeenCalledWith({
+      authorizationPrivateKey: "wallet-auth:test-priv-key",
       privy: expect.any(Object),
       psbt: "unsigned-psbt",
       publicKey: "02abc123",
-      sessionJwt: "session-access-token",
       walletId: "wallet-btc",
     });
     expect(response.status).toBe(200);

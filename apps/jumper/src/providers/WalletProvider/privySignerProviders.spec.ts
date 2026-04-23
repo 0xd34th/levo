@@ -65,6 +65,7 @@ describe("privy signer providers", () => {
     expect(resolveSignerSession).toHaveBeenCalledTimes(1);
     expect(PrivySuiSignerMock).toHaveBeenCalledWith({
       publicKey: "sui-public-key",
+      refreshSessionJwt: expect.any(Function),
       sessionJwt: "session-access-token",
     });
     expect(executor).toMatchObject({
@@ -74,6 +75,7 @@ describe("privy signer providers", () => {
       signer: {
         params: {
           publicKey: "sui-public-key",
+          refreshSessionJwt: expect.any(Function),
           sessionJwt: "session-access-token",
         },
       },
@@ -157,6 +159,7 @@ describe("privy signer providers", () => {
     expect(resolveSignerSession).toHaveBeenCalledTimes(1);
     expect(signBitcoinPsbtMock).toHaveBeenCalledWith({
       psbt: "unsigned-psbt",
+      refreshSessionJwt: expect.any(Function),
       sessionJwt: "session-access-token",
     });
   });

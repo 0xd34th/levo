@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const envBackup = {
+  PRIVY_AUTHORIZATION_PRIVATE_KEY: process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY,
+};
 
 async function loadRouteModule() {
   vi.resetModules();
@@ -13,6 +17,10 @@ async function loadRouteModule() {
       }),
     },
     sessionJwt: "session-access-token",
+    sessionJwtType: "access",
+    user: {
+      id: "privy-user-1",
+    },
     walletFleet: {
       wallets: {
         sui: {
@@ -23,6 +31,8 @@ async function loadRouteModule() {
   });
 
   vi.doMock("@/lib/privy/server", () => ({
+    getPrivyAuthorizationPrivateKey: () =>
+      process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY ?? "",
     requirePrivySession,
   }));
 
@@ -38,9 +48,20 @@ async function loadRouteModule() {
 describe("POST /api/privy/sui/sign", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY = "wallet-auth:test-priv-key";
   });
 
-  it("signs with the verified session JWT and ignores legacy identity-token headers", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (envBackup.PRIVY_AUTHORIZATION_PRIVATE_KEY === undefined) {
+      delete process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY;
+    } else {
+      process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY =
+        envBackup.PRIVY_AUTHORIZATION_PRIVATE_KEY;
+    }
+  });
+
+  it("signs the digest with the app authorization private key", async () => {
     const { POST, rawSign, requirePrivySession } = await loadRouteModule();
 
     const response = await POST(
@@ -49,7 +70,6 @@ describe("POST /api/privy/sui/sign", () => {
         headers: {
           Authorization: "Bearer session-access-token",
           "Content-Type": "application/json",
-          "x-privy-identity-token": "legacy-identity-token",
         },
         body: JSON.stringify({
           digest: "deadbeef",
@@ -60,7 +80,7 @@ describe("POST /api/privy/sui/sign", () => {
     expect(requirePrivySession).toHaveBeenCalledTimes(1);
     expect(rawSign).toHaveBeenCalledWith("wallet-sui", {
       authorization_context: {
-        user_jwts: ["session-access-token"],
+        authorization_private_keys: ["wallet-auth:test-priv-key"],
       },
       params: {
         hash: "0xdeadbeef",
@@ -70,5 +90,43 @@ describe("POST /api/privy/sui/sign", () => {
     await expect(response.json()).resolves.toEqual({
       signature: "0xdeadbeef",
     });
+  });
+
+  it("returns a structured 502 error response when Privy rawSign fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { POST, rawSign } = await loadRouteModule();
+    rawSign.mockRejectedValueOnce(new Error("Invalid JWT token provided"));
+
+    const response = await POST(
+      new Request("http://localhost/api/privy/sui/sign", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer session-access-token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          digest: "deadbeef",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid JWT token provided",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "[privy/sui/sign] rawSign failed",
+      expect.objectContaining({
+        digestPrefix: "deadbeef",
+        error: expect.objectContaining({
+          message: "Invalid JWT token provided",
+          name: "Error",
+        }),
+        sessionJwtType: "access",
+        sessionUserId: "privy-user-1",
+        subMatchesSessionUser: false,
+        walletId: "wallet-sui",
+      }),
+    );
   });
 });

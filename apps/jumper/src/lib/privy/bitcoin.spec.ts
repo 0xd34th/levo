@@ -78,7 +78,44 @@ describe("bitcoin Privy signing helpers", () => {
     });
   });
 
-  it("passes the signer session JWT through to Privy rawSign", async () => {
+  it("retries once with a fresh session JWT when bitcoin signing rejects the cached token", async () => {
+    const { signBitcoinPsbt } = await import("./bitcoin");
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Invalid JWT token provided" }), {
+          status: 502,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ psbt: "signed-psbt" }), {
+          status: 200,
+        }),
+      );
+
+    const refreshSessionJwt = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValue("fresh-session-access-token");
+
+    await expect(
+      signBitcoinPsbt({
+        psbt: "unsigned-psbt",
+        refreshSessionJwt,
+        sessionJwt: "stale-session-access-token",
+      }),
+    ).resolves.toBe("signed-psbt");
+
+    expect(refreshSessionJwt).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls[1]?.[1]).toMatchObject({
+      headers: {
+        Authorization: "Bearer fresh-session-access-token",
+        "Content-Type": "application/json",
+      },
+    });
+  });
+
+  it("passes the app authorization private key through to Privy rawSign", async () => {
     const { signPrivyBitcoinPsbt } = await import("./bitcoin");
     const rawSign = vi.fn().mockResolvedValue({
       signature: "0xbeef",
@@ -93,6 +130,7 @@ describe("bitcoin Privy signing helpers", () => {
 
     await expect(
       signPrivyBitcoinPsbt({
+        authorizationPrivateKey: "wallet-auth:test-priv-key",
         privy: {
           wallets: () => ({
             rawSign,
@@ -100,7 +138,6 @@ describe("bitcoin Privy signing helpers", () => {
         },
         psbt: "unsigned-psbt",
         publicKey: "02abc123",
-        sessionJwt: "session-access-token",
         walletId: "wallet-btc",
       }),
     ).resolves.toBe("signed-psbt-hex");
@@ -109,7 +146,7 @@ describe("bitcoin Privy signing helpers", () => {
     expect(fromHexMock).toHaveBeenCalledWith("unsigned-psbt");
     expect(rawSign).toHaveBeenCalledWith("wallet-btc", {
       authorization_context: {
-        user_jwts: ["session-access-token"],
+        authorization_private_keys: ["wallet-auth:test-priv-key"],
       },
       params: {
         hash: "0xdead",
