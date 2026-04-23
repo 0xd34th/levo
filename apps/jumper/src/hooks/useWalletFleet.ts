@@ -10,6 +10,13 @@ import {
 
 const walletFleetQueryKey = ["privy-wallet-fleet"];
 
+class WalletFleetAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WalletFleetAuthError";
+  }
+}
+
 async function fetchWalletFleet(userJwt: string): Promise<WalletFleetResponse> {
   const response = await fetch("/api/privy/wallet-fleet", {
     headers: {
@@ -18,14 +25,22 @@ async function fetchWalletFleet(userJwt: string): Promise<WalletFleetResponse> {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch wallet fleet");
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    const message = payload?.error || "Failed to fetch wallet fleet";
+    if (response.status === 401) {
+      throw new WalletFleetAuthError(message);
+    }
+
+    throw new Error(message);
   }
 
   return response.json();
 }
 
 export function useWalletFleet() {
-  const { authenticated, getAccessToken, ready } = usePrivy();
+  const { authenticated, getAccessToken, logout, ready } = usePrivy();
 
   return useQuery({
     queryKey: walletFleetQueryKey,
@@ -35,7 +50,15 @@ export function useWalletFleet() {
         throw new Error("Missing Privy session token");
       }
 
-      return fetchWalletFleet(sessionJwt);
+      try {
+        return await fetchWalletFleet(sessionJwt);
+      } catch (error) {
+        if (error instanceof WalletFleetAuthError) {
+          await logout();
+        }
+
+        throw error;
+      }
     },
     enabled: ready && authenticated,
     staleTime: 30_000,

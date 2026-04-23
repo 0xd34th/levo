@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { signPrivyBitcoinPsbt } from "@/lib/privy/bitcoin";
-import { requirePrivySession } from "@/lib/privy/server";
+import {
+  getPrivyAuthorizationPrivateKey,
+  requirePrivySession,
+} from "@/lib/privy/server";
 
 export const runtime = "nodejs";
 
@@ -34,10 +37,10 @@ export async function POST(req: Request) {
   }
 
   const signedPsbt = await signPrivyBitcoinPsbt({
+    authorizationPrivateKey: getPrivyAuthorizationPrivateKey(),
     privy: session.privy,
     psbt: parsed.data.psbt,
     publicKey: wallet.publicKey,
-    sessionJwt: session.sessionJwt,
     walletId: wallet.walletId,
   });
 

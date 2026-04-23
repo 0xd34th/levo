@@ -23,6 +23,8 @@ export function buildPrivySuiSdkProvider(params: {
 
       return new PrivySuiSigner({
         publicKey: params.publicKey,
+        refreshSessionJwt: async () =>
+          (await params.resolveSignerSession()).sessionJwt,
         sessionJwt,
       });
     },
@@ -77,6 +79,8 @@ export function buildPrivyBitcoinSdkProvider(params: {
 
           return signBitcoinPsbt({
             psbt: request.params.psbt,
+            refreshSessionJwt: async () =>
+              (await params.resolveSignerSession()).sessionJwt,
             sessionJwt,
           });
         },

@@ -1,6 +1,6 @@
 import * as ecc from "@bitcoinerlab/secp256k1";
 import { initEccLib, Psbt } from "bitcoinjs-lib";
-import { LiFiErrorCode, ProviderError } from "@lifi/sdk";
+import { postPrivySigningRequest } from "@/lib/privy/clientSigning";
 
 function normalizeHex(value: string): string {
   return value.startsWith("0x") ? value.slice(2) : value;
@@ -8,41 +8,30 @@ function normalizeHex(value: string): string {
 
 export async function signBitcoinPsbt(params: {
   psbt: string;
+  refreshSessionJwt?: (() => Promise<string | null>) | undefined;
   sessionJwt: string;
 }): Promise<string> {
-  const response = await fetch("/api/privy/bitcoin/sign-psbt", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.sessionJwt}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const payload = await postPrivySigningRequest<{ psbt: string }>({
+    body: {
       psbt: params.psbt,
-    }),
+    },
+    defaultErrorMessage: "Failed to sign bitcoin transaction",
+    refreshSessionJwt: params.refreshSessionJwt,
+    sessionJwt: params.sessionJwt,
+    url: "/api/privy/bitcoin/sign-psbt",
   });
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: string }
-      | null;
-
-    throw new ProviderError(
-      LiFiErrorCode.ProviderUnavailable,
-      payload?.error || "Failed to sign bitcoin transaction",
-    );
-  }
-
-  const payload = (await response.json()) as { psbt: string };
   return payload.psbt;
 }
 
 export async function signPrivyBitcoinPsbt(params: {
+  authorizationPrivateKey: string;
   privy: {
     wallets(): {
       rawSign: (
         walletId: string,
         input: {
-          authorization_context: { user_jwts: string[] };
+          authorization_context: { authorization_private_keys: string[] };
           params: { hash: `0x${string}` };
         },
       ) => Promise<{ signature: string }>;
@@ -50,7 +39,6 @@ export async function signPrivyBitcoinPsbt(params: {
   };
   psbt: string;
   publicKey: string;
-  sessionJwt: string;
   walletId: string;
 }): Promise<string> {
   initEccLib(ecc);
@@ -66,7 +54,7 @@ export async function signPrivyBitcoinPsbt(params: {
       const digestHex = Buffer.from(hash).toString("hex");
       const result = await params.privy.wallets().rawSign(params.walletId, {
         authorization_context: {
-          user_jwts: [params.sessionJwt],
+          authorization_private_keys: [params.authorizationPrivateKey],
         },
         params: {
           hash: `0x${digestHex}`,

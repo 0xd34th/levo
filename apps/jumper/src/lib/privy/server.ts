@@ -1,6 +1,7 @@
 import type { User } from "@privy-io/node";
 import { InvalidAuthTokenError, PrivyClient } from "@privy-io/node";
 import { NextResponse } from "next/server";
+import { summarizeJwtForLogs } from "./jwt";
 import {
   buildWalletFleetResponse,
   getMissingPrivyWalletChains,
@@ -46,6 +47,36 @@ function getTokenFromHeader(req: Request, headerName: string): string | null {
   return value.length > 0 ? value : null;
 }
 
+function getPrivyConfig(): { appId: string; appSecret: string } {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+  const appSecret = process.env.PRIVY_APP_SECRET?.trim();
+
+  if (!appId || !appSecret) {
+    throw new Error("Missing Privy configuration");
+  }
+
+  return { appId, appSecret };
+}
+
+function audienceIncludesAppId(
+  audience: string | string[] | undefined,
+  appId: string,
+): boolean {
+  if (typeof audience === "string") {
+    return audience === appId;
+  }
+
+  return Array.isArray(audience) && audience.includes(appId);
+}
+
+function isJwtAudienceForDifferentPrivyApp(
+  sessionJwt: string,
+  appId: string,
+): boolean {
+  const audience = summarizeJwtForLogs(sessionJwt).claims?.aud;
+  return audience !== undefined && !audienceIncludesAppId(audience, appId);
+}
+
 async function verifyPrivySessionToken(
   privy: PrivyClient,
   sessionJwt: string,
@@ -75,17 +106,27 @@ async function verifyPrivySessionToken(
 
 export function getPrivyClient(): PrivyClient {
   if (!privyClientSingleton) {
-    const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
-    const appSecret = process.env.PRIVY_APP_SECRET?.trim();
-
-    if (!appId || !appSecret) {
-      throw new Error("Missing Privy configuration");
-    }
-
+    const { appId, appSecret } = getPrivyConfig();
     privyClientSingleton = new PrivyClient({ appId, appSecret });
   }
 
   return privyClientSingleton;
+}
+
+export function getPrivyAuthorizationPrivateKey(): string {
+  const key = process.env.PRIVY_AUTHORIZATION_PRIVATE_KEY?.trim();
+  if (!key) {
+    throw new Error("Missing PRIVY_AUTHORIZATION_PRIVATE_KEY");
+  }
+  return key;
+}
+
+export function getPrivyAuthorizationKeyId(): string {
+  const id = process.env.PRIVY_AUTHORIZATION_KEY_ID?.trim();
+  if (!id) {
+    throw new Error("Missing PRIVY_AUTHORIZATION_KEY_ID");
+  }
+  return id;
 }
 
 export async function ensureWalletFleetForUser(
@@ -102,8 +143,13 @@ export async function ensureWalletFleetForUser(
     return walletFleet;
   }
 
+  const signerId = getPrivyAuthorizationKeyId();
+
   const refreshedUser = await privy.users().pregenerateWallets(user.id, {
-    wallets: missingWallets.map((chain_type) => ({ chain_type })),
+    wallets: missingWallets.map((chain_type) => ({
+      chain_type,
+      additional_signers: [{ signer_id: signerId }],
+    })),
   });
 
   walletFleet = buildWalletFleetResponse({
@@ -133,6 +179,13 @@ export async function requirePrivySession(req: Request): Promise<
 
   let privy: PrivyClient;
   try {
+    const { appId } = getPrivyConfig();
+    if (isJwtAudienceForDifferentPrivyApp(sessionJwt, appId)) {
+      return {
+        response: jsonError("Invalid or expired Privy session", 401),
+      };
+    }
+
     privy = getPrivyClient();
   } catch (error) {
     console.error("Failed to initialize Privy client", error);

@@ -5,7 +5,7 @@ import {
 } from "@mysten/sui/verify";
 import type { PublicKey } from "@mysten/sui/cryptography";
 import { Signer, type SignatureScheme } from "@mysten/sui/cryptography";
-import { LiFiErrorCode, ProviderError } from "@lifi/sdk";
+import { postPrivySigningRequest } from "@/lib/privy/clientSigning";
 
 export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
   const normalizedHex = publicKey.startsWith("0x")
@@ -31,30 +31,17 @@ export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
 async function signSuiDigest(params: {
   sessionJwt: string;
   digest: Uint8Array;
+  refreshSessionJwt?: (() => Promise<string | null>) | undefined;
 }): Promise<Uint8Array<ArrayBuffer>> {
-  const response = await fetch("/api/privy/sui/sign", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.sessionJwt}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  const payload = await postPrivySigningRequest<{ signature: string }>({
+    body: {
       digest: Buffer.from(params.digest).toString("hex"),
-    }),
+    },
+    defaultErrorMessage: "Failed to sign Sui transaction",
+    refreshSessionJwt: params.refreshSessionJwt,
+    sessionJwt: params.sessionJwt,
+    url: "/api/privy/sui/sign",
   });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as
-      | { error?: string }
-      | null;
-
-    throw new ProviderError(
-      LiFiErrorCode.ProviderUnavailable,
-      payload?.error || "Failed to sign Sui transaction",
-    );
-  }
-
-  const payload = (await response.json()) as { signature: string };
   const signatureHex = payload.signature.startsWith("0x")
     ? payload.signature.slice(2)
     : payload.signature;
@@ -64,20 +51,24 @@ async function signSuiDigest(params: {
 
 export class PrivySuiSigner extends Signer {
   #publicKey: PublicKey;
+  #refreshSessionJwt?: (() => Promise<string | null>) | undefined;
   #sessionJwt: string;
 
   constructor(params: {
     publicKey: string;
+    refreshSessionJwt?: (() => Promise<string | null>) | undefined;
     sessionJwt: string;
   }) {
     super();
     this.#publicKey = decodeStoredSuiPublicKey(params.publicKey);
+    this.#refreshSessionJwt = params.refreshSessionJwt;
     this.#sessionJwt = params.sessionJwt;
   }
 
   override async sign(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
     return signSuiDigest({
       digest: bytes,
+      refreshSessionJwt: this.#refreshSessionJwt,
       sessionJwt: this.#sessionJwt,
     });
   }
