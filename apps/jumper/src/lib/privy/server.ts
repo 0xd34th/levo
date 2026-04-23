@@ -6,8 +6,15 @@ import {
   getMissingPrivyWalletChains,
   type WalletFleetResponse,
 } from "./wallet-fleet";
+import { PRIVY_IDENTITY_TOKEN_HEADER } from "./constants";
 
 let privyClientSingleton: PrivyClient | null = null;
+
+type VerifiedPrivySessionToken = {
+  sessionJwt: string;
+  sessionJwtType: "access" | "identity";
+  userId: string;
+};
 
 function jsonError(message: string, status: number) {
   return NextResponse.json(
@@ -22,13 +29,49 @@ function jsonError(message: string, status: number) {
 }
 
 function getBearerToken(req: Request): string | null {
-  const header = req.headers.get("authorization");
+  return getTokenFromHeader(req, "authorization");
+}
+
+function getTokenFromHeader(req: Request, headerName: string): string | null {
+  const header = req.headers.get(headerName);
   if (!header) {
     return null;
   }
 
-  const match = /^Bearer\s+(.+)$/.exec(header.trim());
-  return match?.[1] ?? null;
+  if (headerName.toLowerCase() === "authorization") {
+    const match = /^Bearer\s+(.+)$/.exec(header.trim());
+    return match?.[1] ?? null;
+  }
+
+  const value = header.trim();
+  return value.length > 0 ? value : null;
+}
+
+async function verifyPrivySessionToken(
+  privy: PrivyClient,
+  sessionJwt: string,
+): Promise<VerifiedPrivySessionToken> {
+  const authUtils = privy.utils().auth();
+
+  try {
+    const auth = await authUtils.verifyAccessToken(sessionJwt);
+    return {
+      sessionJwt,
+      sessionJwtType: "access",
+      userId: auth.user_id,
+    };
+  } catch (error) {
+    if (!(error instanceof InvalidAuthTokenError)) {
+      throw error;
+    }
+
+    const identityUser = await authUtils.verifyIdentityToken(sessionJwt);
+    return {
+      sessionJwt,
+      sessionJwtType: "identity",
+      userId: identityUser.id,
+    };
+  }
 }
 
 export function getPrivyClient(): PrivyClient {
@@ -75,14 +118,15 @@ export async function ensureWalletFleetForUser(
 export async function requirePrivySession(req: Request): Promise<
   | {
       privy: PrivyClient;
-      userJwt: string;
+      sessionJwt: string;
+      sessionJwtType: "access" | "identity";
       user: User;
       walletFleet: WalletFleetResponse;
     }
   | { response: NextResponse }
 > {
-  const userJwt = getBearerToken(req);
-  if (!userJwt) {
+  const sessionJwt = getBearerToken(req);
+  if (!sessionJwt) {
     return {
       response: jsonError("Missing Privy session token", 401),
     };
@@ -99,27 +143,15 @@ export async function requirePrivySession(req: Request): Promise<
   }
 
   try {
-    const authUtils = privy.utils().auth();
+    const verifiedSession = await verifyPrivySessionToken(privy, sessionJwt);
 
-    let userId: string;
-    try {
-      const auth = await authUtils.verifyAccessToken(userJwt);
-      userId = auth.user_id;
-    } catch (error) {
-      if (!(error instanceof InvalidAuthTokenError)) {
-        throw error;
-      }
-
-      const identityUser = await authUtils.verifyIdentityToken(userJwt);
-      userId = identityUser.id;
-    }
-
-    const user = await privy.users()._get(userId);
+    const user = await privy.users()._get(verifiedSession.userId);
     const walletFleet = await ensureWalletFleetForUser(privy, user);
 
     return {
       privy,
-      userJwt,
+      sessionJwt: verifiedSession.sessionJwt,
+      sessionJwtType: verifiedSession.sessionJwtType,
       user,
       walletFleet,
     };
@@ -131,6 +163,59 @@ export async function requirePrivySession(req: Request): Promise<
     }
 
     console.error("Failed to verify Privy session", error);
+    return {
+      response: jsonError("Privy authentication unavailable", 503),
+    };
+  }
+}
+
+export async function requirePrivyIdentityToken(
+  req: Request,
+  session: {
+    privy: PrivyClient;
+    sessionJwt: string;
+    sessionJwtType: "access" | "identity";
+    user: User;
+  },
+): Promise<
+  | {
+      identityToken: string;
+    }
+  | { response: NextResponse }
+> {
+  const identityToken =
+    getTokenFromHeader(req, PRIVY_IDENTITY_TOKEN_HEADER) ??
+    (session.sessionJwtType === "identity" ? session.sessionJwt : null);
+
+  if (!identityToken) {
+    return {
+      response: jsonError("Missing Privy identity token", 401),
+    };
+  }
+
+  try {
+    const identityUser = await session.privy
+      .utils()
+      .auth()
+      .verifyIdentityToken(identityToken);
+
+    if (identityUser.id !== session.user.id) {
+      return {
+        response: jsonError("Mismatched Privy identity token", 401),
+      };
+    }
+
+    return {
+      identityToken,
+    };
+  } catch (error) {
+    if (error instanceof InvalidAuthTokenError) {
+      return {
+        response: jsonError("Invalid or expired Privy identity token", 401),
+      };
+    }
+
+    console.error("Failed to verify Privy identity token", error);
     return {
       response: jsonError("Privy authentication unavailable", 503),
     };

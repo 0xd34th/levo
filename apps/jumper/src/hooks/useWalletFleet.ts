@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChainType } from "@lifi/sdk";
-import { getIdentityToken, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
   mapLifiChainTypeToFleetChain,
@@ -25,17 +25,17 @@ async function fetchWalletFleet(userJwt: string): Promise<WalletFleetResponse> {
 }
 
 export function useWalletFleet() {
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, getAccessToken, ready } = usePrivy();
 
   return useQuery({
     queryKey: walletFleetQueryKey,
     queryFn: async () => {
-      const userJwt = await getIdentityToken();
-      if (!userJwt) {
-        throw new Error("Missing Privy identity token");
+      const sessionJwt = await getAccessToken();
+      if (!sessionJwt) {
+        throw new Error("Missing Privy session token");
       }
 
-      return fetchWalletFleet(userJwt);
+      return fetchWalletFleet(sessionJwt);
     },
     enabled: ready && authenticated,
     staleTime: 30_000,

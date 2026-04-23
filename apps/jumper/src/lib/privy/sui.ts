@@ -5,6 +5,7 @@ import {
 } from "@mysten/sui/verify";
 import type { PublicKey } from "@mysten/sui/cryptography";
 import { Signer, type SignatureScheme } from "@mysten/sui/cryptography";
+import { PRIVY_IDENTITY_TOKEN_HEADER } from "./constants";
 
 export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
   const normalizedHex = publicKey.startsWith("0x")
@@ -28,14 +29,16 @@ export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
 }
 
 async function signSuiDigest(params: {
-  userJwt: string;
+  identityToken: string;
+  sessionJwt: string;
   digest: Uint8Array;
 }): Promise<Uint8Array<ArrayBuffer>> {
   const response = await fetch("/api/privy/sui/sign", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${params.userJwt}`,
+      Authorization: `Bearer ${params.sessionJwt}`,
       "Content-Type": "application/json",
+      [PRIVY_IDENTITY_TOKEN_HEADER]: params.identityToken,
     },
     body: JSON.stringify({
       digest: Buffer.from(params.digest).toString("hex"),
@@ -55,19 +58,26 @@ async function signSuiDigest(params: {
 }
 
 export class PrivySuiSigner extends Signer {
-  #userJwt: string;
+  #identityToken: string;
   #publicKey: PublicKey;
+  #sessionJwt: string;
 
-  constructor(params: { publicKey: string; userJwt: string }) {
+  constructor(params: {
+    identityToken: string;
+    publicKey: string;
+    sessionJwt: string;
+  }) {
     super();
-    this.#userJwt = params.userJwt;
+    this.#identityToken = params.identityToken;
     this.#publicKey = decodeStoredSuiPublicKey(params.publicKey);
+    this.#sessionJwt = params.sessionJwt;
   }
 
   override async sign(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
     return signSuiDigest({
-      userJwt: this.#userJwt,
       digest: bytes,
+      identityToken: this.#identityToken,
+      sessionJwt: this.#sessionJwt,
     });
   }
 

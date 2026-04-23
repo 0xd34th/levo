@@ -208,7 +208,7 @@ const WalletContextsProvider: FC<
     wagmiConfig: ReturnType<typeof createPrivyWagmiConfig>;
   }>
 > = ({ children, wagmiConfig }) => {
-  const { authenticated, login, logout, ready } = usePrivy();
+  const { authenticated, getAccessToken, login, logout, ready } = usePrivy();
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
@@ -480,20 +480,28 @@ const WalletContextsProvider: FC<
             throw new Error("Missing Privy Sui wallet");
           }
 
-          const userJwt = await getIdentityToken();
-          if (!userJwt) {
+          const [sessionJwt, identityToken] = await Promise.all([
+            getAccessToken(),
+            getIdentityToken(),
+          ]);
+          if (!sessionJwt) {
+            throw new Error("Missing Privy session token");
+          }
+          if (!identityToken) {
             throw new Error("Missing Privy identity token");
           }
 
           return new PrivySuiSigner({
+            identityToken,
             publicKey: suiWallet.publicKey,
-            userJwt,
+            sessionJwt,
           });
         },
       }) as never,
     }),
     [
       authenticated,
+      getAccessToken,
       installedWallets,
       login,
       logout,
@@ -532,8 +540,14 @@ const WalletContextsProvider: FC<
             throw new Error("Missing Privy bitcoin wallet");
           }
 
-          const userJwt = await getIdentityToken();
-          if (!userJwt) {
+          const [sessionJwt, identityToken] = await Promise.all([
+            getAccessToken(),
+            getIdentityToken(),
+          ]);
+          if (!sessionJwt) {
+            throw new Error("Missing Privy session token");
+          }
+          if (!identityToken) {
             throw new Error("Missing Privy identity token");
           }
 
@@ -555,8 +569,9 @@ const WalletContextsProvider: FC<
               }
 
               return signBitcoinPsbt({
-                userJwt,
+                identityToken,
                 psbt: request.params.psbt,
+                sessionJwt,
               });
             },
           } as never;
@@ -568,6 +583,7 @@ const WalletContextsProvider: FC<
       bitcoinAccount,
       bitcoinWallet?.address,
       bitcoinWallet?.publicKey,
+      getAccessToken,
       installedWallets,
       login,
       logout,

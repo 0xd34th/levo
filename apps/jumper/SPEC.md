@@ -1,13 +1,13 @@
 ## Goal
 
-修复 `apps/jumper` 当前线上 `swap` 流程里 Privy JWT 合同漂移的问题：浏览器发起 Sui 交易时，`/api/privy/sui/sign` 不能再因为 `Invalid JWT token provided` 导致 `Failed to sign Sui transaction`，并且同一份修复要同时覆盖 `wallet-fleet` 与 bitcoin signing 的共享 `/api/privy/*` 鉴权链路。
+修复 `apps/jumper` 当前线上 Privy JWT 合同拆分错误的问题：浏览器发起 Sui 交易时，`/api/privy/sui/sign` 不能再因为 `Invalid JWT token provided` 导致 `Failed to sign Sui transaction`；同时 `wallet-fleet` 读取链钱包列表时也不能因为误改成 identity-token 路径而把地址全部打成 `Wallet is being provisioned`。
 
 ## Scope
 
 - 复现并修复浏览器到 `/api/privy/*` 的 JWT 传递与服务端校验链路。
-- 统一前端调用方、`requirePrivySession` 和 downstream `rawSign` 使用的用户 JWT 合同，避免只修 Sui 表象。
+- 把 `wallet-fleet` 场景和 `rawSign` 场景拆成正确的双轨 token 合同：session/access token 负责用户会话读取，identity token 负责 Privy wallet authorization key exchange。
 - 保持现有 widget、wallet-fleet 响应结构和已部署的 same-origin jumper proxy 合同不变。
-- 为 JWT fallback 和共享 session helper 增加回归测试。
+- 为 JWT fallback、identity-token header 校验，以及 `useWalletFleet` token 来源增加回归测试。
 
 ## Non-Goals
 
@@ -24,7 +24,8 @@
 ## Acceptance
 
 1. Sui signer 不再因为 `/api/privy/sui/sign` 校验 JWT 失败而返回 `Failed to sign Sui transaction` 这一类共享 auth 错误。
-2. `/api/privy/wallet-fleet`、`/api/privy/sui/sign`、`/api/privy/bitcoin/sign-psbt` 共用同一套 JWT session 合同，不再保留 “前端传 access token、服务端只认另一类 token” 的分裂状态。
-3. `requirePrivySession` 在 bearer token 为 identity token 时仍能验出 user 并拿到完整 wallet fleet；若 bearer token 是可用 access token，也继续兼容。
-4. 新增回归测试覆盖 access-token 路径、identity-token fallback 路径，以及双重校验都失败时返回鉴权错误。
-5. `apps/jumper` 的相关单测与必要 `typecheck` 通过。
+2. `wallet-fleet` 不再因为 identity-token 时序或空值问题把已有钱包地址统一打成 `Wallet is being provisioned`。
+3. `/api/privy/wallet-fleet` 继续接受稳定 session/access token；`/api/privy/sui/sign` 与 `/api/privy/bitcoin/sign-psbt` 则显式接收并校验 identity token，用于 Privy `rawSign`。
+4. 服务端会校验 identity token 与 session user 是否属于同一用户，避免把错误或串号的 identity token 直接下放到 `rawSign`。
+5. 新增回归测试覆盖 access-token session 路径、identity-token fallback 路径、identity-token header 校验，以及 `useWalletFleet` 的 token 来源。
+6. `apps/jumper` 的相关单测与必要 `typecheck` 通过。

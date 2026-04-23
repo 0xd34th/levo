@@ -1,19 +1,22 @@
 import * as ecc from "@bitcoinerlab/secp256k1";
 import { initEccLib, Psbt } from "bitcoinjs-lib";
+import { PRIVY_IDENTITY_TOKEN_HEADER } from "./constants";
 
 function normalizeHex(value: string): string {
   return value.startsWith("0x") ? value.slice(2) : value;
 }
 
 export async function signBitcoinPsbt(params: {
-  userJwt: string;
+  identityToken: string;
   psbt: string;
+  sessionJwt: string;
 }): Promise<string> {
   const response = await fetch("/api/privy/bitcoin/sign-psbt", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${params.userJwt}`,
+      Authorization: `Bearer ${params.sessionJwt}`,
       "Content-Type": "application/json",
+      [PRIVY_IDENTITY_TOKEN_HEADER]: params.identityToken,
     },
     body: JSON.stringify({
       psbt: params.psbt,
@@ -42,7 +45,7 @@ export async function signPrivyBitcoinPsbt(params: {
   };
   psbt: string;
   publicKey: string;
-  userJwt: string;
+  identityToken: string;
   walletId: string;
 }): Promise<string> {
   initEccLib(ecc);
@@ -58,7 +61,7 @@ export async function signPrivyBitcoinPsbt(params: {
       const digestHex = Buffer.from(hash).toString("hex");
       const result = await params.privy.wallets().rawSign(params.walletId, {
         authorization_context: {
-          user_jwts: [params.userJwt],
+          user_jwts: [params.identityToken],
         },
         params: {
           hash: `0x${digestHex}`,
