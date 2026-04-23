@@ -11,6 +11,7 @@ import { useChains } from "@/hooks/useChains";
 import { signBitcoinPsbt } from "@/lib/privy/bitcoin";
 import { PrivySuiSigner } from "@/lib/privy/sui";
 import { resolveConnectedAccount } from "@/providers/WalletProvider/resolveConnectedAccount";
+import { resolvePrivySignerTokens } from "@/providers/WalletProvider/resolvePrivySignerTokens";
 import { useUserTracking } from "@/hooks/userTracking";
 import { useMenuStore } from "@/stores/menu";
 import {
@@ -36,8 +37,8 @@ import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import {
-  getIdentityToken,
   PrivyProvider,
+  useIdentityToken,
   usePrivy,
 } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
@@ -209,6 +210,7 @@ const WalletContextsProvider: FC<
   }>
 > = ({ children, wagmiConfig }) => {
   const { authenticated, getAccessToken, login, logout, ready } = usePrivy();
+  const { identityToken } = useIdentityToken();
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
@@ -480,21 +482,15 @@ const WalletContextsProvider: FC<
             throw new Error("Missing Privy Sui wallet");
           }
 
-          const [sessionJwt, identityToken] = await Promise.all([
-            getAccessToken(),
-            getIdentityToken(),
-          ]);
-          if (!sessionJwt) {
-            throw new Error("Missing Privy session token");
-          }
-          if (!identityToken) {
-            throw new Error("Missing Privy identity token");
-          }
+          const signerTokens = await resolvePrivySignerTokens({
+            cachedIdentityToken: identityToken,
+            getAccessToken,
+          });
 
           return new PrivySuiSigner({
-            identityToken,
+            identityToken: signerTokens.identityToken,
             publicKey: suiWallet.publicKey,
-            sessionJwt,
+            sessionJwt: signerTokens.sessionJwt,
           });
         },
       }) as never,
@@ -502,6 +498,7 @@ const WalletContextsProvider: FC<
     [
       authenticated,
       getAccessToken,
+      identityToken,
       installedWallets,
       login,
       logout,
@@ -540,16 +537,10 @@ const WalletContextsProvider: FC<
             throw new Error("Missing Privy bitcoin wallet");
           }
 
-          const [sessionJwt, identityToken] = await Promise.all([
-            getAccessToken(),
-            getIdentityToken(),
-          ]);
-          if (!sessionJwt) {
-            throw new Error("Missing Privy session token");
-          }
-          if (!identityToken) {
-            throw new Error("Missing Privy identity token");
-          }
+          const signerTokens = await resolvePrivySignerTokens({
+            cachedIdentityToken: identityToken,
+            getAccessToken,
+          });
 
           return {
             account: {
@@ -569,9 +560,9 @@ const WalletContextsProvider: FC<
               }
 
               return signBitcoinPsbt({
-                identityToken,
+                identityToken: signerTokens.identityToken,
                 psbt: request.params.psbt,
-                sessionJwt,
+                sessionJwt: signerTokens.sessionJwt,
               });
             },
           } as never;
@@ -584,6 +575,7 @@ const WalletContextsProvider: FC<
       bitcoinWallet?.address,
       bitcoinWallet?.publicKey,
       getAccessToken,
+      identityToken,
       installedWallets,
       login,
       logout,
