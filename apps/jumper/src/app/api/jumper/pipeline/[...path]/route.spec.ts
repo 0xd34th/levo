@@ -211,7 +211,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
     const [target] = vi.mocked(fetch).mock.calls[0] as [URL];
 
     expect(String(target)).toBe(
-      "https://api-develop.jumper.exchange/pipeline/v1/chains",
+      "https://api.jumper.exchange/pipeline/v1/chains",
     );
   });
 

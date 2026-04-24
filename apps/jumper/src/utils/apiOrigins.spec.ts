@@ -40,9 +40,9 @@ describe("apiOrigins", () => {
     const { getBackendOrigin, getLifiBackendOrigin } =
       await import("./apiOrigins");
 
-    expect(getBackendOrigin()).toBe("https://api-develop.jumper.exchange/v1");
+    expect(getBackendOrigin()).toBe("https://api.jumper.exchange/v1");
     expect(getLifiBackendOrigin()).toBe(
-      "https://api-develop.jumper.exchange/pipeline",
+      "https://api.jumper.exchange/pipeline",
     );
   });
 });

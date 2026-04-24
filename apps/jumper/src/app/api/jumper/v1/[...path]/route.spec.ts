@@ -118,7 +118,7 @@ describe("/api/jumper/v1/[...path]", () => {
     const [target] = vi.mocked(fetch).mock.calls[0] as [URL];
 
     expect(String(target)).toBe(
-      "https://api-develop.jumper.exchange/v1/leaderboard",
+      "https://api.jumper.exchange/v1/leaderboard",
     );
   });
 
