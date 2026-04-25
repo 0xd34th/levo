@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { proxyRequest } from "@/app/api/jumper/proxyUtils";
 
 const backendProxyConfig = {
-  defaultTarget: "https://api-develop.jumper.exchange/v1",
+  defaultTarget: "https://api.jumper.exchange/v1",
   internalEnvKey: "JUMPER_INTERNAL_BACKEND_URL",
   publicEnvKey: "NEXT_PUBLIC_BACKEND_URL",
   publicProxyPath: "/api/jumper/v1",
