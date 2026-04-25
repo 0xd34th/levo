@@ -12,6 +12,7 @@ import {
   buildPrivyBitcoinSdkProvider,
   buildPrivySuiSdkProvider,
 } from "@/providers/WalletProvider/privySignerProviders";
+import { buildPrivyClientConfig } from "@/providers/WalletProvider/privyConfig";
 import { resolveConnectedAccount } from "@/providers/WalletProvider/resolveConnectedAccount";
 import { resolvePrivyExecutionSignerSession } from "@/providers/WalletProvider/resolvePrivySignerSession";
 import { useUserTracking } from "@/hooks/userTracking";
@@ -593,6 +594,14 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
       transports: transports as Record<number, ReturnType<typeof http>>,
     });
   }, [evmChains]);
+  const privyConfig = useMemo(
+    () =>
+      buildPrivyClientConfig({
+        defaultChain: evmChains[0],
+        supportedChains: evmChains,
+      }),
+    [evmChains],
+  );
   const privyAppId = envConfig.NEXT_PUBLIC_PRIVY_APP_ID;
 
   useEffect(() => {
@@ -608,26 +617,7 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <PrivyProvider
       appId={privyAppId}
-      config={{
-        appearance: {
-          walletChainType: "ethereum-and-solana",
-        },
-        defaultChain: evmChains[0],
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: "all-users",
-          },
-          showWalletUIs: false,
-          solana: {
-            createOnLogin: "all-users",
-          },
-        },
-        externalWallets: {
-          disableAllExternalWallets: true,
-        },
-        loginMethods: ["email", "google"],
-        supportedChains: evmChains,
-      }}
+      config={privyConfig}
     >
       <PrivyWagmiProvider
         config={wagmiConfig}

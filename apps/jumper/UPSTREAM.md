@@ -8,11 +8,11 @@
 
 This fork keeps the upstream Jumper UI as the execution surface, but replaces wallet UX with a Privy-backed account model:
 
-- Privy authentication only: `email` and `google`
+- Privy authentication: `email`, `google`, and Privy wallet login
 - Canonical embedded wallets per account: `ethereum`, `solana`, `sui`, `bitcoin-segwit`
 - LI.FI wallet contexts are auto-populated from the current Privy account
 - Destination `toAddress` auto-fills from the same account on the selected target chain
-- Wallet menu is replaced by an account drawer rather than an external-wallet picker
+- Wallet menu is replaced by an account drawer; external wallets are only exposed through the Privy login modal
 
 ## Sync Rules
 

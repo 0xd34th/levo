@@ -103,6 +103,37 @@ describe('wallet-fleet', () => {
     expect(response.wallets.evm?.walletId).toBe('wallet-first');
   });
 
+  it('reports wallet login when the user signs in with an external wallet', () => {
+    const response = buildWalletFleetResponse({
+      linkedAccounts: [
+        {
+          address: '0xexternal',
+          chain_type: 'ethereum',
+          connector_type: 'injected',
+          id: 'external-wallet',
+          type: 'wallet',
+          wallet_client: 'metamask',
+        },
+        {
+          address: '0xembedded',
+          chain_type: 'ethereum',
+          connector_type: 'embedded',
+          id: 'wallet-evm',
+          type: 'wallet',
+          wallet_client: 'privy',
+        },
+      ],
+      userId: 'privy-user-wallet',
+    });
+
+    expect(response.user).toEqual({
+      email: null,
+      id: 'privy-user-wallet',
+      loginMethod: 'wallet',
+    });
+    expect(response.wallets.evm?.walletId).toBe('wallet-evm');
+  });
+
   it('reports which canonical wallets are still missing', () => {
     const response = buildWalletFleetResponse({
       linkedAccounts: [

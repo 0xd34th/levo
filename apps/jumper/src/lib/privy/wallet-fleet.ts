@@ -20,7 +20,7 @@ export interface WalletFleetEntry {
 export interface WalletFleetUserSummary {
   email: string | null;
   id: string;
-  loginMethod: 'email' | 'google' | 'unknown';
+  loginMethod: 'email' | 'google' | 'wallet' | 'unknown';
 }
 
 export interface WalletFleetResponse {
@@ -119,6 +119,7 @@ export function mapFleetChainToLifiChainType(chain: WalletFleetChain): ChainType
 export function extractUserSummary(params: {
   linkedAccounts: Array<{
     address?: string | null;
+    connector_type?: string | null;
     email?: string | null;
     type?: string | null;
   }>;
@@ -145,6 +146,21 @@ export function extractUserSummary(params: {
       id: params.userId,
       email: googleAccount.email,
       loginMethod: 'google',
+    };
+  }
+
+  const externalWalletAccount = params.linkedAccounts.find(
+    (account) =>
+      account.type === 'wallet' &&
+      account.address &&
+      account.connector_type !== 'embedded',
+  );
+
+  if (externalWalletAccount?.address) {
+    return {
+      id: params.userId,
+      email: null,
+      loginMethod: 'wallet',
     };
   }
 

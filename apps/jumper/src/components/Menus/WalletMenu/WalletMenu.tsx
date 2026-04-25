@@ -3,6 +3,7 @@
 import { useWalletFleet } from "@/hooks/useWalletFleet";
 import {
   canonicalWalletFleetOrder,
+  type WalletFleetUserSummary,
   type WalletFleetChain,
 } from "@/lib/privy/wallet-fleet";
 import { TrackingAction, TrackingCategory } from "@/const/trackingKeys";
@@ -34,6 +35,16 @@ const chainLabels: Record<WalletFleetChain, string> = {
   bitcoin: "Bitcoin",
 };
 
+const loginMethodLabels: Record<
+  WalletFleetUserSummary["loginMethod"],
+  string
+> = {
+  email: "Email",
+  google: "Google",
+  unknown: "Privy",
+  wallet: "Wallet",
+};
+
 export const WalletMenu = () => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -50,7 +61,7 @@ export const WalletMenu = () => {
 
   const email = walletFleet.data?.user.email ?? "Privy account";
   const loginMethod =
-    walletFleet.data?.user.loginMethod === "google" ? "Google" : "Email";
+    loginMethodLabels[walletFleet.data?.user.loginMethod ?? "unknown"];
 
   const handleCopyAddress = async (address: string) => {
     const copied = await copyTextToClipboard(address);
