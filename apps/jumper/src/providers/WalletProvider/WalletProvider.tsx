@@ -37,8 +37,9 @@ import { SolanaProvider as SolanaSDKProvider } from "@lifi/sdk-provider-solana";
 import { SuiProvider as SuiSDKProvider } from "@lifi/sdk-provider-sui";
 import { convertExtendedChain } from "@lifi/widget-provider-ethereum";
 import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
-import { SuiGrpcClient } from "@mysten/sui/grpc";
-import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
+import { DAppKitProvider } from "@mysten/dapp-kit-react";
+import { dAppKit } from "@/lib/sui/dappKit";
+import { getSuiClient } from "@/lib/sui/client";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
@@ -444,14 +445,7 @@ const WalletContextsProvider: FC<
     ],
   );
 
-  const suiClient = useMemo(
-    () =>
-      new SuiGrpcClient({
-        baseUrl: getJsonRpcFullnodeUrl("mainnet"),
-        network: "mainnet",
-      }),
-    [],
-  );
+  const suiClient = useMemo(() => getSuiClient(), []);
 
   const resolvePrivySignerSession = useCallback(
     () =>
@@ -611,34 +605,36 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
   }, [privyAppId]);
 
   if (!privyAppId) {
-    return <>{children}</>;
+    return <DAppKitProvider dAppKit={dAppKit}>{children}</DAppKitProvider>;
   }
 
   return (
-    <PrivyProvider
-      appId={privyAppId}
-      config={privyConfig}
-    >
-      <PrivyWagmiProvider
-        config={wagmiConfig}
-        reconnectOnMount={false}
-        setActiveWalletForWagmi={({ wallets }) =>
-          wallets.find(
-            (wallet) =>
-              wallet.type === "ethereum" &&
-              wallet.walletClientType?.startsWith("privy"),
-          )
-        }
+    <DAppKitProvider dAppKit={dAppKit}>
+      <PrivyProvider
+        appId={privyAppId}
+        config={privyConfig}
       >
-        <WalletMenuBridgeProvider>
-          <WalletContextsProvider wagmiConfig={wagmiConfig}>
-            <WalletTrackingProvider trackEvent={trackEvent}>
-              {children}
-            </WalletTrackingProvider>
-          </WalletContextsProvider>
-        </WalletMenuBridgeProvider>
-      </PrivyWagmiProvider>
-    </PrivyProvider>
+        <PrivyWagmiProvider
+          config={wagmiConfig}
+          reconnectOnMount={false}
+          setActiveWalletForWagmi={({ wallets }) =>
+            wallets.find(
+              (wallet) =>
+                wallet.type === "ethereum" &&
+                wallet.walletClientType?.startsWith("privy"),
+            )
+          }
+        >
+          <WalletMenuBridgeProvider>
+            <WalletContextsProvider wagmiConfig={wagmiConfig}>
+              <WalletTrackingProvider trackEvent={trackEvent}>
+                {children}
+              </WalletTrackingProvider>
+            </WalletContextsProvider>
+          </WalletMenuBridgeProvider>
+        </PrivyWagmiProvider>
+      </PrivyProvider>
+    </DAppKitProvider>
   );
 };
 
