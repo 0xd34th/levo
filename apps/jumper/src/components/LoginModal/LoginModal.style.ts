@@ -44,7 +44,10 @@ export const LoginPrimaryButton = styled(Button)(({ theme }) => ({
   width: "100%",
   borderRadius: "24px",
   fontWeight: 700,
-  padding: theme.spacing(1.5, 0),
+  lineHeight: 1.3,
+  padding: theme.spacing(1.5, 2),
+  textTransform: "none",
+  whiteSpace: "normal",
 }));
 
 export const LoginDivider = styled(Box)(({ theme }) => ({

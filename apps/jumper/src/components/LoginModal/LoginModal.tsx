@@ -47,10 +47,16 @@ export const LoginModal: FC = () => {
   const handleClose = () => setLoginModalState(false);
 
   const handlePrivyLogin = () => {
+    // Dismiss our chooser before Privy mounts its own modal so the
+    // two never stack on top of each other.
+    setLoginModalState(false);
     login();
   };
 
   const handleConnectSui = async (wallet: UiWallet) => {
+    // Same reasoning as Privy: hand the screen over to the wallet's
+    // own approval popup (browser extension or Slush web wallet popup).
+    setLoginModalState(false);
     try {
       await dAppKit.connectWallet({ wallet });
     } catch (err) {

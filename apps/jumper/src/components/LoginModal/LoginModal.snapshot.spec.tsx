@@ -74,6 +74,16 @@ describe("LoginModal", () => {
     expect(screen.getByRole("button", { name: /Slush/ })).toBeInTheDocument();
   });
 
+  it("dismisses the modal before delegating to a Sui wallet's approval flow", () => {
+    wallets.current = [{ name: "Slush" }];
+
+    render(<LoginModal />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Slush/ }));
+
+    expect(setLoginModalState).toHaveBeenCalledWith(false);
+  });
+
   it("triggers Privy login when the primary CTA is clicked", () => {
     render(<LoginModal />);
 
@@ -84,6 +94,18 @@ describe("LoginModal", () => {
     );
 
     expect(login).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses the modal before opening the Privy login flow", () => {
+    render(<LoginModal />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Continue with Email, Google, EVM or Solana wallet/i,
+      }),
+    );
+
+    expect(setLoginModalState).toHaveBeenCalledWith(false);
   });
 
   it("auto-closes when Privy authentication becomes truthy", () => {
