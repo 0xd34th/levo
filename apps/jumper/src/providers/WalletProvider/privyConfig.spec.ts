@@ -16,6 +16,10 @@ describe("buildPrivyClientConfig", () => {
         enabled: true,
       },
     });
+    expect(config.appearance).toMatchObject({
+      showWalletLoginFirst: false,
+      walletChainType: "ethereum-and-solana",
+    });
   });
 
   it("keeps embedded wallet provisioning and supported chain config intact", () => {

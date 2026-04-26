@@ -7,6 +7,7 @@ export function buildPrivyClientConfig(params: {
 }): PrivyClientConfig {
   return {
     appearance: {
+      showWalletLoginFirst: false,
       walletChainType: "ethereum-and-solana",
     },
     defaultChain: params.defaultChain,
