@@ -9,6 +9,7 @@ import { useEnsName } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { getAddressLabel } from 'src/utils/getAddressLabel';
 import { getConnectorIcon, useAccount } from '@lifi/wallet-management';
+import { useCurrentAccount } from '@mysten/dapp-kit-react';
 import type { Chain } from '@lifi/sdk';
 import type { Address } from 'viem';
 import { walletDigest } from 'src/utils/walletDigest';
@@ -84,7 +85,8 @@ export const useWalletDisplayData = () => {
 
 export const useIsDisconnected = () => {
   const activeAccount = useActiveAccountByChainType();
-  return !activeAccount?.address;
+  const externalSuiAccount = useCurrentAccount();
+  return !activeAccount?.address && !externalSuiAccount?.address;
 };
 
 interface MainLink {

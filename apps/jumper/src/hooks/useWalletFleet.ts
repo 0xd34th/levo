@@ -1,6 +1,7 @@
 "use client";
 
-import { type ChainType } from "@lifi/sdk";
+import { ChainType } from "@lifi/sdk";
+import { useCurrentAccount } from "@mysten/dapp-kit-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -68,7 +69,13 @@ export function useWalletFleet() {
 
 export function useWalletFleetAddress(chainType?: ChainType) {
   const walletFleet = useWalletFleet();
+  const externalSuiAccount = useCurrentAccount();
   const fleetChain = mapLifiChainTypeToFleetChain(chainType);
+
+  // External Sui wallet beats the Privy embedded Sui wallet (locked spec).
+  if (chainType === ChainType.MVM) {
+    return externalSuiAccount?.address ?? walletFleet.data?.wallets.sui?.address;
+  }
 
   return fleetChain
     ? walletFleet.data?.wallets[fleetChain]?.address
