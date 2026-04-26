@@ -12,6 +12,7 @@ export type MenuProps = {
   openedMenu: () => boolean;
   openMainMenu: boolean;
   openWalletMenu: boolean;
+  openLoginModal: boolean;
   openSubMenu: keyof typeof MenuKeysEnum;
   openSnackbar: SnackbarProps;
   openSupportModal: boolean;
@@ -24,6 +25,8 @@ export interface MenuState extends MenuProps {
   setMainMenuState: (open: boolean) => void;
   // Toggle Wallet Menu
   setWalletMenuState: (open: boolean) => void;
+  // Toggle Login Modal
+  setLoginModalState: (open: boolean) => void;
   // Toggle Sub Menu
   setSubMenuState: (subMenu: keyof typeof MenuKeys) => void;
   // Open Snackbar and set label

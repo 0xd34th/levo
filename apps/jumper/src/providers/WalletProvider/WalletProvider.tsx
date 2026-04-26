@@ -40,6 +40,7 @@ import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
 import { DAppKitProvider } from "@mysten/dapp-kit-react";
 import { dAppKit } from "@/lib/sui/dappKit";
 import { getSuiClient } from "@/lib/sui/client";
+import { LoginModal } from "@/components/LoginModal";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
@@ -151,22 +152,25 @@ function useCanonicalEvmChains(chains: ExtendedChain[]): [Chain, ...Chain[]] {
 }
 
 const WalletMenuBridgeProvider: FC<PropsWithChildren> = ({ children }) => {
-  const { authenticated, login } = usePrivy();
-  const { openWalletMenu, setWalletMenuState } = useMenuStore((state) => ({
-    openWalletMenu: state.openWalletMenu,
-    setWalletMenuState: state.setWalletMenuState,
-  }));
+  const { authenticated } = usePrivy();
+  const { openWalletMenu, setLoginModalState, setWalletMenuState } = useMenuStore(
+    (state) => ({
+      openWalletMenu: state.openWalletMenu,
+      setLoginModalState: state.setLoginModalState,
+      setWalletMenuState: state.setWalletMenuState,
+    }),
+  );
 
   const handleOpenWalletMenu = useCallback(
     (_args?: WalletMenuOpenArgs) => {
       if (!authenticated) {
-        login();
+        setLoginModalState(true);
         return;
       }
 
       setWalletMenuState(true);
     },
-    [authenticated, login, setWalletMenuState],
+    [authenticated, setLoginModalState, setWalletMenuState],
   );
 
   const handleCloseWalletMenu = useCallback(() => {
@@ -175,12 +179,12 @@ const WalletMenuBridgeProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const handleToggleWalletMenu = useCallback(() => {
     if (!authenticated) {
-      login();
+      setLoginModalState(true);
       return;
     }
 
     setWalletMenuState(!openWalletMenu);
-  }, [authenticated, login, openWalletMenu, setWalletMenuState]);
+  }, [authenticated, openWalletMenu, setLoginModalState, setWalletMenuState]);
 
   const contextValue = useMemo(
     () => ({
@@ -209,7 +213,8 @@ const WalletContextsProvider: FC<
     wagmiConfig: ReturnType<typeof createPrivyWagmiConfig>;
   }>
 > = ({ children, wagmiConfig }) => {
-  const { authenticated, getAccessToken, login, logout, ready } = usePrivy();
+  const { authenticated, getAccessToken, logout, ready } = usePrivy();
+  const setLoginModalState = useMenuStore((state) => state.setLoginModalState);
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
@@ -363,7 +368,7 @@ const WalletContextsProvider: FC<
       account: evmAccount,
       connect: async (_connectorIdOrName, onSuccess) => {
         if (!authenticated) {
-          login();
+          setLoginModalState(true);
           return;
         }
 
@@ -399,7 +404,7 @@ const WalletContextsProvider: FC<
         },
       }) as never,
     }),
-    [authenticated, evmAccount, installedWallets, login, logout, wagmiConfig],
+    [authenticated, evmAccount, installedWallets, logout, setLoginModalState, wagmiConfig],
   );
 
   const solanaContextValue = useMemo<WidgetProviderContext>(
@@ -407,7 +412,7 @@ const WalletContextsProvider: FC<
       account: solanaAccount,
       connect: async (_connectorIdOrName, onSuccess) => {
         if (!authenticated) {
-          login();
+          setLoginModalState(true);
           return;
         }
 
@@ -438,8 +443,8 @@ const WalletContextsProvider: FC<
     [
       authenticated,
       installedWallets,
-      login,
       logout,
+      setLoginModalState,
       solanaAccount,
       solanaWallet,
     ],
@@ -477,7 +482,7 @@ const WalletContextsProvider: FC<
       account: suiAccount,
       connect: async (_connectorIdOrName, onSuccess) => {
         if (!authenticated) {
-          login();
+          setLoginModalState(true);
           return;
         }
 
@@ -497,8 +502,8 @@ const WalletContextsProvider: FC<
     [
       authenticated,
       installedWallets,
-      login,
       logout,
+      setLoginModalState,
       suiAccount,
       suiSdkProvider,
     ],
@@ -529,7 +534,7 @@ const WalletContextsProvider: FC<
       account: bitcoinAccount,
       connect: async (_connectorIdOrName, onSuccess) => {
         if (!authenticated) {
-          login();
+          setLoginModalState(true);
           return;
         }
 
@@ -554,8 +559,8 @@ const WalletContextsProvider: FC<
       bitcoinAccount,
       bitcoinSdkProvider,
       installedWallets,
-      login,
       logout,
+      setLoginModalState,
     ],
   );
 
@@ -628,6 +633,7 @@ export const WalletProvider: FC<PropsWithChildren> = ({ children }) => {
           <WalletMenuBridgeProvider>
             <WalletContextsProvider wagmiConfig={wagmiConfig}>
               <WalletTrackingProvider trackEvent={trackEvent}>
+                <LoginModal />
                 {children}
               </WalletTrackingProvider>
             </WalletContextsProvider>

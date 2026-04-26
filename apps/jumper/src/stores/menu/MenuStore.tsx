@@ -7,6 +7,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 interface DefaultMenuType {
   openMainMenu: boolean;
   openWalletMenu: boolean;
+  openLoginModal: boolean;
   openSubMenu: keyof typeof MenuKeys;
   openSupportModal: boolean;
   openSnackbar: SnackbarProps;
@@ -16,6 +17,7 @@ interface DefaultMenuType {
 export const defaultMenu: DefaultMenuType = {
   openMainMenu: false,
   openWalletMenu: false,
+  openLoginModal: false,
   openSubMenu: MenuKeysEnum.None,
   openSupportModal: false,
   openSnackbar: { open: false },
@@ -32,7 +34,8 @@ export const useMenuStore = createWithEqualityFn<MenuState>(
         menuState.openMainMenu ||
         menuState.openSubMenu !== MenuKeys.None ||
         menuState.openSupportModal ||
-        menuState.openWalletMenu
+        menuState.openWalletMenu ||
+        menuState.openLoginModal
       );
       // Add your desired functionality here
     },
@@ -42,6 +45,7 @@ export const useMenuStore = createWithEqualityFn<MenuState>(
       set({
         openMainMenu: false,
         openWalletMenu: false,
+        openLoginModal: false,
         openSubMenu: MenuKeysEnum.None,
         openSupportModal: false,
       });
@@ -61,6 +65,18 @@ export const useMenuStore = createWithEqualityFn<MenuState>(
     setWalletMenuState: (open) => {
       set({
         openWalletMenu: open,
+        openLoginModal: false,
+        openSubMenu: MenuKeysEnum.None,
+        openMainMenu: false,
+        openSupportModal: false,
+      });
+    },
+
+    // Toggle custom Login Modal (Privy + Sui dapp-kit chooser)
+    setLoginModalState: (open) => {
+      set({
+        openLoginModal: open,
+        openWalletMenu: false,
         openSubMenu: MenuKeysEnum.None,
         openMainMenu: false,
         openSupportModal: false,
