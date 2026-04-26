@@ -40,6 +40,7 @@ import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
 import {
   DAppKitProvider,
   useCurrentAccount,
+  useCurrentWallet,
   useDAppKit,
 } from "@mysten/dapp-kit-react";
 import { dAppKit } from "@/lib/sui/dappKit";
@@ -693,7 +694,10 @@ const WalletTrackingProvider: FC<
   }>
 > = ({ children, trackEvent }) => {
   const walletFleet = useWalletFleet();
+  const externalSuiAccount = useCurrentAccount();
+  const externalSuiWallet = useCurrentWallet();
   const trackedWalletIdsRef = useRef<Set<string>>(new Set());
+  const trackedExternalSuiAddressRef = useRef<string | null>(null);
 
   useEffect(() => {
     const wallets = walletFleet.data?.wallets;
@@ -721,6 +725,34 @@ const WalletTrackingProvider: FC<
       });
     });
   }, [trackEvent, walletFleet.data?.wallets]);
+
+  useEffect(() => {
+    const address = externalSuiAccount?.address;
+    if (!address) {
+      trackedExternalSuiAddressRef.current = null;
+      return;
+    }
+    if (trackedExternalSuiAddressRef.current === address) {
+      return;
+    }
+
+    trackedExternalSuiAddressRef.current = address;
+    trackEvent({
+      category: TrackingCategory.Connect,
+      action: TrackingAction.ConnectWallet,
+      label: "connect-wallet",
+      data: {
+        [TrackingEventParameter.Wallet]: externalSuiWallet?.name ?? "Sui Wallet",
+        [TrackingEventParameter.Ecosystem]: "sui",
+        [TrackingEventParameter.ChainId]: "sui",
+        [TrackingEventParameter.WalletAddress]: address,
+      },
+    });
+  }, [
+    externalSuiAccount?.address,
+    externalSuiWallet?.name,
+    trackEvent,
+  ]);
 
   return children;
 };
