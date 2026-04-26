@@ -37,10 +37,20 @@ import { SolanaProvider as SolanaSDKProvider } from "@lifi/sdk-provider-solana";
 import { SuiProvider as SuiSDKProvider } from "@lifi/sdk-provider-sui";
 import { convertExtendedChain } from "@lifi/widget-provider-ethereum";
 import { ChainId, ChainType, type ExtendedChain } from "@lifi/sdk";
-import { DAppKitProvider } from "@mysten/dapp-kit-react";
+import {
+  DAppKitProvider,
+  useCurrentAccount,
+  useDAppKit,
+} from "@mysten/dapp-kit-react";
 import { dAppKit } from "@/lib/sui/dappKit";
 import { getSuiClient } from "@/lib/sui/client";
 import { LoginModal } from "@/components/LoginModal";
+import { buildDappKitSuiSdkProvider } from "@/providers/WalletProvider/dappKitSignerProviders";
+import {
+  dappKitSuiConnector,
+  selectSuiAccount,
+  selectSuiProviderTag,
+} from "@/providers/WalletProvider/selectSuiSession";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
@@ -218,6 +228,8 @@ const WalletContextsProvider: FC<
   const { wallets: connectedEvmWallets } = usePrivyEvmWallets();
   const { wallets: connectedSolanaWallets } = usePrivySolanaWallets();
   const walletFleet = useWalletFleet();
+  const externalSuiAccount = useCurrentAccount();
+  const dAppKitInstance = useDAppKit();
   const wagmiAccount = useWagmiAccount();
   const fleetEvmWallet = walletFleet.data?.wallets.evm;
   const fleetSolanaWallet = walletFleet.data?.wallets.solana;
@@ -324,18 +336,20 @@ const WalletContextsProvider: FC<
   );
 
   const suiWallet = walletFleet.data?.wallets.sui;
+  const externalSuiAddress = externalSuiAccount?.address;
   const suiAccount = useMemo<Account>(
     () =>
-      resolveConnectedAccount({
-        account: disconnectedAccounts[ChainType.MVM],
+      selectSuiAccount({
         authenticated,
-        canUseFallback: Boolean(suiWallet?.publicKey),
-        connector: privyConnector,
-        defaultChainId: ChainId.SUI,
-        fallbackAddress: suiWallet?.address,
+        disconnectedAccount: disconnectedAccounts[ChainType.MVM],
+        externalAccount: externalSuiAddress
+          ? { address: externalSuiAddress }
+          : null,
+        privyConnector,
         ready,
+        suiWallet,
       }),
-    [authenticated, ready, suiWallet?.address, suiWallet?.publicKey],
+    [authenticated, externalSuiAddress, ready, suiWallet],
   );
 
   const bitcoinWallet = walletFleet.data?.wallets.bitcoin;
@@ -358,10 +372,16 @@ const WalletContextsProvider: FC<
     };
   }, [authenticated, bitcoinWallet?.address, ready]);
 
-  const installedWallets = useMemo(
-    () => (authenticated ? [privyConnector] : []),
-    [authenticated],
-  );
+  const installedWallets = useMemo(() => {
+    const list: WalletConnector[] = [];
+    if (authenticated) {
+      list.push(privyConnector);
+    }
+    if (externalSuiAddress) {
+      list.push(dappKitSuiConnector);
+    }
+    return list;
+  }, [authenticated, externalSuiAddress]);
 
   const evmContextValue = useMemo<EthereumProviderContext>(
     () => ({
@@ -461,36 +481,58 @@ const WalletContextsProvider: FC<
   );
 
   const suiSdkProvider = useMemo(() => {
-    if (!suiWallet?.publicKey) {
-      return SuiSDKProvider({
+    const tag = selectSuiProviderTag({
+      externalAccount: externalSuiAddress
+        ? { address: externalSuiAddress }
+        : null,
+      suiWallet,
+    });
+
+    if (tag === "dapp-kit") {
+      return buildDappKitSuiSdkProvider({
+        dAppKit: dAppKitInstance,
         getClient: async () => suiClient,
-        getSigner: async () => {
-          throw new Error("Missing Privy Sui wallet");
-        },
       });
     }
 
-    return buildPrivySuiSdkProvider({
+    if (tag === "privy" && suiWallet?.publicKey) {
+      return buildPrivySuiSdkProvider({
+        getClient: async () => suiClient,
+        publicKey: suiWallet.publicKey,
+        resolveSignerSession: resolvePrivySignerSession,
+      });
+    }
+
+    return SuiSDKProvider({
       getClient: async () => suiClient,
-      publicKey: suiWallet.publicKey,
-      resolveSignerSession: resolvePrivySignerSession,
+      getSigner: async () => {
+        throw new Error("No Sui signer available");
+      },
     });
-  }, [resolvePrivySignerSession, suiClient, suiWallet?.publicKey]);
+  }, [
+    dAppKitInstance,
+    externalSuiAddress,
+    resolvePrivySignerSession,
+    suiClient,
+    suiWallet,
+  ]);
 
   const suiContextValue = useMemo<WidgetProviderContext>(
     () => ({
       account: suiAccount,
       connect: async (_connectorIdOrName, onSuccess) => {
-        if (!authenticated) {
-          setLoginModalState(true);
+        if (suiAccount.isConnected && suiAccount.address) {
+          onSuccess?.(suiAccount.address, suiAccount.chainId ?? ChainId.SUI);
           return;
         }
 
-        if (suiAccount.address) {
-          onSuccess?.(suiAccount.address, suiAccount.chainId ?? ChainId.SUI);
-        }
+        setLoginModalState(true);
       },
       disconnect: async () => {
+        if (externalSuiAddress) {
+          await dAppKitInstance.disconnectWallet();
+          return;
+        }
         await logout();
       },
       installedWallets,
@@ -500,7 +542,8 @@ const WalletContextsProvider: FC<
       sdkProvider: suiSdkProvider as never,
     }),
     [
-      authenticated,
+      dAppKitInstance,
+      externalSuiAddress,
       installedWallets,
       logout,
       setLoginModalState,
