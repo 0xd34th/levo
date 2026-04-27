@@ -1,0 +1,23 @@
+diff --git a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
+index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..3de78f6502aa2012723699aa5673b3c502e55e62 100644
+--- a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
++++ b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
+@@ -48,7 +48,7 @@ const ConnectedWalletsPage = () => {
+ 	return /* @__PURE__ */ jsx(SendToWalletPageContainer, {
+ 		disableGutters: true,
+ 		children: /* @__PURE__ */ jsxs(ListContainer, { children: [accounts.map((account) => {
+-			const walletAddress = shortenAddress(account.address);
++			const walletAddress = account.address;
+ 			const menuItems = [{
+ 				icon: /* @__PURE__ */ jsx(ContentCopyRounded, {}),
+ 				label: t("button.copyAddress"),
+@@ -72,7 +72,8 @@ const ConnectedWalletsPage = () => {
+ 						account
+ 					}) }), /* @__PURE__ */ jsx(ListItemText, {
+ 						primary: account.connector?.name,
+-						secondary: walletAddress
++						secondary: walletAddress,
++						secondaryTypographyProps: { sx: { wordBreak: "break-all", overflowWrap: "anywhere" } }
+ 					})]
+ 				}), /* @__PURE__ */ jsx(ContextMenu, {
+ 					items: menuItems,

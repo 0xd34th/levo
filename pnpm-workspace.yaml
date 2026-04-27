@@ -1,6 +1,10 @@
 packages:
-  - "apps/*"
+  - apps/*
+
 onlyBuiltDependencies:
   - '@prisma/engines'
   - esbuild
   - prisma
+
+patchedDependencies:
+  '@lifi/widget@4.0.0-beta.17': patches/@lifi__widget@4.0.0-beta.17.patch
