@@ -369,7 +369,7 @@ export const WalletMenu = () => {
             sx={{ color: (theme.vars || theme).palette.text.secondary }}
           >
             Want to swap to Ethereum, Solana or Bitcoin too? Sign in with email
-            or another wallet to provision them.
+            or Google to provision them.
           </Typography>
           <WalletButton
             sx={{ width: "auto", alignSelf: "flex-start" }}
@@ -382,7 +382,7 @@ export const WalletMenu = () => {
               sx={{ color: (theme.vars || theme).palette.text.primary }}
               variant="bodySmallStrong"
             >
-              Sign in with email or wallet
+              Sign in with email or Google
             </Typography>
           </WalletButton>
         </Stack>

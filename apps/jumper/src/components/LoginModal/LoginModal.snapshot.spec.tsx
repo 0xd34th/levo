@@ -67,13 +67,14 @@ describe("LoginModal", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the Privy CTA and empty hint when no Sui wallets installed", () => {
+  it("renders the Email and Google CTAs alongside the empty Sui hint", () => {
     render(<LoginModal />);
 
     expect(
-      screen.getByRole("button", {
-        name: /Continue with Email, Google, EVM or Solana wallet/i,
-      }),
+      screen.getByRole("button", { name: /Continue with Email/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Continue with Google/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/No Sui wallets detected/i)).toBeInTheDocument();
   });
@@ -103,25 +104,33 @@ describe("LoginModal", () => {
     expect(setLoginModalState).toHaveBeenCalledWith(false);
   });
 
-  it("triggers Privy login when the primary CTA is clicked", () => {
+  it("triggers Privy email-only login when the Email CTA is clicked", () => {
     render(<LoginModal />);
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /Continue with Email, Google, EVM or Solana wallet/i,
-      }),
+      screen.getByRole("button", { name: /Continue with Email/i }),
     );
 
     expect(login).toHaveBeenCalledTimes(1);
+    expect(login).toHaveBeenCalledWith({ loginMethods: ["email"] });
+  });
+
+  it("triggers Privy google-only login when the Google CTA is clicked", () => {
+    render(<LoginModal />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Continue with Google/i }),
+    );
+
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login).toHaveBeenCalledWith({ loginMethods: ["google"] });
   });
 
   it("dismisses the modal before opening the Privy login flow", () => {
     render(<LoginModal />);
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /Continue with Email, Google, EVM or Solana wallet/i,
-      }),
+      screen.getByRole("button", { name: /Continue with Email/i }),
     );
 
     expect(setLoginModalState).toHaveBeenCalledWith(false);

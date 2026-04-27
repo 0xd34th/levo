@@ -1,7 +1,7 @@
 "use client";
 
 import { useMenuStore } from "@/stores/menu";
-import { CloseRounded } from "@mui/icons-material";
+import { CloseRounded, EmailRounded, Google } from "@mui/icons-material";
 import { Modal, Stack, Typography } from "@mui/material";
 import {
   useCurrentAccount,
@@ -76,11 +76,19 @@ export const LoginModal: FC = () => {
 
   const handleClose = () => setLoginModalState(false);
 
-  const handlePrivyLogin = () => {
+  const handlePrivyEmailLogin = () => {
     // Dismiss our chooser before Privy mounts its own modal so the
     // two never stack on top of each other.
     setLoginModalState(false);
-    login();
+    // Restrict the Privy popup to only the email method for this attempt
+    // — keeps the chooser semantics consistent: clicking "Email" goes
+    // straight to email entry, no other CTAs in Privy's modal.
+    login({ loginMethods: ["email"] });
+  };
+
+  const handlePrivyGoogleLogin = () => {
+    setLoginModalState(false);
+    login({ loginMethods: ["google"] });
   };
 
   const handleConnectSui = async (wallet: UiWallet) => {
@@ -106,9 +114,24 @@ export const LoginModal: FC = () => {
           </LoginModalCloseButton>
         </LoginModalHeader>
 
-        <LoginPrimaryButton color="primary" onClick={handlePrivyLogin} variant="contained">
-          Continue with Email, Google, EVM or Solana wallet
-        </LoginPrimaryButton>
+        <Stack spacing={1}>
+          <LoginPrimaryButton
+            color="primary"
+            onClick={handlePrivyEmailLogin}
+            startIcon={<EmailRounded />}
+            variant="contained"
+          >
+            Continue with Email
+          </LoginPrimaryButton>
+          <LoginPrimaryButton
+            color="primary"
+            onClick={handlePrivyGoogleLogin}
+            startIcon={<Google />}
+            variant="outlined"
+          >
+            Continue with Google
+          </LoginPrimaryButton>
+        </Stack>
 
         <LoginDivider>or connect a Sui wallet</LoginDivider>
 

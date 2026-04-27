@@ -3,19 +3,17 @@ import { describe, expect, it } from "vitest";
 import { buildPrivyClientConfig } from "./privyConfig";
 
 describe("buildPrivyClientConfig", () => {
-  it("enables wallet login without disabling external wallets", () => {
+  it("limits Privy to email and google identity verification only", () => {
     const config = buildPrivyClientConfig({
       defaultChain: mainnet,
       supportedChains: [mainnet],
     });
 
-    expect(config.loginMethods).toEqual(["email", "google", "wallet"]);
+    expect(config.loginMethods).toEqual(["email", "google"]);
     expect(config.externalWallets).toMatchObject({
-      disableAllExternalWallets: false,
-      walletConnect: {
-        enabled: true,
-      },
+      disableAllExternalWallets: true,
     });
+    expect(config.externalWallets).not.toHaveProperty("walletConnect");
     expect(config.appearance).toMatchObject({
       showWalletLoginFirst: false,
       walletChainType: "ethereum-and-solana",

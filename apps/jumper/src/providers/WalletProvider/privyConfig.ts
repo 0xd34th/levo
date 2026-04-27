@@ -21,12 +21,9 @@ export function buildPrivyClientConfig(params: {
       },
     },
     externalWallets: {
-      disableAllExternalWallets: false,
-      walletConnect: {
-        enabled: true,
-      },
+      disableAllExternalWallets: true,
     },
-    loginMethods: ["email", "google", "wallet"],
+    loginMethods: ["email", "google"],
     supportedChains: params.supportedChains,
   };
 }

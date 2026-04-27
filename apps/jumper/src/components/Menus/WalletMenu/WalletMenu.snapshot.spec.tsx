@@ -185,7 +185,7 @@ describe('WalletMenu', () => {
     expect(screen.queryByText('Log out')).not.toBeInTheDocument();
     // Sign-in CTA shown
     expect(
-      screen.getByText('Sign in with email or wallet'),
+      screen.getByText('Sign in with email or Google'),
     ).toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe('WalletMenu', () => {
 
     render(<WalletMenu />);
 
-    fireEvent.click(screen.getByText('Sign in with email or wallet'));
+    fireEvent.click(screen.getByText('Sign in with email or Google'));
 
     expect(setLoginModalState).toHaveBeenCalledWith(true);
     expect(setWalletMenuState).toHaveBeenCalledWith(false);

@@ -8,11 +8,11 @@
 
 This fork keeps the upstream Jumper UI as the execution surface, but replaces wallet UX with a Privy-backed account model:
 
-- Privy authentication: `email`, `google`, and Privy wallet login
+- Privy is scoped to **identity verification only**: `email` and `google` (`loginMethods: ['email', 'google']`, `externalWallets.disableAllExternalWallets: true`). The Privy popup never offers wallet entries — those live exclusively in the custom `LoginModal`'s Sui dapp-kit list
 - Canonical embedded wallets per account: `ethereum`, `solana`, `sui`, `bitcoin-segwit`
 - LI.FI wallet contexts are auto-populated from the current Privy account
 - Destination `toAddress` auto-fills from the same account on the selected target chain
-- Wallet menu is replaced by an account drawer; Privy-managed external wallets are surfaced through the Privy login modal
+- Wallet menu is replaced by an account drawer; the only external-wallet entry surfaced anywhere in the UI is Sui via `@mysten/dapp-kit-react`
 
 ### Sui external-wallet support (orthogonal to Privy)
 
