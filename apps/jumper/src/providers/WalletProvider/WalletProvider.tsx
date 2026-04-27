@@ -164,6 +164,8 @@ function useCanonicalEvmChains(chains: ExtendedChain[]): [Chain, ...Chain[]] {
 
 const WalletMenuBridgeProvider: FC<PropsWithChildren> = ({ children }) => {
   const { authenticated } = usePrivy();
+  const externalSuiAccount = useCurrentAccount();
+  const hasAnySession = authenticated || Boolean(externalSuiAccount?.address);
   const { openWalletMenu, setLoginModalState, setWalletMenuState } = useMenuStore(
     (state) => ({
       openWalletMenu: state.openWalletMenu,
@@ -174,14 +176,14 @@ const WalletMenuBridgeProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const handleOpenWalletMenu = useCallback(
     (_args?: WalletMenuOpenArgs) => {
-      if (!authenticated) {
+      if (!hasAnySession) {
         setLoginModalState(true);
         return;
       }
 
       setWalletMenuState(true);
     },
-    [authenticated, setLoginModalState, setWalletMenuState],
+    [hasAnySession, setLoginModalState, setWalletMenuState],
   );
 
   const handleCloseWalletMenu = useCallback(() => {
@@ -189,13 +191,13 @@ const WalletMenuBridgeProvider: FC<PropsWithChildren> = ({ children }) => {
   }, [setWalletMenuState]);
 
   const handleToggleWalletMenu = useCallback(() => {
-    if (!authenticated) {
+    if (!hasAnySession) {
       setLoginModalState(true);
       return;
     }
 
     setWalletMenuState(!openWalletMenu);
-  }, [authenticated, openWalletMenu, setLoginModalState, setWalletMenuState]);
+  }, [hasAnySession, openWalletMenu, setLoginModalState, setWalletMenuState]);
 
   const contextValue = useMemo(
     () => ({

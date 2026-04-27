@@ -10,7 +10,7 @@ import {
   type UiWallet,
 } from "@mysten/dapp-kit-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useEffect, type FC } from "react";
+import { useEffect, useRef, type FC } from "react";
 import {
   LoginDivider,
   LoginModalCloseButton,
@@ -32,17 +32,47 @@ export const LoginModal: FC = () => {
   const wallets = useWallets();
   const currentAccount = useCurrentAccount();
 
-  useEffect(() => {
-    if (openLoginModal && authenticated) {
-      setLoginModalState(false);
-    }
-  }, [authenticated, openLoginModal, setLoginModalState]);
+  // Snapshot which sessions already existed when the modal opened so we
+  // only auto-close when a NEW session appears. Without this, a Sui-only
+  // user opening the modal to add a Privy session would see the modal
+  // immediately re-close because currentAccount has been set the whole time.
+  const sessionAtOpenRef = useRef<{
+    authenticated: boolean;
+    externalSuiAddress: string | null;
+  }>({ authenticated: false, externalSuiAddress: null });
 
   useEffect(() => {
-    if (openLoginModal && currentAccount) {
+    if (openLoginModal) {
+      sessionAtOpenRef.current = {
+        authenticated,
+        externalSuiAddress: currentAccount?.address ?? null,
+      };
+    }
+    // We only want to refresh the baseline when the modal opens, not whenever
+    // the underlying sessions tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openLoginModal]);
+
+  useEffect(() => {
+    if (!openLoginModal) {
+      return;
+    }
+
+    const baseline = sessionAtOpenRef.current;
+    const newPrivySession = authenticated && !baseline.authenticated;
+    const newSuiSession =
+      currentAccount?.address &&
+      currentAccount.address !== baseline.externalSuiAddress;
+
+    if (newPrivySession || newSuiSession) {
       setLoginModalState(false);
     }
-  }, [currentAccount, openLoginModal, setLoginModalState]);
+  }, [
+    authenticated,
+    currentAccount?.address,
+    openLoginModal,
+    setLoginModalState,
+  ]);
 
   const handleClose = () => setLoginModalState(false);
 

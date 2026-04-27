@@ -1,7 +1,26 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+} from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { themeCustomized } from "../../../src/theme/theme";
 import { render } from "../../../vitest.setup";
 import { LoginModal } from "./LoginModal";
+
+const TestWrapper = ({ children }: { children: ReactNode }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={themeCustomized}>{children}</ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 const { authenticated, connectWallet, currentAccount, login, setLoginModalState, wallets } =
   vi.hoisted(() => ({
@@ -108,19 +127,35 @@ describe("LoginModal", () => {
     expect(setLoginModalState).toHaveBeenCalledWith(false);
   });
 
-  it("auto-closes when Privy authentication becomes truthy", () => {
-    authenticated.current = true;
+  it("auto-closes when Privy authentication transitions to truthy after open", () => {
+    const { rerender } = rtlRender(<LoginModal />, { wrapper: TestWrapper });
 
-    render(<LoginModal />);
+    // Modal opened with no Privy session — baseline captured.
+    expect(setLoginModalState).not.toHaveBeenCalledWith(false);
+
+    authenticated.current = true;
+    rerender(<LoginModal />);
 
     expect(setLoginModalState).toHaveBeenCalledWith(false);
   });
 
-  it("auto-closes when a Sui wallet account becomes available", () => {
-    currentAccount.current = { address: "0xabc" };
+  it("auto-closes when a NEW Sui wallet address appears after open", () => {
+    const { rerender } = rtlRender(<LoginModal />, { wrapper: TestWrapper });
+
+    expect(setLoginModalState).not.toHaveBeenCalledWith(false);
+
+    currentAccount.current = { address: "0xnew-sui-address" };
+    rerender(<LoginModal />);
+
+    expect(setLoginModalState).toHaveBeenCalledWith(false);
+  });
+
+  it("does NOT auto-close if a Sui session already existed when the modal opened", () => {
+    // Sui-only user opens LoginModal to add a Privy session.
+    currentAccount.current = { address: "0xexisting-sui" };
 
     render(<LoginModal />);
 
-    expect(setLoginModalState).toHaveBeenCalledWith(false);
+    expect(setLoginModalState).not.toHaveBeenCalledWith(false);
   });
 });
