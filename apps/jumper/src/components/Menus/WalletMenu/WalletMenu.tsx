@@ -98,6 +98,16 @@ export const WalletMenu = () => {
     }
   };
 
+  const handleSwitchExternalSui = async () => {
+    try {
+      await dAppKit.disconnectWallet();
+    } catch (err) {
+      console.error("Failed to disconnect Sui wallet", err);
+    }
+    setWalletMenuState(false);
+    setLoginModalState(true);
+  };
+
   return (
     <CustomDrawer
       data-testid="wallet-drawer"
@@ -228,6 +238,8 @@ export const WalletMenu = () => {
                         ? (theme.vars || theme).palette.text.primary
                         : (theme.vars || theme).palette.text.secondary,
                       fontFamily: "monospace",
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-all",
                     }}
                   >
                     {walletStateCopy}
@@ -315,6 +327,8 @@ export const WalletMenu = () => {
               sx={{
                 color: (theme.vars || theme).palette.text.primary,
                 fontFamily: "monospace",
+                overflowWrap: "anywhere",
+                wordBreak: "break-all",
               }}
             >
               {externalSuiAccount.address}
@@ -343,22 +357,63 @@ export const WalletMenu = () => {
                   <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Stack>
-              <WalletButton
-                aria-label="Disconnect external Sui wallet"
-                onClick={handleDisconnectExternalSui}
-                sx={{ width: "auto" }}
-              >
-                <LinkOffRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
-                <Typography
-                  sx={{ color: (theme.vars || theme).palette.text.primary }}
-                  variant="bodySmallStrong"
+              <Stack direction="row" spacing={0.5}>
+                <WalletButton
+                  aria-label="Switch external Sui wallet"
+                  onClick={handleSwitchExternalSui}
+                  sx={{ width: "auto" }}
                 >
-                  Disconnect
-                </Typography>
-              </WalletButton>
+                  <Typography
+                    sx={{ color: (theme.vars || theme).palette.text.primary }}
+                    variant="bodySmallStrong"
+                  >
+                    Switch
+                  </Typography>
+                </WalletButton>
+                <WalletButton
+                  aria-label="Disconnect external Sui wallet"
+                  onClick={handleDisconnectExternalSui}
+                  sx={{ width: "auto" }}
+                >
+                  <LinkOffRoundedIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                  <Typography
+                    sx={{ color: (theme.vars || theme).palette.text.primary }}
+                    variant="bodySmallStrong"
+                  >
+                    Disconnect
+                  </Typography>
+                </WalletButton>
+              </Stack>
             </Stack>
           </Box>
         </>
+      ) : null}
+
+      {authenticated && !externalSuiAccount ? (
+        <Stack spacing={1.5}>
+          <Divider />
+          <Typography
+            variant="bodySmall"
+            sx={{ color: (theme.vars || theme).palette.text.secondary }}
+          >
+            Prefer signing Sui transactions with your own wallet? Connect a
+            Sui wallet — it will take priority over the Privy embedded one.
+          </Typography>
+          <WalletButton
+            sx={{ width: "auto", alignSelf: "flex-start" }}
+            onClick={() => {
+              setWalletMenuState(false);
+              setLoginModalState(true);
+            }}
+          >
+            <Typography
+              sx={{ color: (theme.vars || theme).palette.text.primary }}
+              variant="bodySmallStrong"
+            >
+              Connect a Sui wallet
+            </Typography>
+          </WalletButton>
+        </Stack>
       ) : null}
 
       {!authenticated ? (
