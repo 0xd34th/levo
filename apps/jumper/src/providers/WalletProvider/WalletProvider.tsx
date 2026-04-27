@@ -326,7 +326,14 @@ const WalletContextsProvider: FC<
       resolveConnectedAccount({
         account: baseSolanaAccount,
         authenticated,
-        canUseFallback: Boolean(solanaWallet && connectedSolanaAddress),
+        // Treat the wallet-fleet entry alone as sufficient — Privy's Solana
+        // SDK can be slow to hydrate after auth, but the embedded wallet is
+        // already provisioned server-side and signs through wallet-fleet,
+        // matching how the Sui and Bitcoin paths resolve.
+        canUseFallback: Boolean(
+          fleetSolanaWallet?.address ||
+            (solanaWallet && connectedSolanaAddress),
+        ),
         connector: privyConnector,
         defaultChainId: 1151111081099710,
         fallbackAddress: fleetSolanaWallet?.address,

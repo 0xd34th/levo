@@ -1,5 +1,5 @@
 diff --git a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
-index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..9334ed9b62ed13156f09e5f92d268cfc2014f8e2 100644
+index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..30ac93c21bf4c63ba52ac8cbf71e12eefc2975e6 100644
 --- a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
 +++ b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
 @@ -29,6 +29,14 @@ const ConnectedWalletsPage = () => {
@@ -34,7 +34,7 @@ index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..9334ed9b62ed13156f09e5f92d268cfc
  						primary: account.connector?.name,
 -						secondary: walletAddress
 +						secondary: walletAddress,
-+						secondaryTypographyProps: { sx: { wordBreak: "break-all", overflowWrap: "anywhere" } }
++						secondaryTypographyProps: { noWrap: false, sx: { whiteSpace: "normal", wordBreak: "break-all", overflowWrap: "anywhere" } }
  					})]
  				}), /* @__PURE__ */ jsx(ContextMenu, {
  					items: menuItems,

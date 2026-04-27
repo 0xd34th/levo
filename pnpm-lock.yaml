@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@lifi/widget@4.0.0-beta.17':
-    hash: 879b6ea7da9d11afdd00fc629f7206c88d8c8e7304e10b06f91aef2381849589
+    hash: cb5f38a37b381d6f26dc7fdd01ad67ecc71bc9c2bd5985e8aa6bd8afb192a246
     path: patches/@lifi__widget@4.0.0-beta.17.patch
 
 importers:
@@ -93,7 +93,7 @@ importers:
         version: 4.0.0-beta.17(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.5(react@19.2.5))(react-native@0.85.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(utf-8-validate@6.0.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)
       '@lifi/widget':
         specifier: 4.0.0-beta.17
-        version: 4.0.0-beta.17(patch_hash=879b6ea7da9d11afdd00fc629f7206c88d8c8e7304e10b06f91aef2381849589)(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.5(react@19.2.5))(react-native@0.85.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(utf-8-validate@6.0.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)
+        version: 4.0.0-beta.17(patch_hash=cb5f38a37b381d6f26dc7fdd01ad67ecc71bc9c2bd5985e8aa6bd8afb192a246)(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.5(react@19.2.5))(react-native@0.85.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(utf-8-validate@6.0.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)
       '@lifi/widget-provider':
         specifier: 4.0.0-beta.17
         version: 4.0.0-beta.17(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)
@@ -388,7 +388,7 @@ importers:
         version: 7.0.1(@babel/plugin-syntax-flow@7.28.6(@babel/core@7.29.0))(@babel/plugin-transform-react-jsx@7.28.6(@babel/core@7.29.0))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint-plugin-import:
         specifier: ^2.31.0
-        version: 2.32.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))
+        version: 2.32.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-jsx-a11y:
         specifier: ^6.10.2
         version: 6.10.2(eslint@9.39.2(jiti@2.6.1))
@@ -15050,7 +15050,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@lifi/widget@4.0.0-beta.17(patch_hash=879b6ea7da9d11afdd00fc629f7206c88d8c8e7304e10b06f91aef2381849589)(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.5(react@19.2.5))(react-native@0.85.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(utf-8-validate@6.0.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)':
+  '@lifi/widget@4.0.0-beta.17(patch_hash=cb5f38a37b381d6f26dc7fdd01ad67ecc71bc9c2bd5985e8aa6bd8afb192a246)(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react-dom@19.2.5(react@19.2.5))(react-native@0.85.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.5)(utf-8-validate@6.0.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)':
     dependencies:
       '@emotion/react': 11.14.0(@types/react@19.2.14)(react@19.2.5)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.5))(@types/react@19.2.14)(react@19.2.5)
@@ -17250,7 +17250,7 @@ snapshots:
       debug: 4.4.3
       invariant: 2.2.4
       metro: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.84.3
       semver: 7.7.4
     transitivePeerDependencies:
@@ -26327,16 +26327,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint@9.39.2(jiti@2.6.1)):
-    dependencies:
-      debug: 3.2.7
-    optionalDependencies:
-      '@typescript-eslint/parser': 8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
-      eslint: 9.39.2(jiti@2.6.1)
-      eslint-import-resolver-node: 0.3.9
-    transitivePeerDependencies:
-      - supports-color
-
   eslint-module-utils@2.12.1(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)))(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
       debug: 3.2.7
@@ -26424,7 +26414,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.2(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint@9.39.2(jiti@2.6.1))
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -26441,6 +26431,7 @@ snapshots:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
       - supports-color
+    optional: true
 
   eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
@@ -28265,22 +28256,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10):
-    dependencies:
-      connect: 3.7.0
-      flow-enums-runtime: 0.0.6
-      jest-validate: 29.7.0
-      metro: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      metro-cache: 0.84.3
-      metro-core: 0.84.3
-      metro-runtime: 0.84.3
-      yaml: 2.8.3
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-    optional: true
-
   metro-config@0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       connect: 3.7.0
@@ -28433,7 +28408,7 @@ snapshots:
       metro-babel-transformer: 0.84.3
       metro-cache: 0.84.3
       metro-cache-key: 0.84.3
-      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.84.3
       metro-file-map: 0.84.3
       metro-resolver: 0.84.3
