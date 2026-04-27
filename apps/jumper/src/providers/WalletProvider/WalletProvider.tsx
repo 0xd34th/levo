@@ -17,6 +17,7 @@ import { resolveConnectedAccount } from "@/providers/WalletProvider/resolveConne
 import { resolvePrivyExecutionSignerSession } from "@/providers/WalletProvider/resolvePrivySignerSession";
 import { useUserTracking } from "@/hooks/userTracking";
 import { useMenuStore } from "@/stores/menu";
+import { useSuiPreferenceStore } from "@/stores/wallet";
 import {
   BitcoinContext,
   EthereumContext,
@@ -233,6 +234,9 @@ const WalletContextsProvider: FC<
   const walletFleet = useWalletFleet();
   const externalSuiAccount = useCurrentAccount();
   const dAppKitInstance = useDAppKit();
+  const preferredSuiSource = useSuiPreferenceStore(
+    (state) => state.preferredSuiSource,
+  );
   const wagmiAccount = useWagmiAccount();
   const fleetEvmWallet = walletFleet.data?.wallets.evm;
   const fleetSolanaWallet = walletFleet.data?.wallets.solana;
@@ -348,11 +352,12 @@ const WalletContextsProvider: FC<
         externalAccount: externalSuiAddress
           ? { address: externalSuiAddress }
           : null,
+        preference: preferredSuiSource,
         privyConnector,
         ready,
         suiWallet,
       }),
-    [authenticated, externalSuiAddress, ready, suiWallet],
+    [authenticated, externalSuiAddress, preferredSuiSource, ready, suiWallet],
   );
 
   const bitcoinWallet = walletFleet.data?.wallets.bitcoin;
@@ -488,6 +493,7 @@ const WalletContextsProvider: FC<
       externalAccount: externalSuiAddress
         ? { address: externalSuiAddress }
         : null,
+      preference: preferredSuiSource,
       suiWallet,
     });
 
@@ -515,6 +521,7 @@ const WalletContextsProvider: FC<
   }, [
     dAppKitInstance,
     externalSuiAddress,
+    preferredSuiSource,
     resolvePrivySignerSession,
     suiClient,
     suiWallet,

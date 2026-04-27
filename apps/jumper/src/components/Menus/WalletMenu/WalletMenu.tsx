@@ -9,6 +9,7 @@ import {
 import { TrackingAction, TrackingCategory } from "@/const/trackingKeys";
 import { useUserTracking } from "@/hooks/userTracking";
 import { useMenuStore } from "@/stores/menu";
+import { useSuiPreferenceStore } from "@/stores/wallet";
 import { copyTextToClipboard } from "@/utils/copyTextToClipboard";
 import { walletDigest } from "@/utils/walletDigest";
 import CloseIcon from "@mui/icons-material/Close";
@@ -22,6 +23,8 @@ import {
   Divider,
   IconButton,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   useTheme,
 } from "@mui/material";
@@ -60,6 +63,17 @@ export const WalletMenu = () => {
   const externalSuiAccount = useCurrentAccount();
   const externalSuiWallet = useCurrentWallet();
   const dAppKit = useDAppKit();
+  const { preferredSuiSource, setPreferredSuiSource } = useSuiPreferenceStore(
+    (state) => ({
+      preferredSuiSource: state.preferredSuiSource,
+      setPreferredSuiSource: state.setPreferredSuiSource,
+    }),
+  );
+  const hasPrivySuiWallet = Boolean(walletFleet.data?.wallets.sui?.publicKey);
+  const hasDualSuiSession = Boolean(
+    externalSuiAccount?.address && hasPrivySuiWallet,
+  );
+  const effectivePrimary = preferredSuiSource === "privy" ? "privy" : "external";
   const {
     openWalletMenu,
     setLoginModalState,
@@ -272,6 +286,40 @@ export const WalletMenu = () => {
                 </Box>
               );
             })}
+          </Stack>
+        </>
+      ) : null}
+
+      {hasDualSuiSession ? (
+        <>
+          <Divider />
+          <Stack spacing={1}>
+            <Typography variant="bodyMediumStrong">
+              Primary Sui wallet
+            </Typography>
+            <Typography
+              variant="bodySmall"
+              sx={{ color: (theme.vars || theme).palette.text.secondary }}
+            >
+              Pick which Sui address signs transactions and pre-fills as the
+              destination address. Switch any time.
+            </Typography>
+            <ToggleButtonGroup
+              aria-label="Primary Sui wallet"
+              color="primary"
+              exclusive
+              fullWidth
+              onChange={(_, value: "external" | "privy" | null) => {
+                if (value) {
+                  setPreferredSuiSource(value);
+                }
+              }}
+              size="small"
+              value={effectivePrimary}
+            >
+              <ToggleButton value="external">External wallet</ToggleButton>
+              <ToggleButton value="privy">Privy embedded</ToggleButton>
+            </ToggleButtonGroup>
           </Stack>
         </>
       ) : null}

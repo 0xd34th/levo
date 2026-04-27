@@ -58,6 +58,46 @@ describe("selectSuiProviderTag", () => {
       }),
     ).toBe("empty");
   });
+
+  it("respects 'privy' preference when both sources are available", () => {
+    expect(
+      selectSuiProviderTag({
+        externalAccount: { address: "0xext" },
+        suiWallet: { publicKey: "pk" },
+        preference: "privy",
+      }),
+    ).toBe("privy");
+  });
+
+  it("falls back to external when 'privy' preference is set but no Privy session", () => {
+    expect(
+      selectSuiProviderTag({
+        externalAccount: { address: "0xext" },
+        suiWallet: null,
+        preference: "privy",
+      }),
+    ).toBe("dapp-kit");
+  });
+
+  it("treats 'external' preference as equivalent to 'auto' (external-first)", () => {
+    expect(
+      selectSuiProviderTag({
+        externalAccount: { address: "0xext" },
+        suiWallet: { publicKey: "pk" },
+        preference: "external",
+      }),
+    ).toBe("dapp-kit");
+  });
+
+  it("treats 'auto' preference as default (external-first)", () => {
+    expect(
+      selectSuiProviderTag({
+        externalAccount: { address: "0xext" },
+        suiWallet: { publicKey: "pk" },
+        preference: "auto",
+      }),
+    ).toBe("dapp-kit");
+  });
 });
 
 describe("selectSuiAccount", () => {
@@ -75,6 +115,22 @@ describe("selectSuiAccount", () => {
     expect(account.chainId).toBe(ChainId.SUI);
     expect(account.chainType).toBe(ChainType.MVM);
     expect(account.connector).toEqual(dappKitSuiConnector);
+    expect(account.status).toBe("connected");
+  });
+
+  it("returns the Privy embedded address when preference is 'privy'", () => {
+    const account = selectSuiAccount({
+      authenticated: true,
+      disconnectedAccount,
+      externalAccount: { address: "0xext" },
+      preference: "privy",
+      privyConnector,
+      ready: true,
+      suiWallet: { address: "0xprivy", publicKey: "pk" },
+    });
+
+    expect(account.address).toBe("0xprivy");
+    expect(account.connector).toEqual(privyConnector);
     expect(account.status).toBe("connected");
   });
 

@@ -8,6 +8,7 @@ import {
   mapLifiChainTypeToFleetChain,
   type WalletFleetResponse,
 } from "@/lib/privy/wallet-fleet";
+import { useSuiPreferenceStore } from "@/stores/wallet";
 
 const walletFleetQueryKey = ["privy-wallet-fleet"];
 
@@ -70,11 +71,21 @@ export function useWalletFleet() {
 export function useWalletFleetAddress(chainType?: ChainType) {
   const walletFleet = useWalletFleet();
   const externalSuiAccount = useCurrentAccount();
+  const preferredSuiSource = useSuiPreferenceStore(
+    (state) => state.preferredSuiSource,
+  );
   const fleetChain = mapLifiChainTypeToFleetChain(chainType);
 
-  // External Sui wallet beats the Privy embedded Sui wallet (locked spec).
+  // For Sui the user has up to two simultaneous addresses (external dapp-kit
+  // wallet and Privy embedded). Selection respects the user's preference,
+  // falling back to whichever side is actually present.
   if (chainType === ChainType.MVM) {
-    return externalSuiAccount?.address ?? walletFleet.data?.wallets.sui?.address;
+    const external = externalSuiAccount?.address;
+    const privy = walletFleet.data?.wallets.sui?.address;
+    if (preferredSuiSource === "privy") {
+      return privy ?? external;
+    }
+    return external ?? privy;
   }
 
   return fleetChain
