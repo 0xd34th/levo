@@ -527,9 +527,40 @@ const WalletContextsProvider: FC<
     suiWallet,
   ]);
 
+  // Surface every Sui address the user owns so the widget's connected-wallets
+  // picker can render one row per address. Order is "primary first" which the
+  // patched widget renders accordingly.
+  const suiAccountWithAddresses = useMemo<Account>(() => {
+    if (!suiAccount.isConnected) {
+      return suiAccount;
+    }
+    const ordered: string[] = [];
+    if (suiAccount.address) {
+      ordered.push(suiAccount.address);
+    }
+    if (
+      externalSuiAddress &&
+      externalSuiAddress !== suiAccount.address &&
+      !ordered.includes(externalSuiAddress)
+    ) {
+      ordered.push(externalSuiAddress);
+    }
+    if (
+      suiWallet?.address &&
+      suiWallet.address !== suiAccount.address &&
+      !ordered.includes(suiWallet.address)
+    ) {
+      ordered.push(suiWallet.address);
+    }
+    if (ordered.length <= 1) {
+      return suiAccount;
+    }
+    return { ...suiAccount, addresses: ordered };
+  }, [externalSuiAddress, suiAccount, suiWallet?.address]);
+
   const suiContextValue = useMemo<WidgetProviderContext>(
     () => ({
-      account: suiAccount,
+      account: suiAccountWithAddresses,
       connect: async (_connectorIdOrName, onSuccess) => {
         if (suiAccount.isConnected && suiAccount.address) {
           onSuccess?.(suiAccount.address, suiAccount.chainId ?? ChainId.SUI);
@@ -558,6 +589,7 @@ const WalletContextsProvider: FC<
       logout,
       setLoginModalState,
       suiAccount,
+      suiAccountWithAddresses,
       suiSdkProvider,
     ],
   );

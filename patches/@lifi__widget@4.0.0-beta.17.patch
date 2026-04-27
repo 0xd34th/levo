@@ -1,17 +1,34 @@
 diff --git a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
-index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..3de78f6502aa2012723699aa5673b3c502e55e62 100644
+index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..9334ed9b62ed13156f09e5f92d268cfc2014f8e2 100644
 --- a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
 +++ b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
-@@ -48,7 +48,7 @@ const ConnectedWalletsPage = () => {
+@@ -29,6 +29,14 @@ const ConnectedWalletsPage = () => {
+ 	const { setFieldValue } = useFieldActions();
+ 	const { getAddressLink } = useExplorer();
+ 	useHeader(t("sendToWallet.connectedWallets"));
++	// Some chain contexts (notably Sui under jumper) provide more than one
++	// address for the same account (e.g., external dapp-kit wallet plus Privy
++	// embedded). Flatten each Account's `addresses` into separate rows so the
++	// user can pick any of them as the destination.
++	const rows = accounts.flatMap((account) => {
++		const addrs = account.addresses && account.addresses.length > 1 ? account.addresses : [account.address];
++		return addrs.filter(Boolean).map((address) => ({ ...account, address }));
++	});
+ 	const handleWalletSelected = (account) => {
+ 		setFieldValue("toAddress", account.address, {
+ 			isTouched: true,
+@@ -47,8 +55,8 @@ const ConnectedWalletsPage = () => {
+ 	};
  	return /* @__PURE__ */ jsx(SendToWalletPageContainer, {
  		disableGutters: true,
- 		children: /* @__PURE__ */ jsxs(ListContainer, { children: [accounts.map((account) => {
+-		children: /* @__PURE__ */ jsxs(ListContainer, { children: [accounts.map((account) => {
 -			const walletAddress = shortenAddress(account.address);
++		children: /* @__PURE__ */ jsxs(ListContainer, { children: [rows.map((account) => {
 +			const walletAddress = account.address;
  			const menuItems = [{
  				icon: /* @__PURE__ */ jsx(ContentCopyRounded, {}),
  				label: t("button.copyAddress"),
-@@ -72,7 +72,8 @@ const ConnectedWalletsPage = () => {
+@@ -72,14 +80,15 @@ const ConnectedWalletsPage = () => {
  						account
  					}) }), /* @__PURE__ */ jsx(ListItemText, {
  						primary: account.connector?.name,
@@ -21,3 +38,11 @@ index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..3de78f6502aa2012723699aa5673b3c5
  					})]
  				}), /* @__PURE__ */ jsx(ContextMenu, {
  					items: menuItems,
+ 					disabled: !!(requiredToChainType && requiredToChainType !== account.chainType)
+ 				})]
+ 			}, account.address);
+-		}), !accounts.length && /* @__PURE__ */ jsx(EmptyListIndicator, {
++		}), !rows.length && /* @__PURE__ */ jsx(EmptyListIndicator, {
+ 			icon: /* @__PURE__ */ jsx(Wallet, { sx: { fontSize: 48 } }),
+ 			children: t("sendToWallet.noConnectedWallets")
+ 		})] })
