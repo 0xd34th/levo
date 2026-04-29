@@ -39,16 +39,13 @@ export function useMainWidgetConfig(
 
     const config: Partial<WidgetConfig> = {
       keyPrefix: `jumper-${context.starterVariant}`,
-      // Variant configuration
-      variant: context.starterVariant === 'refuel' ? 'compact' : 'wide',
+      variant: 'wide',
       buildUrl: true,
       useRelayerRoutes: true,
       subvariant:
-        isBuyVariant || isMemecoins
+        isBuyVariant || isMemecoins || context.starterVariant === 'buy'
           ? 'default'
-          : context.starterVariant === 'buy'
-            ? 'default'
-            : context.starterVariant,
+          : context.starterVariant,
       subvariantOptions: {},
 
       // UI configuration

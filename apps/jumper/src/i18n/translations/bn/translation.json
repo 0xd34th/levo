@@ -7,11 +7,7 @@
     },
     "links": {
       "exchange": "",
-      "portfolio": "",
-      "missions": "",
-      "earn": "",
       "dashboard": "ড্যাশবোর্ড",
-      "refuel": "গ্যাস",
       "buy": "",
       "back": ""
     },
@@ -29,12 +25,9 @@
         "noEcosystemAdapter": ""
       }
     },
-    "pass": "",
     "wallets": "",
     "seeAllWallets": "",
     "navbarMenu": {
-      "learn": "",
-      "scan": "",
       "brandAssets": "",
       "theme": "থিম",
       "developers": "ডেভেলপারস",
@@ -42,8 +35,7 @@
       "resources": "",
       "profile": "",
       "privacyPolicy": "",
-      "termsConditions": "",
-      "newsletter": ""
+      "termsConditions": ""
     },
     "walletMenu": {
       "disconnect": "সংযোগ বিচ্ছিন্ন করুন",
@@ -85,25 +77,6 @@
   "badge": {
     "updated": ""
   },
-  "blog": {
-    "title": "",
-    "categories": "",
-    "allCategories": "",
-    "subtitle": "",
-    "minRead": "",
-    "seeAllPosts": "",
-    "recentPosts": "",
-    "similarPosts": "",
-    "goToArticle": "",
-    "openApp": "",
-    "faq": "",
-    "jumperCta": "",
-    "copiedLink": "",
-    "shareLinkedIn": "",
-    "shareFb": "",
-    "shareX": "",
-    "shareLink": ""
-  },
   "solanaAlert": {
     "title": "",
     "subtitle": ""
@@ -140,141 +113,8 @@
       "description": ""
     }
   },
-  "questCard": {
-    "completed": "",
-    "join": "",
-    "xpToEarnDescription": "",
-    "earnedXPDescription": "",
-    "action": {
-      "chain_oor": "",
-      "transact_oor": "",
-      "swap_oor": "",
-      "bridge_oor": ""
-    }
-  },
   "promo": {
     "new": ""
-  },
-  "missions": {
-    "wrapperCard": {
-      "title": "",
-      "explore_one": "",
-      "explore_other": ""
-    },
-    "available": "",
-    "completed": "",
-    "mission": {
-      "completed": {
-        "title": "",
-        "description": ""
-      },
-      "ended": {
-        "title": "",
-        "description": "",
-        "cta": ""
-      }
-    },
-    "status": {
-      "new": "",
-      "upcoming": "",
-      "minutesLeft_one": "",
-      "minutesLeft_other": "",
-      "hoursLeft_one": "",
-      "hoursLeft_other": "",
-      "daysLeft_one": "",
-      "daysLeft_other": "",
-      "ended": ""
-    },
-    "tasks": {
-      "type": "",
-      "typeFallback": "",
-      "typeOptional": "",
-      "status": {
-        "verify": "",
-        "verified": ""
-      },
-      "action": {
-        "verify": "",
-        "go": ""
-      },
-      "completed": {
-        "title": "",
-        "description": ""
-      },
-      "verifyWallet": {
-        "title": "",
-        "description": {
-          "notConnected": "",
-          "notVerified": "",
-          "verified": ""
-        },
-        "action": {
-          "connectAndVerify": "",
-          "verifyWallet": ""
-        },
-        "status": {
-          "signatureFailed": {
-            "title": "",
-            "description": "",
-            "tryAgain": ""
-          },
-          "unsupportedWallet": {
-            "title": "",
-            "description": "",
-            "switchWallet": ""
-          },
-          "unknown": {
-            "title": "",
-            "description": "",
-            "tryAgain": ""
-          }
-        }
-      }
-    }
-  },
-  "profile_page": {
-    "campaigns": "",
-    "mobileTitle": "",
-    "mobileDescription": "",
-    "level": "",
-    "rank": "",
-    "rankInfo": "",
-    "pointsInfo": "",
-    "levelInfo": "",
-    "copyAddress": "",
-    "shareProfile": "",
-    "open": "",
-    "rewards": "",
-    "availableRewards": "",
-    "perks": "",
-    "achievements": "",
-    "unlocked": "",
-    "levelWithValue": "",
-    "tooltips": {
-      "unlockAtLevel": ""
-    },
-    "noData": {
-      "description": "",
-      "caption": "",
-      "cta": ""
-    }
-  },
-  "campaign": {
-    "missions": {
-      "title": ""
-    },
-    "stats": {
-      "missions": "",
-      "rewards": "",
-      "totalRewards": ""
-    }
-  },
-  "leaderboard": {
-    "title": "",
-    "description": "",
-    "rankCtaConnect": "",
-    "updatedLabel": "",
-    "connectWallet": ""
   },
   "completedMissionsInformation": {
     "title": "",
@@ -334,210 +174,6 @@
     "protocol": "",
     "overview": "",
     "capInDollar": ""
-  },
-  "earn": {
-    "top": {
-      "useYourSpare": "",
-      "maximizeYourRevenue": "",
-      "makeTheJump": "",
-      "earnUpTo": ""
-    },
-    "copy": {
-      "forYouBasedOnActivity": "",
-      "forYouDefault": ""
-    },
-    "sorting": {
-      "sortBy": "",
-      "sort": "",
-      "apy": "",
-      "tvl": ""
-    },
-    "filter": {
-      "clear": "",
-      "selected": "",
-      "search": "",
-      "filterAndSort": "",
-      "clearAll": "",
-      "chain": "",
-      "protocol": "",
-      "tag": "",
-      "asset": "",
-      "apy": "",
-      "tvl": "",
-      "rewards": {
-        "label": "",
-        "withRewards": ""
-      }
-    },
-    "views": {
-      "viewBy": "",
-      "forYou": "",
-      "allMarkets": "",
-      "all": "",
-      "yourPositions": ""
-    },
-    "relatedMarkets": {
-      "title": ""
-    },
-    "riskDescriptions": {
-      "risk": "",
-      "riskTag": {
-        "Basis Trading": "",
-        "Bridge": "",
-        "CDP": "",
-        "Credit": "",
-        "Farming": "",
-        "Lending": "",
-        "Liquid Staking": "",
-        "Liquidity": "",
-        "RWA": "",
-        "Staking": "",
-        "Structured": "",
-        "Synthetic": "",
-        "Yield Aggregator": ""
-      },
-      "website": ""
-    },
-    "overview": {
-      "updated": ""
-    },
-    "actions": {
-      "viewAllMarkets": "",
-      "seeMore": "",
-      "goToPortfolio": ""
-    },
-    "position": {
-      "label": ""
-    },
-    "missingPosition": {
-      "title": "",
-      "description": ""
-    },
-    "emptyList": {
-      "yourPositions": {
-        "title": "",
-        "description": "",
-        "viewAllMarkets": ""
-      },
-      "noResults": {
-        "title": "",
-        "description": "",
-        "clearFilters": ""
-      }
-    }
-  },
-  "portfolio": {
-    "welcome": {
-      "title": "",
-      "subtitle": "",
-      "getStarted": ""
-    },
-    "overviewCard": {
-      "title": "",
-      "refreshTooltip": ""
-    },
-    "emptyList": {
-      "title": "",
-      "description": "",
-      "clearFilters": ""
-    },
-    "assetOverviewCard": {
-      "navigation": {
-        "overview": "",
-        "tokens": "",
-        "defiPositions": ""
-      },
-      "overview": {
-        "tokens": "",
-        "defiPositions": ""
-      },
-      "noContent": {
-        "title": "",
-        "description": "",
-        "cta": {
-          "startEarning": "",
-          "startSwapping": ""
-        }
-      }
-    },
-    "defiPositionCard": {
-      "overview": {
-        "opened": "",
-        "lockup": "",
-        "lockupPeriod": {
-          "lessThanOneMinute": "",
-          "minutes_one": "",
-          "minutes_other": "",
-          "hours_one": "",
-          "hours_other": "",
-          "days_one": "",
-          "days_other": "",
-          "months_one": "",
-          "months_other": "",
-          "years_one": "",
-          "years_other": ""
-        },
-        "tooltip": {
-          "address": "",
-          "info": ""
-        }
-      },
-      "actions": {
-        "withdraw": "",
-        "deposit": "",
-        "claim": "",
-        "compound": "",
-        "repay": "",
-        "borrow": ""
-      },
-      "header": {
-        "supplied": "",
-        "value": "",
-        "apy": "",
-        "rewards": "",
-        "borrowed": ""
-      }
-    },
-    "filter": {
-      "wallet": "",
-      "chain": "",
-      "protocol": "",
-      "type": "",
-      "asset": "",
-      "value": "",
-      "clearAll": "",
-      "filterAndSort": "",
-      "search": ""
-    },
-    "sorting": {
-      "sortBy": "",
-      "sort": "",
-      "totalValue": "",
-      "chain": "",
-      "asset": ""
-    },
-    "views": {
-      "viewBy": "",
-      "tokens": "",
-      "defiProtocols": ""
-    }
-  },
-  "newsletter": {
-    "welcome": {
-      "title": "",
-      "subtitle": "",
-      "hint": "",
-      "subscribe": "",
-      "emailPlaceholder": "",
-      "error": {
-        "email": "",
-        "emailLength": "",
-        "required": "",
-        "unknown": ""
-      },
-      "pending": "",
-      "success": ""
-    }
   },
   "widget": {
     "depositCard": {
@@ -662,19 +298,5 @@
         "submitting": ""
       }
     }
-  },
-  "gatekeeper": {
-    "title": "",
-    "subtitle": {
-      "intro": {
-        "earn": "",
-        "portfolio": ""
-      },
-      "notConnected": "",
-      "noAccess": ""
-    },
-    "requestAccess": "",
-    "connecting": "",
-    "error": ""
   }
 }

@@ -23,8 +23,7 @@ import {
   Divider,
   IconButton,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
@@ -239,11 +238,58 @@ export const WalletMenu = () => {
                     <Typography variant="bodyMediumStrong">
                       {chainLabels[chain]}
                     </Typography>
-                    <Chip
-                      size="small"
-                      color={ready ? "success" : "default"}
-                      label={statusLabel}
-                    />
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ alignItems: "center" }}
+                    >
+                      {chain === "sui" && hasDualSuiSession ? (
+                        <Tooltip title="Signs Sui transactions and pre-fills the destination address">
+                          <Chip
+                            size="small"
+                            variant={
+                              effectivePrimary === "privy"
+                                ? "outlined"
+                                : "filled"
+                            }
+                            color="primary"
+                            label={
+                              effectivePrimary === "privy"
+                                ? "Primary"
+                                : "Set as primary"
+                            }
+                            clickable={effectivePrimary !== "privy"}
+                            onClick={
+                              effectivePrimary === "privy"
+                                ? undefined
+                                : () => setPreferredSuiSource("privy")
+                            }
+                            aria-label={
+                              effectivePrimary === "privy"
+                                ? "Privy embedded Sui is primary"
+                                : "Set Privy embedded Sui as primary"
+                            }
+                            sx={{
+                              fontWeight: 600,
+                              ...(effectivePrimary !== "privy" && {
+                                boxShadow: theme.shadows[2],
+                                transition:
+                                  "transform 150ms ease, box-shadow 150ms ease",
+                                "&:hover": {
+                                  transform: "translateY(-1px)",
+                                  boxShadow: theme.shadows[4],
+                                },
+                              }),
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
+                      <Chip
+                        size="small"
+                        color={ready ? "success" : "default"}
+                        label={statusLabel}
+                      />
+                    </Stack>
                   </Stack>
                   <Typography
                     variant="bodySmall"
@@ -290,40 +336,6 @@ export const WalletMenu = () => {
         </>
       ) : null}
 
-      {hasDualSuiSession ? (
-        <>
-          <Divider />
-          <Stack spacing={1}>
-            <Typography variant="bodyMediumStrong">
-              Primary Sui wallet
-            </Typography>
-            <Typography
-              variant="bodySmall"
-              sx={{ color: (theme.vars || theme).palette.text.secondary }}
-            >
-              Pick which Sui address signs transactions and pre-fills as the
-              destination address. Switch any time.
-            </Typography>
-            <ToggleButtonGroup
-              aria-label="Primary Sui wallet"
-              color="primary"
-              exclusive
-              fullWidth
-              onChange={(_, value: "external" | "privy" | null) => {
-                if (value) {
-                  setPreferredSuiSource(value);
-                }
-              }}
-              size="small"
-              value={effectivePrimary}
-            >
-              <ToggleButton value="external">External wallet</ToggleButton>
-              <ToggleButton value="privy">Privy embedded</ToggleButton>
-            </ToggleButtonGroup>
-          </Stack>
-        </>
-      ) : null}
-
       {externalSuiAccount ? (
         <>
           {authenticated ? <Divider /> : null}
@@ -335,7 +347,11 @@ export const WalletMenu = () => {
               sx={{ color: (theme.vars || theme).palette.text.secondary }}
             >
               Connected via {externalSuiWallet?.name ?? "Sui wallet"}.
-              Sui transactions are signed by this wallet.
+              {hasDualSuiSession
+                ? effectivePrimary === "external"
+                  ? " Currently signing Sui transactions."
+                  : " Privy embedded is currently signing — tap Set as primary to switch."
+                : " Sui transactions are signed by this wallet."}
             </Typography>
           </Stack>
 
@@ -368,7 +384,52 @@ export const WalletMenu = () => {
                   {externalSuiWallet?.name ?? "Sui Wallet"}
                 </Typography>
               </Stack>
-              <Chip color="success" label="Connected" size="small" />
+              <Stack
+                direction="row"
+                spacing={0.5}
+                sx={{ alignItems: "center" }}
+              >
+                {hasDualSuiSession ? (
+                  <Tooltip title="Signs Sui transactions and pre-fills the destination address">
+                    <Chip
+                      size="small"
+                      variant={
+                        effectivePrimary === "external" ? "outlined" : "filled"
+                      }
+                      color="primary"
+                      label={
+                        effectivePrimary === "external"
+                          ? "Primary"
+                          : "Set as primary"
+                      }
+                      clickable={effectivePrimary !== "external"}
+                      onClick={
+                        effectivePrimary === "external"
+                          ? undefined
+                          : () => setPreferredSuiSource("external")
+                      }
+                      aria-label={
+                        effectivePrimary === "external"
+                          ? "External Sui wallet is primary"
+                          : "Set external Sui wallet as primary"
+                      }
+                      sx={{
+                        fontWeight: 600,
+                        ...(effectivePrimary !== "external" && {
+                          boxShadow: theme.shadows[2],
+                          transition:
+                            "transform 150ms ease, box-shadow 150ms ease",
+                          "&:hover": {
+                            transform: "translateY(-1px)",
+                            boxShadow: theme.shadows[4],
+                          },
+                        }),
+                      }}
+                    />
+                  </Tooltip>
+                ) : null}
+                <Chip color="success" label="Connected" size="small" />
+              </Stack>
             </Stack>
             <Typography
               variant="bodySmall"

@@ -36,7 +36,7 @@ export default function Page() {
           })}
         >
           <Widget starterVariant="default" />
-          <Widgets widgetVariant={'default'} />
+          <Widgets />
         </WidgetContainer>
       </Stack>
     </Container>

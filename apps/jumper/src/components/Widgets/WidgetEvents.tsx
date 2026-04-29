@@ -3,7 +3,6 @@ import { checkWinningSwap } from '@/components/GoldenRouteModal/utils';
 import { MultisigConfirmationModal } from '@/components/MultisigConfirmationModal';
 import { MultisigConnectedAlert } from '@/components/MultisigConnectedAlert';
 import { useMultisig } from '@/hooks/useMultisig';
-import { useActiveTabStore } from '@/stores/activeTab';
 import { useChainTokenSelectionStore } from '@/stores/chainTokenSelection';
 import { useMultisigStore } from '@/stores/multisig';
 import type { RouteExtended } from '@lifi/sdk';
@@ -23,7 +22,6 @@ import { setupWidgetEvents, teardownWidgetEvents } from './WidgetEventsManager';
 import { useWidgetCacheStore } from 'src/stores/widgetCache/WidgetCacheStore';
 import { useContactSupportEvent } from './events/hooks/useContactSupportEvent';
 import dynamic from 'next/dynamic';
-import { usePortfolioState } from '@/providers/PortfolioProvider/PortfolioContext';
 
 const GoldenRouteModal = dynamic(() =>
   import('src/components/GoldenRouteModal/GoldenRouteModal').then(
@@ -33,7 +31,6 @@ const GoldenRouteModal = dynamic(() =>
 
 export function WidgetEvents() {
   useContactSupportEvent();
-  const { activeTab } = useActiveTabStore();
   const { setDestinationChainToken, setSourceChainToken } =
     useChainTokenSelectionStore();
   const { setFromChainId, setFromToken, setToChainId, setToToken } =
@@ -52,7 +49,6 @@ export function WidgetEvents() {
 
   const [isMultisigConnectedAlertOpen, setIsMultisigConnectedAlertOpen] =
     useState(false);
-  const { refreshByAddress } = usePortfolioState();
   const [route, setRoute] = useState<{
     winner: boolean;
     position: number | null;
@@ -82,15 +78,6 @@ export function WidgetEvents() {
 
       // Store the completed route
       setCompletedRoute(route);
-
-      const fromAddress = route.fromAddress;
-      const toAddress = route.toAddress;
-
-      // Refresh portfolio value
-      refreshByAddress(fromAddress ?? '');
-      if (fromAddress !== toAddress) {
-        refreshByAddress(toAddress ?? '');
-      }
 
       const routeStatus = getRouteStatus(route);
 
@@ -198,7 +185,6 @@ export function WidgetEvents() {
     };
   }, [
     widgetEvents,
-    activeTab,
     setDestinationChain,
     setDestinationChainToken,
     setSourceChainToken,
@@ -210,7 +196,6 @@ export function WidgetEvents() {
     setToChainId,
     setFromToken,
     setToToken,
-    refreshByAddress,
   ]);
 
   const onMultiSigConfirmationModalClose = () => {

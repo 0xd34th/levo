@@ -2,13 +2,11 @@
 
 import { useMemo } from 'react';
 import { useActiveAccountByChainType } from 'src/hooks/useActiveAccountByChainType';
-import { useWalletAddressImg } from 'src/hooks/useAddressImg';
-import { useLoyaltyPass } from 'src/hooks/useLoyaltyPass';
 import { useChains } from '@/hooks/useChains';
 import { useEnsName } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { getAddressLabel } from 'src/utils/getAddressLabel';
-import { getConnectorIcon, useAccount } from '@lifi/wallet-management';
+import { getConnectorIcon } from '@lifi/wallet-management';
 import { useCurrentAccount } from '@mysten/dapp-kit-react';
 import type { Chain } from '@lifi/sdk';
 import type { Address } from 'viem';
@@ -16,28 +14,7 @@ import { walletDigest } from 'src/utils/walletDigest';
 import { AppPaths } from 'src/const/urls';
 import { useTranslation } from 'react-i18next';
 import { usePathnameWithoutLocale } from 'src/hooks/routing/usePathnameWithoutLocale';
-import {
-  isEarnFeatureEnabled,
-  isPortfolioFeatureEnabled,
-} from 'src/app/lib/getFeatureFlag';
-import { useABTest } from '@/hooks/useABTest';
-import { AB_TEST_NAME } from '@/const/abtests';
 import { useWalletFleet } from '@/hooks/useWalletFleet';
-
-export const useLevelDisplayData = () => {
-  const activeAccount = useActiveAccountByChainType();
-  const imageUrl = useWalletAddressImg({
-    userAddress: activeAccount?.address,
-  });
-  const { level, isLoading } = useLoyaltyPass(activeAccount?.address);
-
-  return {
-    isLoading,
-    imageAlt: activeAccount?.address,
-    imageUrl,
-    value: level,
-  };
-};
 
 export const useWalletDisplayData = () => {
   const activeAccount = useActiveAccountByChainType();
@@ -99,56 +76,17 @@ interface MainLink {
 export const useMainLinks = () => {
   const { t } = useTranslation();
   const pathname = usePathnameWithoutLocale();
-  const { account } = useAccount();
 
-  const isEarnEnabled = isEarnFeatureEnabled();
-  const isPortfolioEnabled = isPortfolioFeatureEnabled();
-
-  const tradeABTest = useABTest({
-    feature: AB_TEST_NAME.A_B_TEST_TRADE_DISPLAY,
-    address: account?.address ?? '',
-  });
-
-  const links = useMemo(() => {
-    const _links: MainLink[] = [
+  const links = useMemo<MainLink[]>(
+    () => [
       {
         value: AppPaths.Main,
-        label:
-          tradeABTest.isEnabled && tradeABTest.value === 'test'
-            ? t('navbar.links.trade')
-            : t('navbar.links.exchange'),
-        subLinks: [AppPaths.Gas],
+        label: t('navbar.links.exchange'),
         testId: 'navbar-exchange-button',
       },
-    ];
-
-    if (isPortfolioEnabled) {
-      _links.push({
-        value: AppPaths.Portfolio,
-        label: t('navbar.links.portfolio'),
-        subLinks: [AppPaths.Portfolio],
-        testId: 'navbar-portfolio-button',
-      });
-    }
-
-    _links.push({
-      value: AppPaths.Missions,
-      label: t('navbar.links.missions'),
-      subLinks: [AppPaths.Missions, AppPaths.Campaign, AppPaths.Zap],
-      testId: 'navbar-missions-button',
-    });
-
-    if (isEarnEnabled) {
-      _links.push({
-        value: AppPaths.Earn,
-        label: t('navbar.links.earn'),
-        subLinks: [AppPaths.Earn],
-        testId: 'navbar-earn-button',
-      });
-    }
-
-    return _links;
-  }, [t, isEarnEnabled, isPortfolioEnabled, tradeABTest]);
+    ],
+    [t],
+  );
 
   const activeLink = useMemo(
     () =>

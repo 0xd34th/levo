@@ -4,8 +4,8 @@ import type { WidgetProps } from './Widget.types';
 import { useWidgetConfig } from '../widgetConfig/useWidgetConfig';
 import { ClientOnly } from '@/components/ClientOnly';
 
-export const Widget: FC<WidgetProps> = ({ ctx, type, formRef }) => {
-  const { config, isReady } = useWidgetConfig(type, ctx);
+export const Widget: FC<WidgetProps> = ({ ctx, formRef }) => {
+  const { config, isReady } = useWidgetConfig(ctx);
 
   return (
     <ClientOnly fallback={<LifiWidgetSkeleton config={config} />}>

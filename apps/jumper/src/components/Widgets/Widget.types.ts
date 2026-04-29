@@ -1,7 +1,6 @@
 'use client';
 import type { StarterVariantType } from '@/types/internal';
 import { ChainId } from '@lifi/sdk';
-import type { BlogWidgetProps } from '../Blog/BlogWidget';
 
 export const themeAllowChains: ChainId[] = [
   ChainId.ETH,
@@ -16,11 +15,16 @@ export const ExtendedChainId = {
   HYPE: 998 as ChainId,
 } as Record<string, ChainId>;
 
-export interface WidgetProps extends Omit<BlogWidgetProps, 'allowChains'> {
+export interface WidgetProps {
+  starterVariant: StarterVariantType;
+  fromChain?: number;
+  fromToken?: string;
+  toChain?: number;
+  toToken?: string;
+  fromAmount?: string;
   allowChains?: number[];
   allowToChains?: number[];
   widgetIntegrator?: string;
-  starterVariant: StarterVariantType;
   activeTheme?: string;
   autoHeight?: boolean;
 }

@@ -9,7 +9,7 @@ export const ServerNavbar = async () => {
   return (
     <NavbarContainer enableColorOnDark>
       <Link href={AppPaths.Main}>
-        <Logo variant="default" />
+        <Logo />
       </Link>
       <Layout />
     </NavbarContainer>

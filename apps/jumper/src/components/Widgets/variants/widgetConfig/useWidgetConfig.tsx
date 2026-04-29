@@ -1,17 +1,11 @@
 import { useAccount } from '@lifi/wallet-management';
-import { ChainType, HiddenUI, type WidgetConfig } from '@lifi/widget';
+import { HiddenUI, type WidgetConfig } from '@lifi/widget';
 import merge from 'lodash/merge';
 import { useMemo } from 'react';
 import { AB_TEST_NAME } from '@/const/abtests';
 import { useABTest } from '@/hooks/useABTest';
-import type {
-  MainWidgetContext,
-  MissionWidgetContext,
-  WidgetType,
-  ZapWidgetContext,
-} from './types';
+import type { MainWidgetContext } from './types';
 import { useMainWidgetConfig } from './useMainWidgetConfig';
-import { useMissionWidgetConfig } from './useMissionWidgetConfig';
 import {
   useLanguageConfig,
   useSharedBaseConfig,
@@ -19,20 +13,14 @@ import {
   useSharedRPCConfig,
 } from './useSharedConfigs';
 import { useWidgetDependencies } from './useWidgetDependencies';
-import { useZapWidgetConfig } from './useZapWidgetConfig';
 import { applySuiExchangeGuards } from './exchangeGuards';
 import FeeContribution from '../../FeeContribution/FeeContribution';
 
 /**
  * Main widget configuration hook that orchestrates all configuration logic
  */
-export function useWidgetConfig<T extends WidgetType>(
-  type: T,
-  context: T extends 'main'
-    ? MainWidgetContext
-    : T extends 'mission'
-      ? MissionWidgetContext
-      : ZapWidgetContext,
+export function useWidgetConfig(
+  context: MainWidgetContext,
 ): { config: WidgetConfig; isReady: boolean } {
   const deps = useWidgetDependencies();
   const sharedBase = useSharedBaseConfig(context, deps);
@@ -54,42 +42,17 @@ export function useWidgetConfig<T extends WidgetType>(
     address: account?.address ?? '',
   });
 
-  // Language configuration
   const language = useLanguageConfig(
     {
-      useMainWidget: type === 'main',
+      useMainWidget: true,
       useSwapBridgeTitle: tradeABTest.isEnabled && tradeABTest.value === 'test',
       ...context,
     },
     deps,
   );
 
-  const mainWidgetConfig = useMainWidgetConfig(
-    context as MainWidgetContext,
-    deps,
-  );
-  const missionWidgetConfig = useMissionWidgetConfig(
-    context as MissionWidgetContext,
-    deps,
-  );
-  const zapWidgetConfig = useZapWidgetConfig(context as ZapWidgetContext, deps);
+  const mainWidgetConfig = useMainWidgetConfig(context, deps);
 
-  // Widget-specific configuration
-  const widgetSpecific = useMemo(() => {
-    switch (type) {
-      case 'main':
-        return mainWidgetConfig;
-      case 'mission':
-        return missionWidgetConfig;
-      case 'zap':
-        // For zap widgets, we use both mission and zap configurations
-        return merge({}, missionWidgetConfig, zapWidgetConfig);
-      default:
-        throw new Error(`Unknown widget type: ${type}`);
-    }
-  }, [mainWidgetConfig, missionWidgetConfig, zapWidgetConfig, type]);
-
-  // Merge all configurations
   const config = useMemo(() => {
     const baseConfig = merge(
       {},
@@ -97,10 +60,9 @@ export function useWidgetConfig<T extends WidgetType>(
       sharedRPC,
       sharedForm,
       language,
-      widgetSpecific,
+      mainWidgetConfig,
     ) as WidgetConfig;
 
-    // Apply theme overrides if provided
     if (context.theme) {
       merge(baseConfig, {
         theme: context.theme,
@@ -134,7 +96,6 @@ export function useWidgetConfig<T extends WidgetType>(
     }
 
     if (
-      type === 'main' &&
       feeContributionABTest.isEnabled &&
       feeContributionABTest.value
     ) {
@@ -151,14 +112,14 @@ export function useWidgetConfig<T extends WidgetType>(
     sharedRPC,
     sharedForm,
     language,
-    widgetSpecific,
+    mainWidgetConfig,
     context.theme,
     context.disabledUI,
     context.hiddenUI,
+    context.formData,
     deps.translation.t,
     priceImpactABTest.isEnabled,
     priceImpactABTest.value,
-    type,
     feeContributionABTest.isEnabled,
     feeContributionABTest.value,
   ]);

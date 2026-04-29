@@ -10,8 +10,8 @@ import {
   AccordionToggleButton,
   FaqShowMoreArrow,
 } from '.';
+import { BlocksRenderer } from '@strapi/blocks-react-renderer';
 import type { RootNode } from 'node_modules/@strapi/blocks-react-renderer/dist/BlocksRenderer';
-import { RichBlocks } from '../RichBlocks/RichBlocks';
 import { IconButton } from '../core/buttons/IconButton/IconButton';
 import { Variant } from '../core/buttons/types';
 
@@ -74,14 +74,8 @@ export const AccordionFAQItem = ({
               {answer}
             </Typography>
           ) : (
-            <RichBlocks
-              content={answer}
-              blockSx={{
-                paragraph: itemAnswerSx,
-              }}
-            />
+            <BlocksRenderer content={answer} />
           )}
-          {/* <BlocksRenderer content={el.Answer} /> */}
         </AccordionDetails>
       </Accordion>
       {showDivider && lastItem && <AccordionDivider />}

@@ -21,7 +21,7 @@ import {
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { WideEntityCardSkeleton } from './WideEntityCardSkeleton';
 import { ENTITY_CARD_SIZES } from '../constants';
-import { RichBlocks } from 'src/components/RichBlocks/RichBlocks';
+import { BlocksRenderer } from '@strapi/blocks-react-renderer';
 
 export const WideEntityCard: FC<Omit<EntityCardProps, 'type'>> = ({
   imageUrl,
@@ -45,15 +45,7 @@ export const WideEntityCard: FC<Omit<EntityCardProps, 'type'>> = ({
     <StyledEntityCardDescription>{description}</StyledEntityCardDescription>
   ) : !!descriptionRichText ? (
     <StyledWideEntityCardDescriptionWrapper>
-      <RichBlocks
-        content={descriptionRichText}
-        blockSx={{
-          paragraph: (theme) => ({
-            ...theme.typography.bodyMedium,
-            color: (theme.vars || theme).palette.text.secondary,
-          }),
-        }}
-      />
+      <BlocksRenderer content={descriptionRichText} />
     </StyledWideEntityCardDescriptionWrapper>
   ) : null;
 

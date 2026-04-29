@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { Divider } from 'src/components/Blog/BlogArticle/BlogArticle.style';
+import { Divider } from '@mui/material';
 import { DynamicPagesContainer } from 'src/components/DynamicPagesContainer';
 import StepDetail from 'src/components/StepDetail/StepDetail';
 import { getWidgetImageProps } from 'src/utils/image-generation/getWidgetImage';
@@ -132,26 +132,7 @@ const StepsExplainerSection = ({
     },
     {
       title: 'Step 5: Verify Your Bridge',
-      description: `After bridging your assets, verify that they have been successfully transferred to the ${destinationChain.name} network. You can do this by either:`,
-      content: (
-        <ul>
-          <li>Clicking on the buttons to see each intermediate transaction</li>
-          <li>
-            Go to your{' '}
-            <MuiLink
-              sx={(theme) => ({
-                color: (theme.vars || theme).palette.text.primary,
-                textDecoration: 'underline',
-              })}
-              component={Link}
-              href={`${JUMPER_URL}/scan`}
-            >
-              {`${JUMPER_URL}/scan`}
-            </MuiLink>{' '}
-            profile to visualize your recent transaction
-          </li>
-        </ul>
-      ),
+      description: `After bridging your assets, verify that they have been successfully transferred to the ${destinationChain.name} network. You can do this by clicking on the buttons to see each intermediate transaction.`,
       img: getWidgetImageProps({
         sourceToken,
         sourceChain,

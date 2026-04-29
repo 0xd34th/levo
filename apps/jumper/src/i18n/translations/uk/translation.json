@@ -7,11 +7,7 @@
     },
     "links": {
       "exchange": "Обмін",
-      "portfolio": "",
-      "missions": "",
-      "earn": "",
       "dashboard": "Дешборд",
-      "refuel": "Газ",
       "buy": "Купівля",
       "back": ""
     },
@@ -29,12 +25,9 @@
         "noEcosystemAdapter": "Відповідного адаптера для екосистеми не знайдено"
       }
     },
-    "pass": "",
     "wallets": "",
     "seeAllWallets": "Переглянути всі гаманці",
     "navbarMenu": {
-      "learn": "",
-      "scan": "",
       "brandAssets": "Бренд ресурси",
       "theme": "Тема",
       "developers": "Розробникам",
@@ -42,8 +35,7 @@
       "resources": "",
       "profile": "Профіль Jumper",
       "privacyPolicy": "",
-      "termsConditions": "",
-      "newsletter": ""
+      "termsConditions": ""
     },
     "walletMenu": {
       "disconnect": "Від'єднатись",
@@ -85,25 +77,6 @@
   "badge": {
     "updated": ""
   },
-  "blog": {
-    "title": "Поради та навчальні матеріали",
-    "categories": "Категорії",
-    "allCategories": "Всі",
-    "subtitle": "TL;DR покрокові інструкції до DeFi і крипто для всіх рівнів",
-    "minRead": "{{minRead}} хв читання",
-    "seeAllPosts": "Переглянути всі записи",
-    "recentPosts": "Останні дописи",
-    "similarPosts": "Схожі дописи",
-    "goToArticle": "Перейти до статті",
-    "openApp": "Відкрити додаток",
-    "faq": "FAQ",
-    "jumperCta": "Спробуйте jumper.xyz",
-    "copiedLink": "Посилання скопійовано",
-    "shareLinkedIn": "Поділитися статтею на LinkedIn",
-    "shareFb": "Поділитися статтею в Facebook",
-    "shareX": "Поділитися статтею на X",
-    "shareLink": "Поділитись посиланням"
-  },
   "solanaAlert": {
     "title": "Обмежена підтримка токенів Solana",
     "subtitle": "Наразі можна перевести тільки USDT і USDT до та з Solana."
@@ -140,141 +113,8 @@
       "description": "Будь ласка, повідомте інших учасників multisig гаманця підписати до закінчення терміну транзакції."
     }
   },
-  "questCard": {
-    "completed": "Завершено",
-    "join": "Приєднатися",
-    "xpToEarnDescription": "Завершіть {{action}} щоб заробити +{{xpToEarn}} addtional XP в цьому місяці.",
-    "earnedXPDescription": "Ви розблокували {{earnedXP}}XP від {{action}} цього місяця, і це було додано до вашого загального XP-балансу.",
-    "action": {
-      "chain_oor": "дослідження чейнів",
-      "transact_oor": "торгівля",
-      "swap_oor": "обмін",
-      "bridge_oor": "мости"
-    }
-  },
   "promo": {
     "new": "Нове"
-  },
-  "missions": {
-    "wrapperCard": {
-      "title": "Місії",
-      "explore_one": "Дослідити {{count}} завдання",
-      "explore_other": "Дослідити {{count}} завдання"
-    },
-    "available": "Доступні місії",
-    "completed": "Виконані місії",
-    "mission": {
-      "completed": {
-        "title": "Місію завершено",
-        "description": "Усі завдання цієї місії були перевірені та виконані."
-      },
-      "ended": {
-        "title": "",
-        "description": "",
-        "cta": ""
-      }
-    },
-    "status": {
-      "new": "Нове",
-      "upcoming": "Майбутні",
-      "minutesLeft_one": "",
-      "minutesLeft_other": "",
-      "hoursLeft_one": "",
-      "hoursLeft_other": "",
-      "daysLeft_one": "",
-      "daysLeft_other": "",
-      "ended": ""
-    },
-    "tasks": {
-      "type": "",
-      "typeFallback": "Завдання",
-      "typeOptional": "",
-      "status": {
-        "verify": "Перевірити",
-        "verified": "Перевірено"
-      },
-      "action": {
-        "verify": "Перевірити",
-        "go": "Вперед"
-      },
-      "completed": {
-        "title": "Завдання виконано",
-        "description": "Це завдання було перевірено та виконано."
-      },
-      "verifyWallet": {
-        "title": "",
-        "description": {
-          "notConnected": "",
-          "notVerified": "",
-          "verified": ""
-        },
-        "action": {
-          "connectAndVerify": "",
-          "verifyWallet": ""
-        },
-        "status": {
-          "signatureFailed": {
-            "title": "",
-            "description": "",
-            "tryAgain": ""
-          },
-          "unsupportedWallet": {
-            "title": "",
-            "description": "",
-            "switchWallet": ""
-          },
-          "unknown": {
-            "title": "",
-            "description": "",
-            "tryAgain": ""
-          }
-        }
-      }
-    }
-  },
-  "profile_page": {
-    "campaigns": "",
-    "mobileTitle": "Доступно лише на комп'ютері",
-    "mobileDescription": "Сторінка профілю Jumper наразі недоступна на маленьких екранах. Ми працюємо над цим.",
-    "level": "Рівень",
-    "rank": "Ранг",
-    "rankInfo": "Ранг - це ваша позиція в таблиці. Отримайте XP і рухайтеся вгору в таблиці лідерів.",
-    "pointsInfo": "Досвід ваш результат від взаємодії з Jumper. Коли ви отримуєте XP, ваш рівень піднімається. XP отримані з Jumper транзакцій оновлюються щодня.",
-    "levelInfo": "Вищий рівень збільшує шанси виграти нагороди у розіграшах, отримати привілеї, бонуси від партнерів, винагороди та інше.",
-    "copyAddress": "Копіювати адресу гаманця",
-    "shareProfile": "Поділитися профілем",
-    "open": "Відкрити {{tool}}",
-    "rewards": "Отримані винагороди",
-    "availableRewards": "Доступні винагороди",
-    "perks": "Перки",
-    "achievements": "Досягнення",
-    "unlocked": "Розблоковано",
-    "levelWithValue": "Рівень {{level}}",
-    "tooltips": {
-      "unlockAtLevel": "Розблоковано на рівні {{level}}"
-    },
-    "noData": {
-      "description": "Ще не {{entity}}? Давайте змінимо!",
-      "caption": "Почніть свою подорож шляхом виконання місій та обміну токенів на різних чейнах, щоб розблокувати унікальні досягнення та заробити досвід.",
-      "cta": "Почати обмін"
-    }
-  },
-  "campaign": {
-    "missions": {
-      "title": "Місії"
-    },
-    "stats": {
-      "missions": "Місії",
-      "rewards": "Нагороди",
-      "totalRewards": "Загальна винагорода"
-    }
-  },
-  "leaderboard": {
-    "title": "Таблиця лідерів",
-    "description": "Таблиця лідерів оновлюється щоденно.",
-    "rankCtaConnect": "Який у вас ранг?",
-    "updatedLabel": "Оновлено: {{date}}",
-    "connectWallet": "Під'єднати гаманець"
   },
   "completedMissionsInformation": {
     "title": "",
@@ -334,210 +174,6 @@
     "protocol": "",
     "overview": "",
     "capInDollar": ""
-  },
-  "earn": {
-    "top": {
-      "useYourSpare": "",
-      "maximizeYourRevenue": "",
-      "makeTheJump": "",
-      "earnUpTo": ""
-    },
-    "copy": {
-      "forYouBasedOnActivity": "",
-      "forYouDefault": ""
-    },
-    "sorting": {
-      "sortBy": "",
-      "sort": "",
-      "apy": "",
-      "tvl": ""
-    },
-    "filter": {
-      "clear": "",
-      "selected": "",
-      "search": "",
-      "filterAndSort": "",
-      "clearAll": "",
-      "chain": "",
-      "protocol": "",
-      "tag": "",
-      "asset": "",
-      "apy": "",
-      "tvl": "",
-      "rewards": {
-        "label": "",
-        "withRewards": ""
-      }
-    },
-    "views": {
-      "viewBy": "",
-      "forYou": "",
-      "allMarkets": "",
-      "all": "",
-      "yourPositions": ""
-    },
-    "relatedMarkets": {
-      "title": ""
-    },
-    "riskDescriptions": {
-      "risk": "",
-      "riskTag": {
-        "Basis Trading": "",
-        "Bridge": "",
-        "CDP": "",
-        "Credit": "",
-        "Farming": "",
-        "Lending": "",
-        "Liquid Staking": "",
-        "Liquidity": "",
-        "RWA": "",
-        "Staking": "",
-        "Structured": "",
-        "Synthetic": "",
-        "Yield Aggregator": ""
-      },
-      "website": ""
-    },
-    "overview": {
-      "updated": ""
-    },
-    "actions": {
-      "viewAllMarkets": "",
-      "seeMore": "",
-      "goToPortfolio": ""
-    },
-    "position": {
-      "label": ""
-    },
-    "missingPosition": {
-      "title": "",
-      "description": ""
-    },
-    "emptyList": {
-      "yourPositions": {
-        "title": "",
-        "description": "",
-        "viewAllMarkets": ""
-      },
-      "noResults": {
-        "title": "",
-        "description": "",
-        "clearFilters": ""
-      }
-    }
-  },
-  "portfolio": {
-    "welcome": {
-      "title": "",
-      "subtitle": "",
-      "getStarted": ""
-    },
-    "overviewCard": {
-      "title": "",
-      "refreshTooltip": ""
-    },
-    "emptyList": {
-      "title": "",
-      "description": "",
-      "clearFilters": ""
-    },
-    "assetOverviewCard": {
-      "navigation": {
-        "overview": "",
-        "tokens": "",
-        "defiPositions": ""
-      },
-      "overview": {
-        "tokens": "",
-        "defiPositions": ""
-      },
-      "noContent": {
-        "title": "",
-        "description": "",
-        "cta": {
-          "startEarning": "",
-          "startSwapping": ""
-        }
-      }
-    },
-    "defiPositionCard": {
-      "overview": {
-        "opened": "",
-        "lockup": "",
-        "lockupPeriod": {
-          "lessThanOneMinute": "",
-          "minutes_one": "",
-          "minutes_other": "",
-          "hours_one": "",
-          "hours_other": "",
-          "days_one": "",
-          "days_other": "",
-          "months_one": "",
-          "months_other": "",
-          "years_one": "",
-          "years_other": ""
-        },
-        "tooltip": {
-          "address": "",
-          "info": ""
-        }
-      },
-      "actions": {
-        "withdraw": "",
-        "deposit": "",
-        "claim": "",
-        "compound": "",
-        "repay": "",
-        "borrow": ""
-      },
-      "header": {
-        "supplied": "",
-        "value": "",
-        "apy": "",
-        "rewards": "",
-        "borrowed": ""
-      }
-    },
-    "filter": {
-      "wallet": "",
-      "chain": "",
-      "protocol": "",
-      "type": "",
-      "asset": "",
-      "value": "",
-      "clearAll": "",
-      "filterAndSort": "",
-      "search": ""
-    },
-    "sorting": {
-      "sortBy": "",
-      "sort": "",
-      "totalValue": "",
-      "chain": "",
-      "asset": ""
-    },
-    "views": {
-      "viewBy": "",
-      "tokens": "",
-      "defiProtocols": ""
-    }
-  },
-  "newsletter": {
-    "welcome": {
-      "title": "",
-      "subtitle": "",
-      "hint": "",
-      "subscribe": "",
-      "emailPlaceholder": "",
-      "error": {
-        "email": "",
-        "emailLength": "",
-        "required": "",
-        "unknown": ""
-      },
-      "pending": "",
-      "success": ""
-    }
   },
   "widget": {
     "depositCard": {
@@ -644,19 +280,5 @@
         "submitting": ""
       }
     }
-  },
-  "gatekeeper": {
-    "title": "",
-    "subtitle": {
-      "intro": {
-        "earn": "",
-        "portfolio": ""
-      },
-      "notConnected": "",
-      "noAccess": ""
-    },
-    "requestAccess": "",
-    "connecting": "",
-    "error": ""
   }
 }

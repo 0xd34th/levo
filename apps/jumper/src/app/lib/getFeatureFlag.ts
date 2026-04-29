@@ -19,15 +19,3 @@ export const getFeatureFlag = async (
 
   return !!resFormatted.data;
 };
-
-export const isEarnFeatureEnabled = () => {
-  return true;
-};
-
-export const isPortfolioFeatureEnabled = () => {
-  return true;
-};
-
-export const isNewsletterFeatureEnabled = () => {
-  return true;
-};

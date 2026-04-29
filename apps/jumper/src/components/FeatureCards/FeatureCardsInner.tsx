@@ -1,12 +1,9 @@
 'use client';
 
 import { useMemo, useEffect } from 'react';
-import { useSpindlCards } from 'src/hooks/feature-cards/spindl/useSpindlCards';
 import { useFeatureCards } from 'src/hooks/feature-cards/useFeatureCards';
-import { useSpindlStore } from 'src/stores/spindl';
 import { FeatureCard } from './FeatureCard';
 import { FeatureCardsContainer } from './FeatureCards.style';
-import { usePersonalizedFeatureCards } from '../../hooks/feature-cards/usePersonalizedFeatureCards';
 import {
   useAdCooldownStore,
   getCooldownKey,
@@ -14,10 +11,7 @@ import {
 import { useAccount } from '@lifi/wallet-management';
 
 export const FeatureCardsInner = () => {
-  useSpindlCards();
-  const spindl = useSpindlStore((state) => state.spindl);
   const featureCards = useFeatureCards();
-  const personalizedFeatureCards = usePersonalizedFeatureCards();
   const { account } = useAccount();
 
   const walletAddress = account?.address ?? '';
@@ -26,13 +20,7 @@ export const FeatureCardsInner = () => {
   const cooldownDuration = useAdCooldownStore((s) => s.cooldownDuration);
   const _hasHydrated = useAdCooldownStore((s) => s._hasHydrated);
 
-  const cards = useMemo(() => {
-    return [
-      ...(spindl ?? []),
-      ...(featureCards ?? []),
-      ...(personalizedFeatureCards ?? []),
-    ];
-  }, [spindl, featureCards, personalizedFeatureCards]);
+  const cards = useMemo(() => featureCards ?? [], [featureCards]);
 
   useEffect(() => {
     if (!_hasHydrated || !cards.length) {

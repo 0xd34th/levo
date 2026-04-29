@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { FeatureCardData } from '@/types/strapi';
 import { getStrapiBaseUrl } from 'src/utils/strapi/strapiHelper';
 import { useUserTracking } from '@/hooks/userTracking/useUserTracking';
-import { isSpindlTrackData } from '@/types/spindl';
-import { trackSpindl } from '@/hooks/feature-cards/spindl/trackSpindl';
 import {
   TrackingAction,
   TrackingCategory,
@@ -25,20 +23,11 @@ export const useFeatureCardTracking = (data: FeatureCardData) => {
   const impressionEventFired = useRef(false);
   const displayEventFired = useRef(false);
 
-  // Track Spindl impression on mount
   useEffect(() => {
     if (impressionEventFired.current) {
       return;
     }
     impressionEventFired.current = true;
-
-    if (isSpindlTrackData(data)) {
-      trackSpindl(
-        'impression',
-        data.spindlData.impression_id,
-        data.spindlData.ad_creative_id,
-      );
-    }
   }, [data]);
 
   const trackDisplay = () => {
@@ -82,15 +71,6 @@ export const useFeatureCardTracking = (data: FeatureCardData) => {
         url: data?.URL,
       },
     });
-
-    // Track Spindl click
-    if (isSpindlTrackData(data)) {
-      trackSpindl(
-        'click',
-        data.spindlData.impression_id,
-        data.spindlData.ad_creative_id,
-      );
-    }
   };
 
   return { trackDisplay, trackClose, trackClick };

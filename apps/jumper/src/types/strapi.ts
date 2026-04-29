@@ -1,7 +1,5 @@
 import type { WidgetConfig } from '@lifi/widget';
 import type { RootNode } from 'node_modules/@strapi/blocks-react-renderer/dist/BlocksRenderer';
-import type { SpindlCardData, SpindlMediaAttributes } from './spindl';
-import type { AvailableSteps } from 'src/components/ProfilePage/components/ClaimPerkModal/ClaimPerkModal.types';
 import type { CreateJumperThemeOptions } from 'src/theme/theme';
 
 /* Strapi */
@@ -27,7 +25,7 @@ export interface StrapiMediaData extends StrapiMediaAttributes {
   // attributes: StrapiMediaAttributes;
 }
 
-type MediaAttributes = SpindlMediaAttributes | StrapiMediaAttributes;
+type MediaAttributes = StrapiMediaAttributes;
 
 export interface StrapiMediaAttributes {
   id: string;
@@ -74,7 +72,7 @@ export interface StrapiResponse<T> {
   meta: StrapiMeta;
 }
 
-export type FeatureCardData = StrapiFeatureCardData | SpindlCardData;
+export type FeatureCardData = StrapiFeatureCardData;
 
 /* Feature-Cards */
 export interface StrapiFeatureCardData extends FeatureCardAttributes {
@@ -490,41 +488,3 @@ export enum TaskType {
   Zap = 'Zap',
 }
 
-export interface PerksData {
-  data: PerksDataAttributes[];
-}
-
-export interface PerkItemData {
-  Label: string;
-}
-
-export interface PerksDataAttributes {
-  id: number;
-  documentId: string;
-  Featured: boolean;
-  Title: string;
-  Description: string;
-  Slug: string;
-  UnlockLevel: number;
-  PerkItems: PerkItemData[];
-  Link: string;
-  StartDate: string;
-  EndDate: string;
-  BannerImage?: StrapiMediaData | null;
-  Image?: StrapiMediaData | null;
-  ClaimableSteps: MultiSelect<AvailableSteps>;
-  ClaimableStepProps?: Record<string, string>;
-  HowToUseDescription?: RootNode[];
-  NextStepsDescription?: RootNode[];
-  createdAt: string;
-  publishedAt?: string;
-  updatedAt: string;
-}
-
-export interface MultiSelect<T> {
-  options: {
-    label: string;
-    value: T;
-  }[];
-  selectedValues: T[];
-}

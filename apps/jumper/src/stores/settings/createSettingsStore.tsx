@@ -5,7 +5,6 @@ import { shallow } from 'zustand/shallow';
 import { createWithEqualityFn } from 'zustand/traditional';
 import { defaultSettings } from '@/config/config';
 import type { SettingsProps, SettingsState } from '@/types/settings';
-import type { EarnCardVariant } from '@/components/Cards/EarnCard/EarnCard.types';
 
 export const createSettingsStore = (props: Partial<SettingsProps>) =>
   createWithEqualityFn(
@@ -33,22 +32,6 @@ export const createSettingsStore = (props: Partial<SettingsProps>) =>
             });
         },
 
-        // Portfolio Welcome Screen
-        setPortfolioWelcomeScreenClosed: (
-          address: string | undefined,
-          shown: boolean,
-        ) => {
-          if (!address) {
-            return;
-          }
-          set({
-            portfolioWelcomeScreenClosed: {
-              ...(get() as SettingsProps).portfolioWelcomeScreenClosed,
-              [address]: shown,
-            },
-          });
-        },
-
         // Welcome Screen
         setWelcomeScreenClosed: (shown: boolean) => {
           set({
@@ -60,13 +43,6 @@ export const createSettingsStore = (props: Partial<SettingsProps>) =>
         setDefaultSettings: () => {
           set({
             disabledFeatureCards: defaultSettings.disabledFeatureCards || [],
-          });
-        },
-
-        // Earn Card Variant
-        setEarnCardVariant: (variant: EarnCardVariant) => {
-          set({
-            earnCardVariant: variant,
           });
         },
       }),
@@ -95,15 +71,6 @@ export const createSettingsStore = (props: Partial<SettingsProps>) =>
 
             console.debug('welcomeScreenClosed cookie migrated');
 
-            return newStore;
-          }
-          if (version === 3) {
-            const newStore = { ...persistedState };
-            if (
-              typeof persistedState.portfolioWelcomeScreenClosed === 'boolean'
-            ) {
-              newStore.portfolioWelcomeScreenClosed = {};
-            }
             return newStore;
           }
           return persistedState;

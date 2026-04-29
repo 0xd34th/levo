@@ -4,7 +4,7 @@ import type { ExtendedChain, Token } from '@lifi/sdk';
 import { Link as MuiLink, Typography, useColorScheme } from '@mui/material';
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { Divider } from 'src/components/Blog/BlogArticle/BlogArticle.style';
+import { Divider } from '@mui/material';
 import { DynamicPagesContainer } from 'src/components/DynamicPagesContainer';
 import StepDetail from 'src/components/StepDetail/StepDetail';
 import { getWidgetImageProps } from 'src/utils/image-generation/getWidgetImage';
@@ -133,25 +133,7 @@ const SwapStepsExplainerSection = ({
     },
     {
       title: `Step 6: Verify the Transaction`,
-      description: `After swapping your assets, verify that they have been successfully transferred on the ${sourceChain.name} network. You can do this by either:`,
-      content: (
-        <ul>
-          <li>Clicking on the buttons to see each intermediate transaction</li>
-          <li>
-            Go to your{' '}
-            <MuiLink
-              component={Link}
-              href={`${JUMPER_URL}/scan`}
-              sx={{
-                color: 'text.primary',
-              }}
-            >
-              {`${JUMPER_URL}/scan`}
-            </MuiLink>{' '}
-            profile to visualize your recent transaction
-          </li>
-        </ul>
-      ),
+      description: `After swapping your assets, verify that they have been successfully transferred on the ${sourceChain.name} network. You can do this by clicking on the buttons to see each intermediate transaction.`,
       img: getWidgetImageProps({
         sourceToken,
         sourceChain,

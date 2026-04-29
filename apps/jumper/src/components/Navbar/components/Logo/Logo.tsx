@@ -8,31 +8,11 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 
-type LogoVariant = 'default' | 'learn' | 'scan';
+const JumperLogo = dynamic(() =>
+  import('@/components/illustrations/JumperLogo').then((m) => m.JumperLogo),
+);
 
-type LogoProps = {
-  variant: LogoVariant;
-};
-
-const logoMap: Record<LogoVariant, React.ComponentType> = {
-  default: dynamic(() =>
-    import('@/components/illustrations/JumperLogo').then((m) => m.JumperLogo),
-  ),
-  learn: dynamic(() =>
-    import('@/components/illustrations/JumperLearnLogo').then(
-      (m) => m.JumperLearnLogo,
-    ),
-  ),
-  scan: dynamic(() =>
-    import('@/components/illustrations/JumperScanLogo').then(
-      (m) => m.JumperScanLogo,
-    ),
-  ),
-};
-
-export const Logo = ({ variant }: LogoProps) => {
-  const LogoComponent = logoMap[variant];
-
+export const Logo = () => {
   const configTheme = useThemeStore((state) => state.configTheme);
 
   const isMobile = useMediaQuery(
@@ -76,7 +56,7 @@ export const Logo = ({ variant }: LogoProps) => {
 
   return (
     <LogoWrapper>
-      <LogoComponent />
+      <JumperLogo />
       {partnerLogo}
     </LogoWrapper>
   );

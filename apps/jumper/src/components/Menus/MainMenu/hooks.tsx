@@ -9,40 +9,23 @@ import {
   TrackingCategory,
   TrackingEventParameter,
 } from '@/const/trackingKeys';
-import {
-  AppPaths,
-  DISCORD_URL,
-  LINK3_URL,
-  TELEGRAM_URL,
-  TERMS_CONDITIONS_URL,
-  X_URL,
-} from '@/const/urls';
+import { AppPaths, DISCORD_URL, LINK3_URL, TELEGRAM_URL, X_URL } from '@/const/urls';
 import { useUserTracking } from '@/hooks/userTracking/useUserTracking';
 import { useMenuStore } from '@/stores/menu';
 import { useThemeStore } from '@/stores/theme';
 import FolderOpen from '@mui/icons-material/FolderOpen';
 import LanguageIcon from '@mui/icons-material/Language';
 import SupportRoundedIcon from '@mui/icons-material/SupportRounded';
-import SchoolIcon from '@mui/icons-material/School';
-import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { useThemeModesMenuContent } from '../ThemeModesSubMenu/useThemeModesMenuContent';
 import type { MenuItemProps } from 'src/components/Menu/MenuItem/MenuItem.types';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import {
-  isEarnFeatureEnabled,
-  isNewsletterFeatureEnabled,
-  isPortfolioFeatureEnabled,
-} from '@/app/lib/getFeatureFlag';
 import { Badge } from '@/components/Badge/Badge';
 import { BadgeVariant } from '@/components/Badge/Badge.styles';
 import * as supportedLanguages from '@/i18n/translations';
 import MuiBadge from '@mui/material/Badge';
-import { useAccount } from '@lifi/wallet-management';
-import { useABTest } from '@/hooks/useABTest';
-import { AB_TEST_NAME } from '@/const/abtests';
 
 interface MenuLink {
   url: string;
@@ -139,60 +122,6 @@ export const useMenuActions = () => {
     closeAllMenus();
   }, [trackMenuClick, closeAllMenus]);
 
-  const handleMissionsClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-missions-link',
-      action: TrackingAction.ClickJumperMissionsLink,
-      dataMenuParam: 'jumper_missions',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
-  const handleEarnClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-earn-link',
-      action: TrackingAction.ClickJumperEarnLink,
-      dataMenuParam: 'jumper_earn',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
-  const handlePortfolioClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-portfolio-link',
-      action: TrackingAction.ClickJumperPortfolioLink,
-      dataMenuParam: 'jumper_portfolio',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
-  const handleProfileClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-profile-link',
-      action: TrackingAction.ClickJumperProfileLink,
-      dataMenuParam: 'jumper_profile',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
-  const handleLearnClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-learn-link',
-      action: TrackingAction.ClickJumperLearnLink,
-      dataMenuParam: 'jumper_learn',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
-  const handleScanClick = useCallback(() => {
-    trackMenuClick({
-      label: 'open-jumper-scan',
-      action: TrackingAction.ClickJumperScanLink,
-      dataMenuParam: 'jumper_scan',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
   const handleSupportClick = useCallback(() => {
     setSupportModalState(true);
   }, [setSupportModalState]);
@@ -218,7 +147,7 @@ export const useMenuActions = () => {
   const handlePrivacyPolicyClick = useCallback(() => {
     trackMenuClick({
       label: 'click-jumper-privacy-policy-link',
-      action: TrackingAction.ClickJumperLearnLink, // Reusing existing action for now
+      action: TrackingAction.ClickJumperPrivacyPolicyLink,
       dataMenuParam: 'jumper_privacy_policy',
     });
     closeAllMenus();
@@ -233,30 +162,14 @@ export const useMenuActions = () => {
     closeAllMenus();
   }, [trackMenuClick, closeAllMenus]);
 
-  const handleNewsletterClick = useCallback(() => {
-    trackMenuClick({
-      label: 'click-jumper-newsletter-link',
-      action: TrackingAction.ClickJumperNewsletterLink,
-      dataMenuParam: 'jumper_newsletter',
-    });
-    closeAllMenus();
-  }, [trackMenuClick, closeAllMenus]);
-
   return {
     handleExchangeClick,
-    handleMissionsClick,
-    handleEarnClick,
-    handlePortfolioClick,
-    handleProfileClick,
-    handleLearnClick,
-    handleScanClick,
     handleSupportClick,
     handleThemeClick,
     handleLanguageClick,
     handleResourcesClick,
     handlePrivacyPolicyClick,
     handleTermsConditionsClick,
-    handleNewsletterClick,
   };
 };
 
@@ -346,15 +259,11 @@ export const useSocialLinks = () => {
 
 export const useFooterLinks = () => {
   const { t } = useTranslation();
-  const isNewsletterEnabled = isNewsletterFeatureEnabled();
-  const {
-    handlePrivacyPolicyClick,
-    handleTermsConditionsClick,
-    handleNewsletterClick,
-  } = useMenuActions();
+  const { handlePrivacyPolicyClick, handleTermsConditionsClick } =
+    useMenuActions();
 
-  const footerLinks = useMemo(() => {
-    const _footerLinks: FooterLink[] = [
+  const footerLinks = useMemo<FooterLink[]>(
+    () => [
       {
         label: t('navbar.navbarMenu.termsOfBusiness'),
         link: { url: AppPaths.TermsOfBusiness },
@@ -365,22 +274,9 @@ export const useFooterLinks = () => {
         link: { url: AppPaths.PrivacyPolicy },
         onClick: handlePrivacyPolicyClick,
       },
-    ];
-    if (isNewsletterEnabled) {
-      _footerLinks.push({
-        label: t('navbar.navbarMenu.newsletter'),
-        link: { url: AppPaths.Newsletter },
-        onClick: handleNewsletterClick,
-      });
-    }
-    return _footerLinks;
-  }, [
-    isNewsletterEnabled,
-    t,
-    handlePrivacyPolicyClick,
-    handleTermsConditionsClick,
-    handleNewsletterClick,
-  ]);
+    ],
+    [t, handlePrivacyPolicyClick, handleTermsConditionsClick],
+  );
 
   return { footerLinks };
 };
@@ -388,32 +284,17 @@ export const useFooterLinks = () => {
 export const useMenuItems = () => {
   const { t, i18n } = useTranslation();
   const isTablet = useMediaQuery((theme) => theme.breakpoints.down('lg'));
-  const theme = useTheme();
   const [configTheme] = useThemeStore((state) => [state.configTheme]);
   const { selectedThemeIcon, selectedThemeMode, selectedPartnerTheme } =
     useThemeModesMenuContent();
-  const isEarnEnabled = isEarnFeatureEnabled();
-  const isPortfolioEnabled = isPortfolioFeatureEnabled();
   const { supportModalUnreadCount } = useMenuStore((state) => state);
 
-  const { account } = useAccount();
-
-  const tradeABTest = useABTest({
-    feature: AB_TEST_NAME.A_B_TEST_TRADE_DISPLAY,
-    address: account?.address ?? '',
-  });
-
   const {
-    handleLearnClick,
-    handleScanClick,
     handleSupportClick,
     handleThemeClick,
     handleLanguageClick,
     handleResourcesClick,
-    handleEarnClick,
-    handlePortfolioClick,
     handleExchangeClick,
-    handleMissionsClick,
   } = useMenuActions();
 
   const themeSuffixIcon = useMemo(() => {
@@ -459,85 +340,41 @@ export const useMenuItems = () => {
 
     if (isTablet) {
       baseItems.push({
-        label:
-          tradeABTest.isEnabled && tradeABTest.value === 'test'
-            ? t('navbar.links.trade')
-            : t('navbar.links.exchange'),
+        label: t('navbar.links.exchange'),
         showMoreIcon: false,
         link: { url: AppPaths.Main },
         onClick: handleExchangeClick,
       });
-
-      if (isPortfolioEnabled) {
-        baseItems.push({
-          label: t('navbar.links.portfolio'),
-          showMoreIcon: false,
-          link: { url: AppPaths.Portfolio, external: false },
-          onClick: handlePortfolioClick,
-        });
-      }
-
-      baseItems.push({
-        label: t('navbar.links.missions'),
-        showMoreIcon: false,
-        link: { url: AppPaths.Missions, external: false },
-        onClick: handleMissionsClick,
-      });
-
-      if (isEarnEnabled) {
-        baseItems.push({
-          label: t('navbar.links.earn'),
-          showMoreIcon: false,
-          link: { url: AppPaths.Earn, external: false },
-          onClick: handleEarnClick,
-        });
-      }
 
       baseItems.push({
         isDivider: true,
       });
     }
 
-    baseItems.push(
-      {
-        label: t('navbar.navbarMenu.learn'),
-        prefixIcon: !isTablet ? <SchoolIcon /> : undefined,
-        showMoreIcon: false,
-        link: { url: AppPaths.Learn },
-        onClick: handleLearnClick,
-      },
-      {
-        label: t('navbar.navbarMenu.scan'),
-        prefixIcon: !isTablet ? <SearchOutlinedIcon /> : undefined,
-        showMoreIcon: false,
-        link: { url: AppPaths.Scan, external: false },
-        onClick: handleScanClick,
-      },
-      {
-        label: t('navbar.navbarMenu.support'),
-        prefixIcon: !isTablet ? (
-          supportModalUnreadCount > 0 ? (
-            <MuiBadge
-              color="secondary"
-              variant="dot"
-              sx={(theme) => ({
-                '.MuiBadge-badge': {
-                  backgroundColor: (theme.vars || theme).palette.borderActive,
-                  mt: 0.5,
-                  mr: 0.25,
-                },
-              })}
-            >
-              <SupportRoundedIcon />
-            </MuiBadge>
-          ) : (
+    baseItems.push({
+      label: t('navbar.navbarMenu.support'),
+      prefixIcon: !isTablet ? (
+        supportModalUnreadCount > 0 ? (
+          <MuiBadge
+            color="secondary"
+            variant="dot"
+            sx={(theme) => ({
+              '.MuiBadge-badge': {
+                backgroundColor: (theme.vars || theme).palette.borderActive,
+                mt: 0.5,
+                mr: 0.25,
+              },
+            })}
+          >
             <SupportRoundedIcon />
-          )
-        ) : undefined,
-        showMoreIcon: false,
-        onClick: handleSupportClick,
-      },
-    );
+          </MuiBadge>
+        ) : (
+          <SupportRoundedIcon />
+        )
+      ) : undefined,
+      showMoreIcon: false,
+      onClick: handleSupportClick,
+    });
 
     if (isTablet) {
       baseItems.push({
@@ -545,7 +382,6 @@ export const useMenuItems = () => {
       });
     }
 
-    // Conditionally add theme menu item
     if (configTheme?.hasThemeModeSwitch) {
       baseItems.push({
         label: t('navbar.navbarMenu.theme'),
@@ -579,23 +415,16 @@ export const useMenuItems = () => {
   }, [
     t,
     isTablet,
-    isEarnEnabled,
-    isPortfolioEnabled,
     configTheme?.hasThemeModeSwitch,
     selectedThemeIcon,
     themeSuffixIcon,
     languageSuffixIcon,
     supportModalUnreadCount,
-    handleLearnClick,
-    handleScanClick,
     handleSupportClick,
     handleThemeClick,
     handleLanguageClick,
     handleResourcesClick,
-    handleEarnClick,
-    handlePortfolioClick,
     handleExchangeClick,
-    handleMissionsClick,
   ]);
 
   return { menuItems: baseMenuItems };
@@ -611,5 +440,4 @@ export const useMainMenuContent = () => {
     mainMenuSocialLinks: socialLinks,
     mainMenuFooterLinks: footerLinks,
   };
-  // Todo: to generate on the server side
 };

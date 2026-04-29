@@ -5,21 +5,13 @@ export const UTM_SOURCE = 'jumper';
   GA: in GA this is the name of the event that is fired
 */
 export enum TrackingAction {
-  // Newsletter
-  SubscribeToNewsletter = 'action_subscribe_to_newsletter',
-  // Portfolio
-  ClosePortfolioScreen = 'action_close_portfolio_screen',
   // WalletMenu
   ConnectWallet = 'action_connect_wallet',
   ClickConnectWallet = 'action_click_connect_wallet',
   CopyAddressToClipboard = 'action_copy_addr_to_clipboard',
   DisconnectWallet = 'action_disconnect_wallet',
   OpenBlockchainExplorer = 'action_open_blockchain_explorer',
-  OpenJumperScan = 'action_open_jumper_scan',
   SwitchChain = 'action_switch_chain',
-  PortfolioLoaded = 'action_portfolio_loaded',
-  PortfolioOverview = 'action_portfolio_balance_overview',
-  PortfolioPageOverview = 'action_portfolio_page_overview',
 
   // Widget
   OnRouteSelected = 'action_on_route_selected',
@@ -41,38 +33,6 @@ export enum TrackingAction {
   OnChainPinned = 'action_on_chain_pinned',
   OnSendToWalletToggled = 'action_on_send_to_wallet_toggled',
   OnFormFieldChanged = 'action_on_form_field_changed',
-
-  // Mission Widget
-  OnSourceChainAndTokenSelectionMission = 'action_on_source_selection_mission',
-  OnAvailableRoutesMission = 'action_available_routes_mission',
-  OnRouteExecutionStartedMission = 'action_on_route_exec_started_mission',
-  OnRouteExecutionCompletedMission = 'action_on_route_exec_completed_mission',
-  OnRouteExecutionFailedMission = 'action_on_route_exec_failed_mission',
-  OnChangeSettingsMission = 'action_change_settings_mission',
-
-  // Zap Widget
-  OnSourceChainAndTokenSelectionZap = 'action_on_source_selection_zap',
-  OnAvailableRoutesZap = 'action_available_routes_zap',
-  OnRouteExecutionStartedZap = 'action_on_route_exec_started_zap',
-  OnRouteExecutionCompletedZap = 'action_on_route_exec_completed_zap',
-  OnRouteExecutionFailedZap = 'action_on_route_exec_failed_zap',
-  OnChangeSettingsZap = 'action_change_settings_zap',
-
-  // Earn Deposit Widget
-  OnSourceChainAndTokenSelectionEarnDeposit = 'action_on_source_selection_earn_deposit',
-  OnAvailableRoutesEarnDeposit = 'action_available_routes_earn_deposit',
-  OnRouteExecutionStartedEarnDeposit = 'action_on_route_exec_started_earn_deposit',
-  OnRouteExecutionCompletedEarnDeposit = 'action_on_route_exec_completed_earn_deposit',
-  OnRouteExecutionFailedEarnDeposit = 'action_on_route_exec_failed_earn_deposit',
-  OnChangeSettingsEarnDeposit = 'action_change_settings_earn_deposit',
-
-  // Earn Withdraw Widget
-  OnDestinationChainAndTokenSelectionEarnWithdraw = 'action_on_destination_selection_earn_withdraw',
-  OnAvailableRoutesEarnWithdraw = 'action_available_routes_earn_withdraw',
-  OnRouteExecutionStartedEarnWithdraw = 'action_on_route_exec_started_earn_withdraw',
-  OnRouteExecutionCompletedEarnWithdraw = 'action_on_route_exec_completed_earn_withdraw',
-  OnRouteExecutionFailedEarnWithdraw = 'action_on_route_exec_failed_earn_withdraw',
-  OnChangeSettingsEarnWithdraw = 'action_change_settings_earn_withdraw',
 
   // Welcome_Screen
   ShowWelcomeMessageScreen = 'action_show_welcome_screen',
@@ -99,56 +59,13 @@ export enum TrackingAction {
   ClickTelegramLink = 'action_click_telegram_link',
   ClickLink3Link = 'action_click_link3_link',
   ClickJumperExchangeLink = 'action_click_jumper_exchange_link',
-  ClickJumperMissionsLink = 'action_click_jumper_missions_link',
-  ClickJumperEarnLink = 'action_click_jumper_earn_link',
-  ClickJumperPortfolioLink = 'action_click_jumper_portfolio_link',
-  ClickJumperLearnLink = 'action_click_jumper_learn_link',
-  ClickJumperProfileLink = 'action_click_jumper_profile_link',
-  ClickJumperScanLink = 'action_click_jumper-scan_link',
-  ClickJumperCampaignLink = 'action_click_jumper-campaign_link',
+  ClickJumperPrivacyPolicyLink = 'action_click_jumper_privacy_policy_link',
   ClickJumperTermsConditionsLink = 'action_click_jumper_terms_conditions_link',
-  ClickJumperNewsletterLink = 'action_click_jumper_newsletter_link',
-
-  // Blog
-  SeeAllPosts = 'action_see_all_posts',
-  ClickArticleCard = 'action_click_article_card',
-  ClickFeaturedArticle = 'action_click_featured_article',
-  ClickBlogCTA = 'action_click_blog_cta',
-  SwipeCarousel = 'action_swipe_carousel',
-  ClickShareArticleFB = 'action_share_article_fb',
-  ClickShareArticleLinkedIn = 'action_share_article_linked',
-  ClickShareArticleX = 'action_share_article_x',
-  ClickShareArticleLink = 'action_share_article_link',
-  ClickShareArticleDiscord = 'action_share_article_discord',
-  ClickAuthorsLinkedIn = 'action_click_author_linkedin',
-  ClickAuthorsX = 'action_click_author_x',
-  OpenArticlePopup = 'action_open_article_popup',
-  CloseArticlePopup = 'action_close_article_popup',
-
-  // Quests
-  ClickQuestCard = 'action_click_quest_card',
-  ClickMissionCta = 'action_click_mission_cta',
-  ClickMissionCtaSteps = 'action_click_mission_cta_steps',
-  ClickMissionVerify = 'action_click_mission_task_verify',
-  MissionPageOverview = 'action_mission_page_overview',
-
-  // Pagination
-  ClickPagination = 'action_click_pagination',
 
   // Discord
   JoinDiscordCommunity = 'action_join_discord_community',
   OpenDiscordSupport = 'action_open_discord_support',
   PoweredBy = 'action_click_powered_by',
-
-  //Banner
-  ClickBanner = 'action_click_banner',
-  ClickCampaignBanner = 'action_click_campaign_banner',
-
-  // Earn
-  ClickEarnDepositButton = 'action_click_earn_deposit_button',
-  ClickEarnRequestRedeemButton = 'action_click_earn_request_redeem_button',
-  ClickEarnWithdrawButton = 'action_click_earn_withdraw_button',
-  EarnPageOverview = 'action_earn_page_overview',
 }
 
 export enum TrackingEventDataAction {
@@ -156,23 +73,9 @@ export enum TrackingEventDataAction {
   ExecutionUpdated = 'execution_updated',
   ExecutionCompleted = 'execution_completed',
   ExecutionFailed = 'execution_failed',
-  ExecutionStartZap = 'execution_start_zap',
-  ExecutionCompletedZap = 'execution_completed_zap',
-  ExecutionFailedZap = 'execution_failed_zap',
-  ExecutionStartMission = 'execution_start_mission',
-  ExecutionCompletedMission = 'execution_completed_mission',
-  ExecutionFailedMission = 'execution_failed_mission',
-  ExecutionStartEarnDeposit = 'execution_start_earn_deposit',
-  ExecutionCompletedEarnDeposit = 'execution_completed_earn_deposit',
-  ExecutionFailedEarnDeposit = 'execution_failed_earn_deposit',
-  ExecutionStartEarnWithdraw = 'execution_start_earn_withdraw',
-  ExecutionCompletedEarnWithdraw = 'execution_completed_earn_withdraw',
-  ExecutionFailedEarnWithdraw = 'execution_failed_earn_withdraw',
 }
 
 export enum TrackingCategory {
-  Portfolio = 'cat_portfolio',
-  Newsletter = 'cat_newsletter',
   MainMenu = 'cat_main_menu',
   Menu = 'cat_menu',
   ErrorPage = 'cat_error_page',
@@ -193,16 +96,6 @@ export enum TrackingCategory {
   Widget = 'cat_widget',
   WidgetEvent = 'cat_widget_event',
   PoweredBy = 'cat_powered_by',
-  BlogCarousel = 'cat_blog_carousel',
-  BlogFeaturedArticle = 'cat_blog_featured_article',
-  BlogArticlesBoard = 'cat_blog_articles_board',
-  BlogArticlesCollection = 'cat_blog_articles_collection',
-  BlogArticle = 'cat_blog_article',
-  Missions = 'cat_missions',
-  Quests = 'cat_quests',
-  Banner = 'cat_banner',
-  CampaignBanner = 'cat_campaign_banner',
-  Earn = 'cat_earn',
 }
 
 // can be used as custom dimensions / metrics
@@ -301,72 +194,4 @@ export enum TrackingEventParameter {
   TransactionStatus = 'param_transaction_status',
   Type = 'param_type',
   ValueLoss = 'param_value_loss',
-
-  // Blog
-  ArticleCardId = 'param_article_card_id',
-  SwipeDirection = 'param_swipe_direction',
-  ArticleTitle = 'param_article_title',
-  ArticleID = 'param_article_id',
-  ArticlePopupTitle = 'param_article_popup_title',
-
-  // Pagination
-  Pagination = 'param_pagination',
-  PaginationCat = 'param_pagination_cat',
-
-  // Author
-  AuthorName = 'param_author_name',
-  AuthorId = 'param_author_id',
-
-  // Quests
-  QuestCardTitle = 'param_quest_card_title',
-  QuestCardLabel = 'param_quest_card_label',
-  QuestCardId = 'param_quest_card_id',
-  QuestCardPlatform = 'param_quest_card_platform',
-  MissionCtaRewardId = 'param_mission_cta_reward_id',
-  MissionCtaClaimingId = 'param_mission_cta_claiming_id',
-  MissionCtaTitle = 'param_mission_cta_title',
-  MissionCtaLabel = 'param_mission_cta_label',
-  MissionCtaPartnerId = 'param_mission_cta_partner_id',
-  MissionCtaCampaign = 'param_mission_cta_campaign',
-  MissionCtaStepsTitle = 'param_mission_cta_steps_title',
-  MissionCtaStepsLink = 'param_mission_cta_steps_link',
-  MissionCtaStepsTaskStepId = 'param_mission_cta_steps_task_step_id',
-  MissionCtaStepsCTA = 'param_mission_cta_steps_cta',
-  MissionCtaStepsIndex = 'param_mission_cta_steps_index',
-  MissionTaskInputPrepend = 'param_mission_task_input_field_',
-  MissionSlug = 'param_mission_slug',
-
-  // Search
-  SearchValue = 'param_search_value',
-  SearchIsAddress = 'param_search_is_address',
-  SearchAddressType = 'param_search_address_type',
-  SearchNumberOfResult = 'param_search_nb_result',
-  SearchNothingFound = 'param_search_nothing_found',
-  SearchFirstResultAddress = 'param_search_first_result_address',
-  SearchFirstResultName = 'param_search_first_result_name',
-  SearchFirstResultSymbol = 'param_search_first_result_symbol',
-  SearchFirstResultChainId = 'param_search_first_result_chain_id',
-
-  //Banner
-  ActiveCampaign = 'param_banner_campaign',
-  ActiveCampaignBanner = 'param_campaign_banner_campaign',
-
-  // Portfolio
-  PortfolioTotalBalanceUSD = 'param_portfolio_total_balance_usd',
-  PortfolioNumberOfTokens = 'param_portfolio_nb_of_tokens',
-  PortfolioNumberOfChains = 'param_portfolio_nb_of_chains',
-  PortfolioNativeTokensBalanceUSD = 'param_portfolio_native_tokens_balance_usd',
-  PortfolioStableTokensBalanceUSD = 'param_portfolio_stable_tokens_balance_usd',
-  PortfolioOtherTokensBalanceUSD = 'param_portfolio_other_tokens_balance_usd',
-  PortfolioTokenAmountUSD = 'param_portfolio_token_amount_usd',
-  PortfolioPositionsAmountUSD = 'param_portfolio_positions_amount_usd',
-  PortfolioTop3Tokens = 'param_portfolio_top_3_tokens',
-  PortfolioTop3Protocols = 'param_portfolio_top_3_protocols',
-  ProtocolName = 'param_protocol_name',
-  ProtocolTotalPriceUSD = 'param_protocol_total_price_usd',
-  TokenName = 'param_token_name',
-  TokenTotalPriceUSD = 'param_token_total_price_usd',
-
-  // Earn
-  EarnOpportunitySlug = 'param_earn_opportunity_slug',
 }
