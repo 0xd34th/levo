@@ -64,7 +64,7 @@ export const createPaletteDark = (
 
   textEmphasized: baseColors.white.main,
 
-  textError: baseColors.scarlet[500],
+  textError: baseColors.lossDark[500],
   textDisabled: baseColors.alphaLight400.main,
   textInfo: baseColors.azure[500],
 
@@ -82,7 +82,7 @@ export const createPaletteDark = (
   borderEmphasized: baseColors.alphaLight600.main,
   borderInvertedEmphasized: baseColors.alphaDark600.main,
   borderActive: brandColors.dark.borderActive,
-  borderError: baseColors.scarlet[500],
+  borderError: baseColors.lossDark[500],
 
   // Button
   buttonPrimaryBg: brandColors.dark.buttonPrimaryBg,
@@ -106,7 +106,7 @@ export const createPaletteDark = (
   buttonActiveBg: baseColors.white.main,
   buttonActiveAction: baseColors.black.main,
 
-  buttonErrorBg: baseColors.scarlet[500],
+  buttonErrorBg: baseColors.lossDark[500],
 
   // Badge
   badgeAccent1Fg: brandColors.dark.badgeAccent1Fg,
@@ -147,7 +147,7 @@ export const createPaletteDark = (
   iconSecondaryInverted: baseColors.alphaDark700.main,
   iconHint: baseColors.alphaLight500.main,
   iconDisabled: baseColors.alphaLight400.main,
-  iconError: baseColors.scarlet[500],
+  iconError: baseColors.lossDark[500],
   iconInfo: baseColors.azure[500],
   iconWarning: baseColors.amber[500],
   iconAccent1: brandColors.dark.accent1,
@@ -160,15 +160,15 @@ export const createPaletteDark = (
   statusInfoBg: baseColors.azure[800],
   statusPending: baseColors.alphaLight200.main,
   statusProgress: brandColors.dark.accent1,
-  statusSuccess: baseColors.mint[100],
-  statusSuccessFg: baseColors.mint[100],
-  statusSuccessBg: baseColors.mint[500],
+  statusSuccess: baseColors.gainDark[500],
+  statusSuccessFg: baseColors.gainDark[500],
+  statusSuccessBg: baseColors.gainDark[100],
   statusWarning: baseColors.amber[600],
   statusWarningFg: baseColors.amber[600],
   statusWarningBg: baseColors.amber[800],
-  statusError: baseColors.scarlet[100],
-  statusErrorFg: baseColors.scarlet[100],
-  statusErrorBg: baseColors.scarlet[500],
+  statusError: baseColors.lossDark[500],
+  statusErrorFg: baseColors.lossDark[500],
+  statusErrorBg: baseColors.lossDark[100],
 });
 
 export const paletteDark = createPaletteDark(defaultBrandColors);

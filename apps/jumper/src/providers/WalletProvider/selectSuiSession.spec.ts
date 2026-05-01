@@ -5,10 +5,11 @@ import {
   dappKitSuiConnector,
   selectSuiAccount,
   selectSuiProviderTag,
+  WALLET_CONNECTOR_ICON,
 } from "./selectSuiSession";
 
 const privyConnector: WalletConnector = {
-  icon: "/favicon.png",
+  icon: WALLET_CONNECTOR_ICON,
   id: "privy-account",
   name: "Privy Account",
 };
@@ -23,6 +24,11 @@ const disconnectedAccount: Account = {
 };
 
 describe("selectSuiProviderTag", () => {
+  it("uses the dedicated wallet avatar asset instead of the favicon", () => {
+    expect(WALLET_CONNECTOR_ICON).toBe("/wallet-avatar.svg");
+    expect(dappKitSuiConnector.icon).toBe(WALLET_CONNECTOR_ICON);
+  });
+
   it("returns 'dapp-kit' when an external Sui account is connected", () => {
     expect(
       selectSuiProviderTag({

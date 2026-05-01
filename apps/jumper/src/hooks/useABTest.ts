@@ -39,6 +39,7 @@ export const useABTest = ({
     enabled: !!feature && !!address,
     staleTime: TEN_MINUTES_MS,
     gcTime: THIRTY_MINUTES_MS,
+    retry: false,
   });
 
   const isEnabled = feature in activeAbTests ? activeAbTests[feature] : !!data;

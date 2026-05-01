@@ -46,12 +46,9 @@ export const useThemeMenuContent = () => {
     {
       label: t('navbar.themes.default'),
       onClick: () => {
-        handleThemeSwitch('system');
+        handleThemeSwitch('light');
       },
-      checkIcon:
-        mode === 'dark' ||
-        mode === 'light' ||
-        mode === undefined,
+      checkIcon: mode === 'light' || mode === undefined,
     },
   ];
 

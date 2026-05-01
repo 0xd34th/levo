@@ -2,7 +2,8 @@
 import type { Theme } from '@mui/material/styles';
 import { ThemeProvider } from '@mui/material/styles';
 import type { PropsWithChildren } from 'react';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useColorScheme } from '@mui/material/styles';
 import { createJumperTheme } from 'src/theme/theme';
 import { useThemeStore } from 'src/stores/theme';
 import { useThemeConditionsMet } from 'src/hooks/theme/useThemeConditionsMet';
@@ -11,6 +12,20 @@ import {
   THEME_MODE_STORAGE_KEY,
 } from './constants';
 import CssBaseline from '@mui/material/CssBaseline';
+
+function LightModeBoundary({ children }: PropsWithChildren) {
+  const { mode, colorScheme, setColorScheme, setMode } = useColorScheme();
+
+  useEffect(() => {
+    setColorScheme({ light: 'light', dark: 'light' });
+
+    if (mode && mode !== 'light') {
+      setMode('light');
+    }
+  }, [mode, colorScheme, setColorScheme, setMode]);
+
+  return children;
+}
 
 /**
  * App's theme provider component.
@@ -38,10 +53,11 @@ export function MUIThemeProvider({ children }: PropsWithChildren) {
       theme={theme}
       modeStorageKey={THEME_MODE_STORAGE_KEY}
       colorSchemeStorageKey={THEME_COLOR_SCHEME_STORAGE_KEY}
+      defaultMode="light"
       disableTransitionOnChange
     >
       <CssBaseline enableColorScheme />
-      {children}
+      <LightModeBoundary>{children}</LightModeBoundary>
     </ThemeProvider>
   );
 }

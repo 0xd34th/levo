@@ -42,7 +42,7 @@ export const WidgetContainer = styled(Box, {
       transitionDuration: '.4s',
       transitionTimingFunction: 'ease-in-out',
       background:
-        'radial-gradient(50% 50% at 50% 50%, #6600FF 0%, rgba(255, 255, 255, 0) 100%);',
+        'radial-gradient(50% 50% at 50% 50%, rgba(74, 167, 108, 0.4) 0%, rgba(255, 255, 255, 0) 100%);',
       zIndex: -1,
       pointerEvents: 'none',
       width: 1080,
@@ -70,7 +70,7 @@ export const WidgetContainer = styled(Box, {
       },
       ...theme.applyStyles('light', {
         background:
-          'radial-gradient(50% 50% at 50% 50%, #8700B8 0%, rgba(255, 255, 255, 0) 100%);',
+          'radial-gradient(50% 50% at 50% 50%, rgba(31, 122, 62, 0.35) 0%, rgba(255, 255, 255, 0) 100%);',
       }),
     },
     // radial shadow glow -> hover

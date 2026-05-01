@@ -1,6 +1,7 @@
 import {
   getServerStrapiHeaders,
   getServerStrapiBaseUrl,
+  isStrapiConfigured,
 } from 'src/utils/strapi/strapiServer';
 import envConfig from '@/config/env-config';
 import type { StrapiResponse } from '@/types/strapi';
@@ -19,7 +20,21 @@ export interface MiniAppSettingAttributes {
   publishedAt?: string;
 }
 
+const EMPTY_MINI_APP_SETTINGS: MiniAppSettingAttributes = {
+  id: 0,
+  documentId: '',
+  appId: '',
+  url: '',
+  accountAssociation: {},
+  createdAt: '',
+  updatedAt: '',
+};
+
 export async function getMiniAppSettings(): Promise<MiniAppSettingAttributes> {
+  if (!isStrapiConfigured()) {
+    return EMPTY_MINI_APP_SETTINGS;
+  }
+
   const publicUrl = new URL(envConfig.NEXT_PUBLIC_SITE_URL);
 
   const baseUrl = getServerStrapiBaseUrl();

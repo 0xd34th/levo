@@ -125,17 +125,16 @@ test.describe('Verify essential mobile flows', () => {
     });
 
     await test.step.skip('switch theme', async () => {
-      await switchTheme(page, Theme.Dark);
+      await switchTheme(page, Theme.Light);
       await page.waitForFunction(
         () => {
           return (
             getComputedStyle(document.body).getPropertyValue('color-scheme') ===
-            'dark'
+            'light'
           );
         },
         { timeout: 5000 },
       );
-      await expectBackgroundColorToHaveCss(page, 'rgb(16, 0, 41)');
     });
   });
 });

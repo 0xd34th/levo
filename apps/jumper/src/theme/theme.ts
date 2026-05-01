@@ -15,7 +15,6 @@ import { defaultBrandColors } from './brandColors';
 import { createColorSchemes } from './colorSchemes';
 import { createComponents } from './components';
 import { createPalette } from './palette';
-import { createPaletteDark } from './paletteDark';
 import { createPaletteLight } from './paletteLight';
 import { defaultShape } from './shape';
 import type { ThemeFonts } from './typography';
@@ -61,7 +60,6 @@ export const createJumperTheme = (
     : defaultBrandColors;
 
   const paletteLight = createPaletteLight(brandColors, baseColors);
-  const paletteDark = createPaletteDark(brandColors, baseColors);
   const palette = createPalette(paletteLight, baseColors);
 
   const themeBase = createTheme({
@@ -71,13 +69,12 @@ export const createJumperTheme = (
     },
     colorSchemes: {
       light: true,
-      dark: true,
     },
   });
 
   const defaultComponents = createComponents(themeBase);
   const typography = createTypography(themeBase, fonts);
-  const colorSchemes = createColorSchemes(themeBase, paletteLight, paletteDark);
+  const colorSchemes = createColorSchemes(themeBase, paletteLight);
 
   const shape = customShape
     ? (deepmerge(defaultShape, customShape) as Shape)

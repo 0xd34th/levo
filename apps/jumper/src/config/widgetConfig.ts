@@ -90,22 +90,8 @@ export const getDefaultWidgetThemeV2 = (
     ...themeCustomized,
   };
 
-  if (!copiedTheme.colorSchemes.dark) {
-    copiedTheme.colorSchemes.dark = {} as NonNullable<
-      typeof copiedTheme.colorSchemes.dark
-    >;
-  }
-  if (!copiedTheme.colorSchemes.dark.palette) {
-    copiedTheme.colorSchemes.dark.palette = {} as NonNullable<
-      typeof copiedTheme.colorSchemes.dark.palette
-    >;
-  }
-  if (!copiedTheme.colorSchemes.dark.palette.grey) {
-    copiedTheme.colorSchemes.dark.palette.grey = {} as NonNullable<
-      typeof copiedTheme.colorSchemes.dark.palette.grey
-    >;
-  }
-  copiedTheme.colorSchemes.dark.palette.grey[800] = '#302b52';
+  const lightColorScheme = copiedTheme.colorSchemes.light;
+  const darkColorScheme = copiedTheme.colorSchemes.dark ?? lightColorScheme;
 
   const config = {
     config: {
@@ -150,12 +136,12 @@ export const getDefaultWidgetThemeV2 = (
         },
         colorSchemes: {
           light: {
-            ...copiedTheme.colorSchemes.light,
-            palette: formatWidgetPalette(copiedTheme.colorSchemes.light),
+            ...lightColorScheme,
+            palette: formatWidgetPalette(lightColorScheme),
           },
           dark: {
-            ...copiedTheme.colorSchemes.dark,
-            palette: formatWidgetPalette(copiedTheme.colorSchemes.dark, 'dark'),
+            ...darkColorScheme,
+            palette: formatWidgetPalette(darkColorScheme),
           },
         },
         components: {

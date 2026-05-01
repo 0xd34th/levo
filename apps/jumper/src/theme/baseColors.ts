@@ -146,6 +146,22 @@ export const baseColors = {
     100: '#FFDED6',
     500: '#B82500',
   },
+  loss: {
+    100: '#F3E4E3',
+    500: '#B23A3A',
+  },
+  lossDark: {
+    100: 'rgba(212, 96, 96, 0.15)',
+    500: '#D46060',
+  },
+  gain: {
+    100: '#E6F0E8',
+    500: '#1F7A3E',
+  },
+  gainDark: {
+    100: 'rgba(74, 167, 108, 0.15)',
+    500: '#4AA76C',
+  },
   slate: {
     0: '#FFFFFF',
     100: '#F7F8FA',

@@ -6,29 +6,29 @@ export const siteName = JUMPER_SITE_NAME;
 
 export const pageMetadataFields = {
   default: {
-    title: 'Jumper | Smart App for the Universal Market',
+    title: 'Levo | Smart App for the Universal Market',
     description:
-      'Move, deploy and manage your capital with Jumper. Fast swaps, capital deployment, and portfolio management in one smart app.',
+      'Move, deploy and manage your capital with Levo. Fast swaps, capital deployment, and portfolio management in one smart app.',
   },
   earn: {
-    title: 'Jumper Earn | Earn Smarter Across Chains',
+    title: 'Levo Earn | Earn Smarter Across Chains',
     description:
-      'Earn smarter across chains with Jumper Earn. Access DeFi earn opportunities, seamless swaps, and a consolidated portfolio view in one smart app.',
+      'Earn smarter across chains with Levo Earn. Access DeFi earn opportunities, seamless swaps, and a consolidated portfolio view in one smart app.',
   },
   earnOpportunity: {
-    title: 'Jumper Earn | {{opportunityName}}',
+    title: 'Levo Earn | {{opportunityName}}',
     description:
-      'Earn smarter across chains with Jumper Earn. Access DeFi earn opportunities, seamless swaps, and a consolidated portfolio view in one smart app.',
+      'Earn smarter across chains with Levo Earn. Access DeFi earn opportunities, seamless swaps, and a consolidated portfolio view in one smart app.',
   },
   portfolio: {
-    title: 'Jumper Portfolio | Smarter Portfolio Overview',
+    title: 'Levo Portfolio | Smarter Portfolio Overview',
     description:
-      'Smarter cross-chain portfolio aggregation with Jumper Portfolio. Track assets in one smart app.',
+      'Smarter cross-chain portfolio aggregation with Levo Portfolio. Track assets in one smart app.',
   },
   profile: {
-    title: 'Jumper Loyalty Pass',
+    title: 'Levo Loyalty Pass',
     description:
-      'Jumper Loyalty Pass is the page explaining the Loyalty Pass system.',
+      'Levo Loyalty Pass is the page explaining the Loyalty Pass system.',
   },
 };
 
@@ -102,30 +102,30 @@ export const pageOpenGraph: Record<string, Metadata['openGraph']> = {
 
 export const pageTwitter: Record<string, Metadata['twitter']> = {
   default: {
-    site: '@Jumper',
+    site: '@levo',
     title: pageMetadataFields.default.title,
     description: pageMetadataFields.default.description,
     images: `${JUMPER_URL}/preview-default.png`,
   },
   earn: {
-    site: '@Jumper',
+    site: '@levo',
     title: pageMetadataFields.earn.title,
     description: pageMetadataFields.earn.description,
     images: `${JUMPER_URL}/preview-earn.png`,
   },
   earnOpportunity: {
-    site: '@Jumper',
+    site: '@levo',
     title: pageMetadataFields.earnOpportunity.title,
     description: pageMetadataFields.earnOpportunity.description,
   },
   portfolio: {
-    site: '@Jumper',
+    site: '@levo',
     title: pageMetadataFields.portfolio.title,
     description: pageMetadataFields.portfolio.description,
     images: `${JUMPER_URL}/preview-portfolio.png`,
   },
   profile: {
-    site: '@Jumper',
+    site: '@levo',
     title: pageMetadataFields.profile.title,
     description: pageMetadataFields.profile.description,
     images: `${JUMPER_URL}/preview-profile.png`,
@@ -133,7 +133,7 @@ export const pageTwitter: Record<string, Metadata['twitter']> = {
 };
 
 export const baseMiniApp = {
-  splashBackgroundColor: '#653ca2',
+  splashBackgroundColor: '#ffffff',
   iconUrl: `${JUMPER_URL}/mini-app-icon.png`,
   screenshotIcons: [
     `${JUMPER_URL}/mini-app-screenshot-1.png`,
@@ -141,5 +141,5 @@ export const baseMiniApp = {
     `${JUMPER_URL}/mini-app-screenshot-3.png`,
   ],
   splashImageUrl: `${JUMPER_URL}/favicon.png`,
-  miniAppName: 'Jumper Mini App',
+  miniAppName: 'Levo Mini App',
 };

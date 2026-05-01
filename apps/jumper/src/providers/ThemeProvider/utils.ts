@@ -25,17 +25,12 @@ export function getMuiTheme(
   const partnerTheme = getPartnerTheme(themes, activeTheme);
 
   if (!partnerTheme) {
-    if (['light', 'system'].includes(themeMode!)) {
-      return deepmerge(themeCustomized, themeCustomized.colorSchemes['light']);
-    } else {
-      return deepmerge(themeCustomized, themeCustomized.colorSchemes['dark']);
-    }
+    void themeMode;
+    return deepmerge(themeCustomized, themeCustomized.colorSchemes['light']);
   }
 
   const formattedTheme = formatTheme(partnerTheme);
-  const baseTheme = getAvailableThemeModes(partnerTheme).includes('light')
-    ? themeCustomized.colorSchemes['light']
-    : themeCustomized.colorSchemes['dark'];
+  const baseTheme = themeCustomized.colorSchemes['light'];
 
   return deepmerge(baseTheme, formattedTheme.jumperTheme);
 }

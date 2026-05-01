@@ -118,7 +118,7 @@
   },
   "completedMissionsInformation": {
     "title": "",
-    "description": "As Jumper organize ad-hoc campaigns, the missions are updated on a monthly basis to create the associated graphics. Keep in mind: XP coming from specific campaigns will be updated on a monthly basis as well."
+    "description": "As Levo organize ad-hoc campaigns, the missions are updated on a monthly basis to create the associated graphics. Keep in mind: XP coming from specific campaigns will be updated on a monthly basis as well."
   },
   "format": {
     "currency": "{{value, currencyExt(currency: USD)}}",
@@ -135,7 +135,7 @@
     "custom": "Custom",
     "confirm": "Confirm",
     "thankYou": "Thank you!",
-    "description": "Show your appreciation by adding a contribution. 100% of it goes to improve Jumper.",
+    "description": "Show your appreciation by adding a contribution. 100% of it goes to improve Levo.",
     "error": {
       "amountTooSmall": "The contribution amount is too small for this token. Please try a larger amount.",
       "errorSending": "Error sending contribution:",

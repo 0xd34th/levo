@@ -129,132 +129,127 @@ export interface BrandColors {
   };
 }
 
+// Sourced from apps/web/app/globals.css — Levo institutional palette.
+// accent1 = ink (primary CTA, matches web --primary)
+// accent2 = forest green (semantic accent, matches web --accent / --up)
 export const defaultBrandColors: BrandColors = {
   light: {
-    // Surfaces
-    surface1: baseColors.lavenderLight[0],
-    surface2: baseColors.lavenderLight[100],
-    surface3: baseColors.lavenderLight[200],
-    surface4: baseColors.lavenderLight[300],
-    surfaceActiveAccent: baseColors.orchid[100],
+    // Surfaces — web --background / --surface / --raise / --sunk
+    surface1: '#ffffff',
+    surface2: '#f5f5f3',
+    surface3: '#ecece8',
+    surface4: '#fafaf8',
+    surfaceActiveAccent: '#e6f0e8', // web --up-soft
     surfaceActive: baseColors.alphaDark200,
 
-    // Accents
-    accent1: '#31007a',
-    accent1Alt: '#31007a',
-    accent2: '#8700B8',
-    accent2Alt: '#FCEBFF',
+    // Accents — ink (primary CTA) + forest green (semantic accent)
+    accent1: '#0e0e10',
+    accent1Alt: '#f5f5f3',
+    accent2: '#1f7a3e',
+    accent2Alt: '#e6f0e8',
 
     // Border
-    borderAccent1: 'rgba(49, 0, 122, 0.08)',
+    borderAccent1: 'rgba(31, 122, 62, 0.10)',
     border: baseColors.alphaDark200,
 
-    // --------------------------------------------------
-    // UI Component Colors (not directly mapped in Figma)
-    // --------------------------------------------------
-
     // Buttons
-    buttonPrimaryBg: baseColors.lavenderDark[0],
-    buttonPrimaryAction: baseColors.lavenderLight[0],
-    buttonSecondaryBg: baseColors.lavenderLight[400],
-    buttonSecondaryAction: baseColors.lavenderDark[100],
-    buttonLightBg: baseColors.white.main,
-    buttonLightAction: baseColors.black.main,
+    buttonPrimaryBg: '#0e0e10',
+    buttonPrimaryAction: '#ffffff',
+    buttonSecondaryBg: '#f5f5f3',
+    buttonSecondaryAction: '#0e0e10',
+    buttonLightBg: '#ffffff',
+    buttonLightAction: '#0e0e10',
 
-    // Badge
-    badgeAccent1Fg: baseColors.white.main,
-    badgeAccent1Bg: '#31007a',
-    badgeAccent1MutedFg: baseColors.lavenderDark[0],
-    badgeAccent1MutedBg: baseColors.lavenderLight[400],
+    // Badge — green for the brand-accent badge slot
+    badgeAccent1Fg: '#ffffff',
+    badgeAccent1Bg: '#1f7a3e',
+    badgeAccent1MutedFg: '#1f7a3e',
+    badgeAccent1MutedBg: '#e6f0e8',
 
     // Link
-    linkPrimary: baseColors.lavenderDark[0],
-    linkSecondary: baseColors.lavenderDark[0],
+    linkPrimary: '#0e0e10',
+    linkSecondary: '#55555a', // web --text-soft
 
     // Logo
-    logoPrimary: '#31007a',
-    logoSecondary: '#8700B8',
+    logoPrimary: '#0e0e10',
+    logoSecondary: '#1f7a3e',
 
     // Border
-    borderActive: baseColors.orchid[400],
+    borderActive: '#0e0e10',
 
     // Surface Accent
-    surfaceAccent1: baseColors.lavenderLight[100],
-    surfaceAccent1Bg: baseColors.lavenderLight[100],
-    surfaceAccent1Fg: baseColors.lavenderDark[0],
-    surfaceAccent2: baseColors.orchid[800],
-    surfaceAccent2Bg: baseColors.orchid[200],
-    surfaceAccent2Fg: baseColors.orchid[800],
+    surfaceAccent1: '#f5f5f3',
+    surfaceAccent1Bg: '#f5f5f3',
+    surfaceAccent1Fg: '#0e0e10',
+    surfaceAccent2: '#0e0e10',
+    surfaceAccent2Bg: '#0e0e10',
+    surfaceAccent2Fg: '#ffffff',
 
     // Background
-    bg: baseColors.lavenderLight[200],
-    bgDarker: baseColors.lavenderLight[400],
-    bgGlow1: 'rgba(136, 0, 255, 0.12)',
-    bgGlow2: 'rgba(187, 0, 255, 0.12)',
-    bgGlow3: 'rgba(0, 68, 255, 0.12)',
+    bg: '#ffffff',
+    bgDarker: '#f5f5f3',
+    bgGlow1: 'rgba(31, 122, 62, 0.06)',
+    bgGlow2: 'rgba(31, 90, 168, 0.04)',
+    bgGlow3: 'transparent',
   },
   dark: {
-    // Surfaces
-    surface1: baseColors.rubyDark[200],
-    surface2: baseColors.rubyDark[300],
-    surface3: baseColors.rubyDark[400],
-    surface4: baseColors.rubyDark[500],
-    surfaceActiveAccent: baseColors.rubyDark[100],
+    // Surfaces — web dark --background / --surface / --raise / --sunk
+    surface1: '#0e0e10',
+    surface2: '#17171a',
+    surface3: '#1f1f23',
+    surface4: '#0a0a0c',
+    surfaceActiveAccent: 'rgba(74, 167, 108, 0.15)',
     surfaceActive: baseColors.alphaLight200,
 
-    // Accents
-    accent1: baseColors.rubyLight[400],
-    accent1Alt: baseColors.rubyLight[0],
-    accent2: baseColors.rubyLight[100],
-    accent2Alt: baseColors.rubyLight[300],
+    // Accents — paper (primary CTA on dark) + green (semantic accent)
+    accent1: '#f5f5f3',
+    accent1Alt: '#17171a',
+    accent2: '#4aa76c',
+    accent2Alt: 'rgba(74, 167, 108, 0.15)',
 
     // Border
-    borderAccent1: 'rgba(101, 59, 163, 0.08)',
+    borderAccent1: 'rgba(74, 167, 108, 0.16)',
     border: baseColors.alphaLight200,
 
-    // --------------------------------------------------
-    // UI Component Colors (not directly mapped in Figma)
-    // --------------------------------------------------
-
     // Buttons
-    buttonPrimaryBg: baseColors.rubyLight[400],
-    buttonPrimaryAction: baseColors.lavenderLight[0],
-    buttonSecondaryBg: baseColors.rubyLight[100],
-    buttonSecondaryAction: baseColors.rubyLight[400],
-    buttonLightBg: baseColors.rubyDark[200],
-    buttonLightAction: baseColors.white.main,
+    buttonPrimaryBg: '#f5f5f3',
+    buttonPrimaryAction: '#0e0e10',
+    buttonSecondaryBg: '#17171a',
+    buttonSecondaryAction: '#f5f5f3',
+    buttonLightBg: '#17171a',
+    buttonLightAction: '#f5f5f3',
 
     // Badge
-    badgeAccent1Fg: baseColors.white.main,
-    badgeAccent1Bg: baseColors.rubyLight[400],
-    badgeAccent1MutedFg: baseColors.rubyLight[400],
-    badgeAccent1MutedBg: baseColors.rubyLight[100],
+    badgeAccent1Fg: '#0e0e10',
+    badgeAccent1Bg: '#4aa76c',
+    badgeAccent1MutedFg: '#4aa76c',
+    badgeAccent1MutedBg: 'rgba(74, 167, 108, 0.15)',
 
     // Link
-    linkPrimary: baseColors.rubyLight[400],
-    linkSecondary: baseColors.rubyLight[400],
+    linkPrimary: '#f5f5f3',
+    linkSecondary: '#aaaab0', // web dark --text-soft
 
     // Logo
-    logoPrimary: baseColors.rubyLight[100],
-    logoSecondary: baseColors.violet[500],
+    logoPrimary: '#f5f5f3',
+    logoSecondary: '#4aa76c',
 
     // Border
-    borderActive: baseColors.rubyLight[400],
+    borderActive: '#f5f5f3',
 
     // Surface Accent
-    surfaceAccent1: baseColors.rubyLight[0],
-    surfaceAccent1Bg: baseColors.rubyDark[0],
-    surfaceAccent1Fg: baseColors.rubyLight[0],
-    surfaceAccent2: baseColors.rubyLight[100],
-    surfaceAccent2Bg: baseColors.rubyLight[400],
-    surfaceAccent2Fg: baseColors.rubyLight[100],
+    surfaceAccent1: '#17171a',
+    surfaceAccent1Bg: '#17171a',
+    surfaceAccent1Fg: '#f5f5f3',
+    surfaceAccent2: '#f5f5f3',
+    surfaceAccent2Bg: '#f5f5f3',
+    surfaceAccent2Fg: '#0e0e10',
 
     // Background
-    bg: '#120b1e',
-    bgDarker: baseColors.rubyDark[400],
-    bgGlow1: baseColors.rubyLight[400],
-    bgGlow2: baseColors.rubyLight[400],
-    bgGlow3: baseColors.rubyLight[400],
+    bg: '#0e0e10',
+    bgDarker: '#0a0a0c',
+    bgGlow1: 'rgba(74, 167, 108, 0.08)',
+    bgGlow2: 'rgba(47, 109, 203, 0.06)',
+    bgGlow3: 'transparent',
   },
 };
 

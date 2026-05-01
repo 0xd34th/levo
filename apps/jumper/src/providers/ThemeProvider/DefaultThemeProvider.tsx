@@ -21,18 +21,17 @@ export function DefaultThemeProvider({ children, themes }: ThemeProviderProps) {
       ? formatTheme(partnerThemeConfig)
       : null;
 
-    // Compute default widget themes for both modes
+    // The Levo redesign is light-only. Keep the dark slots populated with the
+    // light config because downstream widget types still expect both keys.
     const defaultWidgetLight = getDefaultWidgetThemeV2('light');
-    const defaultWidgetDark = getDefaultWidgetThemeV2('dark');
+    const defaultWidgetDark = defaultWidgetLight;
 
     // Compute partner widget themes (merged with defaults)
     const partnerWidgetConfig = formatted?.activeWidgetTheme ?? {};
     const partnerWidgetLight = {
       config: deepmerge(defaultWidgetLight.config, partnerWidgetConfig),
     };
-    const partnerWidgetDark = {
-      config: deepmerge(defaultWidgetDark.config, partnerWidgetConfig),
-    };
+    const partnerWidgetDark = partnerWidgetLight;
 
     // Compute jumper themes
     const partnerJumperTheme = formatted?.jumperTheme ?? {};

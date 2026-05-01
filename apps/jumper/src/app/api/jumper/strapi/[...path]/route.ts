@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import {
   getOptionalServerStrapiApiAccessToken,
   getServerStrapiBaseUrl,
+  isStrapiConfigured,
 } from '@/utils/strapi/strapiServer';
 
 const FORWARDED_HEADERS = [
@@ -110,6 +111,13 @@ async function proxyRequest(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
+  if (!isStrapiConfigured()) {
+    // Strapi is optional — return an empty Strapi-shaped payload so client-side
+    // queries (feature cards, partner themes, etc.) treat the absence as "no
+    // content" instead of erroring out.
+    return Response.json({ data: [], meta: {} }, { status: 200 });
+  }
+
   const { path } = await params;
   const target = buildTargetUrl(request, path);
   if (!target) {

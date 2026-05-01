@@ -1,18 +1,12 @@
 'use client';
+import { widgetAllowedChainIds } from '@/config/chains';
 import type { StarterVariantType } from '@/types/internal';
 import { ChainId } from '@lifi/sdk';
 
-export const themeAllowChains: ChainId[] = [
-  ChainId.ETH,
-  ChainId.BAS,
-  ChainId.OPT,
-  ChainId.ARB,
-  ChainId.AVA,
-  ChainId.BSC,
-];
+export const themeAllowChains: ChainId[] = [...widgetAllowedChainIds];
 
 export const ExtendedChainId = {
-  HYPE: 998 as ChainId,
+  HYPE: ChainId.HYP,
 } as Record<string, ChainId>;
 
 export interface WidgetProps {

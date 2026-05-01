@@ -9,13 +9,14 @@ function getServerEnvValue(...keys: string[]): string | undefined {
   return undefined;
 }
 
+export function isStrapiConfigured(): boolean {
+  return !!getServerEnvValue('STRAPI_URL', 'NEXT_PUBLIC_STRAPI_URL');
+}
+
 export function getServerStrapiBaseUrl() {
-  const value =
-    getServerEnvValue('STRAPI_URL', 'NEXT_PUBLIC_STRAPI_URL') ||
-    'https://strapi.jumper.xyz';
+  const value = getServerEnvValue('STRAPI_URL', 'NEXT_PUBLIC_STRAPI_URL');
 
   if (!value) {
-    console.error('Server Strapi URL is not provided.');
     throw new Error('Server Strapi URL is not provided.');
   }
 

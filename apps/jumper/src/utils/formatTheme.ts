@@ -6,7 +6,7 @@ import type { PartnerThemesAttributes } from '@/types/strapi';
 function getImageUrl(
   theme: PartnerThemesAttributes,
   imageType: 'BackgroundImage' | 'FooterImage' | 'Logo',
-  defaultMode: 'light' | 'dark' = 'dark',
+  defaultMode: 'light' | 'dark' = 'light',
 ): URL | null {
   const baseStrapiUrl = getStrapiUrl(STRAPI_PARTNER_THEMES);
 
@@ -24,12 +24,9 @@ export function getAvailableThemeModes(
 
   // Means it is default jumper theme
   if (!theme) {
-    return ['light', 'dark'];
+    return ['light'];
   }
 
-  if (theme.darkConfig) {
-    result.push('dark');
-  }
   if (theme.lightConfig) {
     result.push('light');
   }
@@ -71,11 +68,10 @@ export function formatConfig(
   const result = {
     availableThemeModes: themeModes,
     backgroundColor:
-      theme.BackgroundColorDark || theme.BackgroundColorLight || null,
+      theme.BackgroundColorLight || null,
     backgroundImageUrl: getImageUrl(theme, 'BackgroundImage', defaultMode),
     backgroundImagePosition:
-      (theme.lightConfig || theme.darkConfig)?.customization
-        ?.backgroundImagePosition || 'center',
+      theme.lightConfig?.customization?.backgroundImagePosition || 'center',
     footerImageUrl: getImageUrl(theme, 'FooterImage', defaultMode),
     logo: getLogoData(theme),
     partnerName: theme.PartnerName,
@@ -84,35 +80,23 @@ export function formatConfig(
     createdAt: theme.createdAt,
     publishedAt: theme.publishedAt,
     uid: theme.uid,
-    themeModeIcon: (theme.lightConfig || theme.darkConfig)?.customization
-      ?.themeModeIcon,
-    defaultThemeMode: (theme.lightConfig || theme.darkConfig)?.config
-      ?.appearance as 'light' | 'dark',
-    hasThemeModeSwitch:
-      (theme.lightConfig || theme.darkConfig)?.customization
-        ?.hasThemeModeSwitch ?? true,
+    themeModeIcon: theme.lightConfig?.customization?.themeModeIcon,
+    defaultThemeMode:
+      (theme.lightConfig?.config?.appearance as 'light' | 'dark') ?? 'light',
+    hasThemeModeSwitch: theme.lightConfig?.customization
+      ?.hasThemeModeSwitch ?? true,
     hasBlurredNavigation:
-      (theme.lightConfig || theme.darkConfig)?.customization
-        ?.hasBlurredNavigation ?? false,
+      theme.lightConfig?.customization?.hasBlurredNavigation ?? false,
     hasBackgroundGradient:
-      (theme.lightConfig || theme.darkConfig)?.customization
-        ?.hasBackgroundGradient ?? false,
-    integrator:
-      (theme.lightConfig || theme.darkConfig)?.config?.integrator ?? undefined,
-    fromChain:
-      (theme.lightConfig || theme.darkConfig)?.config?.fromChain ?? undefined,
-    toChain:
-      (theme.lightConfig || theme.darkConfig)?.config?.toChain ?? undefined,
-    toToken:
-      (theme.lightConfig || theme.darkConfig)?.config?.toToken ?? undefined,
-    fromToken:
-      (theme.lightConfig || theme.darkConfig)?.config?.fromToken ?? undefined,
-    hiddenUI:
-      (theme.lightConfig || theme.darkConfig)?.config?.hiddenUI ?? undefined,
-    variant:
-      (theme.lightConfig || theme.darkConfig)?.config?.variant ?? undefined,
-    chains:
-      (theme.lightConfig || theme.darkConfig)?.config?.chains ?? undefined,
+      theme.lightConfig?.customization?.hasBackgroundGradient ?? false,
+    integrator: theme.lightConfig?.config?.integrator ?? undefined,
+    fromChain: theme.lightConfig?.config?.fromChain ?? undefined,
+    toChain: theme.lightConfig?.config?.toChain ?? undefined,
+    toToken: theme.lightConfig?.config?.toToken ?? undefined,
+    fromToken: theme.lightConfig?.config?.fromToken ?? undefined,
+    hiddenUI: theme.lightConfig?.config?.hiddenUI ?? undefined,
+    variant: theme.lightConfig?.config?.variant ?? undefined,
+    chains: theme.lightConfig?.config?.chains ?? undefined,
     allowedBridges: theme.Bridges?.map((i) => i.key),
     allowedExchanges: theme.Exchanges?.map((i) => i.key),
   };
@@ -122,7 +106,7 @@ export function formatConfig(
 
 export function formatTheme(theme: PartnerThemesAttributes) {
   const config = formatConfig(theme);
-  const themeConfig = theme.lightConfig || theme.darkConfig;
+  const themeConfig = theme.lightConfig;
 
   // Jumper theme options (for createJumperTheme)
   const jumperTheme = themeConfig?.jumperTheme ?? {};
@@ -174,5 +158,5 @@ export function formatTheme(theme: PartnerThemesAttributes) {
 }
 
 export const isDarkOrLightThemeMode = (
-  theme: PartnerThemesAttributes,
-): 'light' | 'dark' => (theme.lightConfig ? 'light' : 'dark');
+  _theme: PartnerThemesAttributes,
+): 'light' | 'dark' => 'light';

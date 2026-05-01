@@ -100,7 +100,7 @@ export default function FinalLayout({
             textAlign: 'center',
           }}
         >
-          The Jumper team will contact you shortly.
+          The Levo team will contact you shortly.
         </StyledTypography>
 
         <div

@@ -1,14 +1,16 @@
 import type { Breakpoint, Theme } from '@mui/material/styles';
-import { inter, urbanist } from 'src/fonts/fonts';
+import { inter, plexMono, urbanist } from 'src/fonts/fonts';
 
 export interface ThemeFonts {
   body: string;
   display: string;
+  mono?: string;
 }
 
 export const defaultFonts: ThemeFonts = {
   body: inter.style.fontFamily,
   display: urbanist.style.fontFamily,
+  mono: plexMono.style.fontFamily,
 };
 
 export const createTypography = (
@@ -61,7 +63,7 @@ export const createTypography = (
   },
   bodyXLargeStrong: {
     fontStyle: 'normal',
-    fontWeight: 800,
+    fontWeight: 700,
     fontSize: '24px',
     lineHeight: '32px',
     letterSpacing: 0,

@@ -52,6 +52,7 @@ import {
   dappKitSuiConnector,
   selectSuiAccount,
   selectSuiProviderTag,
+  WALLET_CONNECTOR_ICON,
 } from "@/providers/WalletProvider/selectSuiSession";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivyEvmWallets } from "@privy-io/react-auth";
@@ -79,7 +80,7 @@ import {
 } from "wagmi/actions";
 
 const privyConnector: WalletConnector = {
-  icon: "/favicon.png",
+  icon: WALLET_CONNECTOR_ICON,
   id: "privy-account",
   name: "Privy Account",
 };

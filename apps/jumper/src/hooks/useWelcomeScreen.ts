@@ -9,7 +9,7 @@ interface useWelcomeScreenResult {
   enabled: boolean;
 }
 
-export const validThemes = ['default', 'light', 'dark', 'system'];
+export const validThemes = ['default', 'light'];
 
 export const useWelcomeScreen = (): useWelcomeScreenResult => {
   const { isMainPaths } = useMainPaths();

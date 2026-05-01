@@ -107,7 +107,7 @@ export const LoginModal: FC = () => {
       <LoginModalContainer>
         <LoginModalHeader>
           <Typography id="login-modal-title" sx={{ fontWeight: 700 }} variant="h6">
-            Sign in to Jumper
+            Sign in to Levo
           </Typography>
           <LoginModalCloseButton aria-label="Close" onClick={handleClose} size="small">
             <CloseRounded fontSize="small" />

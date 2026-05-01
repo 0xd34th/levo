@@ -1,18 +1,19 @@
 import config from '@/config/env-config';
 
-export const JUMPER_URL = 'https://jumper.xyz';
-export const JUMPER_STRAPI_URL = 'https://strapi.jumper.xyz';
-export const DISCORD_URL = 'https://discord.gg/jumperexchange';
-export const DISCORD_URL_INVITE = 'https://discord.com/invite/jumperexchange';
-export const X_URL = 'https://x.com/jumperapp';
-export const GITHUB_URL = 'https://github.com/jumperexchange';
+// TODO(brand-urls): replace placeholders below once Levo owns the official domains/social handles.
+export const JUMPER_URL = 'https://levo.app';
+export const JUMPER_STRAPI_URL = 'https://strapi.levo.app';
+export const DISCORD_URL = 'https://levo.app/discord';
+export const DISCORD_URL_INVITE = 'https://levo.app/discord';
+export const X_URL = 'https://x.com/levo';
+export const GITHUB_URL = 'https://github.com/levo';
 export const X_SHARE_URL = 'https://x.com/share';
 export const FB_SHARE_URL = 'https://www.facebook.com/sharer/sharer.php';
 export const LINKEDIN_SHARE_URL = 'https://www.linkedin.com/shareArticle';
-export const LINK3_URL = 'https://link3.to/jumperexchange';
-export const TELEGRAM_URL = 'https://t.me/jumperapp';
+export const LINK3_URL = 'https://link3.to/levo';
+export const TELEGRAM_URL = 'https://t.me/levo';
 export const GATEKEEPER_REQUEST_ACCESS_URL = 'https://tally.so/r/VLGZOJ';
-export const TERMS_CONDITIONS_URL = 'https://li.fi/legal/terms-and-conditions';
+export const TERMS_CONDITIONS_URL = 'https://levo.app/legal/terms-and-conditions';
 export const JUMPER_MAIN_PATH = '/';
 export const JUMPER_BRIDGE_PATH = '/bridge';
 export const JUMPER_SWAP_PATH = '/swap';

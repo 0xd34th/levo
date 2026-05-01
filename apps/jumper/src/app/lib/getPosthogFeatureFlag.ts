@@ -10,16 +10,9 @@ export const getPosthogFeatureFlag = async (
   feature: string,
   distinctId: string,
 ): Promise<GetPosthogFeatureFlagResult> => {
-  try {
-    const client = makeClient();
-    const posthogFeatureFlag =
-      await client.v1.postHogControllerGetFeatureFlagV1({
-        key: feature,
-        distinctId: distinctId,
-      });
-    return posthogFeatureFlag;
-  } catch (error) {
-    console.error('getPosthogFeatureFlag failed for feature', feature, error);
-    throw error;
-  }
+  const client = makeClient();
+  return client.v1.postHogControllerGetFeatureFlagV1({
+    key: feature,
+    distinctId: distinctId,
+  });
 };

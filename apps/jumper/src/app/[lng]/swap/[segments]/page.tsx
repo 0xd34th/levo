@@ -26,11 +26,11 @@ export async function generateMetadata({
 
   const { chains } = await getChainsQuery();
   const sourceChain = getChainByName(chains, result.data);
-  const title = `Jumper | How To Swap on ${sourceChain?.name} | A Complete Guide`;
+  const title = `Levo | How To Swap on ${sourceChain?.name} | A Complete Guide`;
 
   const openGraph: Metadata['openGraph'] = {
     title: title,
-    description: `Jumper offers the best way to swap tokens on ${sourceChain?.name} with the fastest speeds, lowest costs, and most secure swap providers available.`,
+    description: `Levo offers the best way to swap tokens on ${sourceChain?.name} with the fastest speeds, lowest costs, and most secure swap providers available.`,
     siteName: siteName,
     url: `${getSiteUrl()}/swap/${slugify(segments)}`,
     type: 'article',

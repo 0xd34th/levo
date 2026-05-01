@@ -21,12 +21,11 @@ export const generateRouteLabel = (
         gap: theme.spacing(0.5),
         paddingLeft: theme.spacing(0.5),
         paddingRight: theme.spacing(0.5),
-        background: `linear-gradient(90deg, ${(theme.vars || theme).palette.orchid[600]} 0%, ${(theme.vars || theme).palette.lavenderDark[300]} 100%)`,
+        background: `linear-gradient(90deg, ${(theme.vars || theme).palette.gainDark[500]} 0%, ${(theme.vars || theme).palette.gainDark[100]} 100%)`,
         color: (theme.vars || theme).palette.white.main,
         ...theme.typography.bodyXSmallStrong,
         ...theme.applyStyles('light', {
-          // @Note we might adjust to use the theme config
-          background: 'linear-gradient(90deg, #9B006F 0%, #37006B 100%)',
+          background: `linear-gradient(90deg, ${(theme.vars || theme).palette.gain[500]} 0%, ${(theme.vars || theme).palette.gain[100]} 100%)`,
         }),
         '&::before': {
           content: '""',

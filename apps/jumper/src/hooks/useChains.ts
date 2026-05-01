@@ -5,6 +5,7 @@ import { sdkClient } from '@/utils/instrumentation/lifiSdkConfig';
 import { getChainById as getChainByIdHelper } from '@/utils/tokenAndChain';
 import { useCallback } from 'react';
 import { getQueryKey } from '@/utils/queries/getQueryKey';
+import { filterAllowedWidgetChains } from '@/config/chains';
 
 export const queryKey = [getQueryKey('chains')];
 
@@ -19,7 +20,7 @@ export async function getChainsQuery() {
   const chains = await getChains(sdkClient, {
     chainTypes: [ChainType.EVM, ChainType.SVM, ChainType.UTXO, ChainType.MVM],
   });
-  return { chains };
+  return { chains: filterAllowedWidgetChains(chains) };
 }
 
 export const useChains = (): ChainProps => {

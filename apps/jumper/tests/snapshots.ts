@@ -5,8 +5,8 @@ function closeWelcomeScreen(page: Page) {
   return page.locator('.widget-wrapper').first().click();
 }
 
-type Theme = 'light' | 'dark';
-const themes: Theme[] = ['light', 'dark'];
+type Theme = 'light';
+const themes: Theme[] = ['light'];
 
 themes.forEach((colorScheme) => {
   test.describe(`${colorScheme} theme`, () => {

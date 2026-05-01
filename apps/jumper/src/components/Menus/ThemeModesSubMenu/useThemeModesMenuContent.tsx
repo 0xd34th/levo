@@ -1,21 +1,17 @@
 import { useColorScheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
-import NightlightIcon from '@mui/icons-material/Nightlight';
-import BrightnessAutoIcon from '@mui/icons-material/BrightnessAuto';
 import FlareRoundedIcon from '@mui/icons-material/FlareRounded';
 import { useMemo, useCallback, useEffect } from 'react';
 import type { Appearance } from '@lifi/widget';
 import type { PartnerThemesData } from '@/types/strapi';
 import { useUserTracking } from '@/hooks/userTracking/useUserTracking';
-import { useMainPaths } from '@/hooks/useMainPaths';
 import { useThemeStore } from '@/stores/theme';
 import {
   TrackingAction,
   TrackingCategory,
   TrackingEventParameter,
 } from '@/const/trackingKeys';
-import { isDarkOrLightThemeMode } from '@/utils/formatTheme';
 import Avatar from '@mui/material/Avatar';
 import { selectAvailablePartnerThemes } from '@/stores/theme/createThemeStore';
 
@@ -32,22 +28,15 @@ const MODE_OPTIONS = {
     icon: <WbSunnyOutlinedIcon />,
     translationKey: 'navbar.themes.light',
   },
-  dark: {
-    icon: <NightlightIcon />,
-    translationKey: 'navbar.themes.dark',
-  },
-  system: {
-    icon: <BrightnessAutoIcon />,
-    translationKey: 'navbar.themes.system',
-  },
 } as const;
 
-const STANDARD_MODES: Appearance[] = ['light', 'dark', 'system'];
+const LIGHT_MODE = 'light' as const satisfies Appearance;
+const STANDARD_MODES = [LIGHT_MODE] as const;
+
 export const useThemeModesMenuContent = () => {
   const { mode, setMode } = useColorScheme();
   const { t } = useTranslation();
   const { trackEvent } = useUserTracking();
-  const { isMainPaths } = useMainPaths();
 
   const [setConfigThemeState, configThemeStates] = useThemeStore((state) => [
     state.setConfigThemeState,
@@ -55,8 +44,7 @@ export const useThemeModesMenuContent = () => {
   ]);
   const availablePartnerThemes = useThemeStore(selectAvailablePartnerThemes);
 
-  const defaultMode = isMainPaths ? 'system' : 'light';
-  const selectedThemeMode = mode ?? defaultMode;
+  const selectedThemeMode = LIGHT_MODE;
 
   const { activeConfigThemeUid, activeConfigTheme } = useMemo(() => {
     for (const [uid, state] of Object.entries(configThemeStates)) {
@@ -71,17 +59,16 @@ export const useThemeModesMenuContent = () => {
   useEffect(() => {
     if (!activeConfigTheme) {
       if (activeConfigThemeUid) {
-        setMode('system');
-        console.debug('Changed theme mode to: system');
+        setMode(LIGHT_MODE);
+        console.debug('Changed theme mode to: light');
         setConfigThemeState(activeConfigThemeUid, { isSelected: false });
       }
       return;
     }
 
-    const themeMode = isDarkOrLightThemeMode(activeConfigTheme);
-    if (themeMode !== mode) {
-      setMode(themeMode);
-      console.debug(`Changed theme mode to: ${themeMode}`);
+    if (mode !== LIGHT_MODE) {
+      setMode(LIGHT_MODE);
+      console.debug('Changed theme mode to: light');
     }
   }, [
     activeConfigThemeUid,
@@ -99,16 +86,17 @@ export const useThemeModesMenuContent = () => {
 
   const handleSwitchMode = useCallback(
     (newMode: Appearance) => {
+      const nextMode = LIGHT_MODE;
       trackEvent({
         category: TrackingCategory.ThemeSection,
         action: TrackingAction.SwitchTheme,
-        label: `theme_${newMode}`,
-        data: { [TrackingEventParameter.SwitchedTheme]: newMode },
+        label: `theme_${nextMode}`,
+        data: { [TrackingEventParameter.SwitchedTheme]: nextMode },
       });
+      void newMode;
       clearPartnerTheme();
-      const newModeWithFallback = newMode ?? 'system';
-      setMode(newModeWithFallback);
-      console.debug(`Changing theme mode to: ${newModeWithFallback}`);
+      setMode(nextMode);
+      console.debug(`Changing theme mode to: ${nextMode}`);
     },
     [trackEvent, setMode, clearPartnerTheme],
   );
@@ -123,16 +111,17 @@ export const useThemeModesMenuContent = () => {
       });
       clearPartnerTheme();
       setConfigThemeState(theme.uid, { isSelected: true });
-      const newMode = isDarkOrLightThemeMode(theme);
-      setMode(newMode);
-      console.debug(`Changing theme mode to: ${newMode}`);
+      setMode(LIGHT_MODE);
+      console.debug(`Changing theme mode to: ${LIGHT_MODE}`);
     },
     [trackEvent, setConfigThemeState, setMode, clearPartnerTheme],
   );
 
   const displayablePartnerThemes = useMemo(
     () =>
-      availablePartnerThemes.filter((t) => t.SelectableInMenu && t.PartnerName),
+      availablePartnerThemes.filter(
+        (t) => t.SelectableInMenu && t.PartnerName && t.lightConfig,
+      ),
     [availablePartnerThemes],
   );
 
@@ -141,11 +130,11 @@ export const useThemeModesMenuContent = () => {
       STANDARD_MODES.map((themeMode) => ({
         label: t(MODE_OPTIONS[themeMode].translationKey),
         prefixIcon: MODE_OPTIONS[themeMode].icon,
-        checkIcon: !activeConfigThemeUid && mode === themeMode,
+        checkIcon: !activeConfigThemeUid,
         onClick: () => handleSwitchMode(themeMode),
         disabled: false,
       })),
-    [t, activeConfigThemeUid, mode, handleSwitchMode],
+    [t, activeConfigThemeUid, handleSwitchMode],
   );
 
   const partnerThemeItems = useMemo<SubmenuItem[]>(

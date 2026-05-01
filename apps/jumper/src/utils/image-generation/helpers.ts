@@ -25,14 +25,6 @@ export const getWidth = (type?: string, fullWidth?: boolean) => {
 };
 
 export const getResolvedMode = (mode?: Appearance | undefined): ImageTheme => {
-  if (mode === 'dark' || mode === 'light') {
-    return mode;
-  }
-  if (mode === 'system' && typeof window !== 'undefined') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
-  // fallback for undefined or unexpected values
+  void mode;
   return 'light';
 };

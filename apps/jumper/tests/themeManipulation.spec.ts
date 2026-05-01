@@ -6,24 +6,37 @@ import {
 import {
   openOrCloseMainMenu,
   Theme,
-  switchTheme,
 } from './testData/menuFunctions';
-import { expectBackgroundColorToHaveCss } from './testData/menuFunctions';
 import { qase } from 'playwright-qase-reporter';
 
-test.describe('Switch between dark and light theme and check the background color', () => {
+test.describe('Light-only theme mode', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });
 
   test.use({ colorScheme: 'dark' });
   test(
-    qase(30, 'Should able to change the theme color to Dark'),
+    qase(30, 'Should not expose dark or system theme modes'),
     async ({ page }) => {
       await closeWelcomeScreen(page);
       await openOrCloseMainMenu(page);
-      await switchTheme(page, Theme.Dark);
-      await expectBackgroundColorToHaveCss(page, 'rgb(18, 11, 30)');
+      await itemInMenu(page, 'Theme');
+
+      await expect(page.getByRole('menuitem', { name: /^Dark$/ })).toHaveCount(
+        0,
+      );
+      await expect(
+        page.getByRole('menuitem', { name: /^System$/ }),
+      ).toHaveCount(0);
+
+      await itemInMenu(page, Theme.Light);
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            getComputedStyle(document.body).getPropertyValue('color-scheme'),
+          ),
+        )
+        .toBe('light');
     },
   );
 
@@ -36,7 +49,13 @@ test.describe('Switch between dark and light theme and check the background colo
       await itemInMenu(page, 'Theme');
       await itemInMenu(page, Theme.Light);
       await page.locator('#main-burger-menu-button').click();
-      expectBackgroundColorToHaveCss(page, 'rgb(246, 240, 255)');
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            getComputedStyle(document.body).getPropertyValue('color-scheme'),
+          ),
+        )
+        .toBe('light');
     },
   );
 
@@ -58,12 +77,11 @@ test.describe('Switch between dark and light theme and check the background colo
       await openOrCloseMainMenu(page);
       await itemInMenu(page, 'Theme');
 
-      // Find partner theme (any menu item that's not Light or Dark)
+      // Find partner theme (any menu item that's not Light)
       const menuItems = page.getByRole('menuitem');
       const allMenuItems = await menuItems.allTextContents();
       const partnerTheme = allMenuItems.find(
-        (item) =>
-          !['Light', 'Dark', 'System'].includes(item) && item.trim() !== '',
+        (item) => !['Light'].includes(item) && item.trim() !== '',
       );
 
       // Skip if no partner theme is available

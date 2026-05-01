@@ -59,7 +59,7 @@ export const createPaletteLight = (
 
   textEmphasized: baseColors.black.main,
 
-  textError: baseColors.scarlet[500],
+  textError: baseColors.loss[500],
   textDisabled: baseColors.alphaDark400.main,
   textInfo: baseColors.azure[500],
 
@@ -78,7 +78,7 @@ export const createPaletteLight = (
   borderEmphasized: baseColors.alphaDark600.main,
   borderInvertedEmphasized: baseColors.alphaLight600.main,
   borderActive: brandColors.light.borderActive,
-  borderError: baseColors.scarlet[500],
+  borderError: baseColors.loss[500],
 
   // Button
   buttonPrimaryBg: brandColors.light.buttonPrimaryBg,
@@ -102,7 +102,7 @@ export const createPaletteLight = (
   buttonActiveBg: baseColors.white.main,
   buttonActiveAction: baseColors.black.main,
 
-  buttonErrorBg: baseColors.scarlet[500],
+  buttonErrorBg: baseColors.loss[500],
 
   // Badge
   badgeAccent1Fg: brandColors.light.badgeAccent1Fg,
@@ -143,7 +143,7 @@ export const createPaletteLight = (
   iconSecondaryInverted: baseColors.alphaDark700.main,
   iconHint: baseColors.alphaDark500.main,
   iconDisabled: baseColors.alphaDark400.main,
-  iconError: baseColors.scarlet[500],
+  iconError: baseColors.loss[500],
   iconInfo: baseColors.azure[500],
   iconWarning: baseColors.amber[500],
   iconAccent1: brandColors.light.accent1,
@@ -156,15 +156,15 @@ export const createPaletteLight = (
   statusInfoBg: baseColors.azure[100],
   statusPending: baseColors.alphaDark200.main,
   statusProgress: brandColors.light.accent1,
-  statusSuccess: baseColors.mint[500],
-  statusSuccessFg: baseColors.mint[500],
-  statusSuccessBg: baseColors.mint[100],
+  statusSuccess: baseColors.gain[500],
+  statusSuccessFg: baseColors.gain[500],
+  statusSuccessBg: baseColors.gain[100],
   statusWarning: baseColors.amber[500],
   statusWarningFg: baseColors.amber[500],
   statusWarningBg: baseColors.amber[100],
-  statusError: baseColors.scarlet[500],
-  statusErrorFg: baseColors.scarlet[500],
-  statusErrorBg: baseColors.scarlet[100],
+  statusError: baseColors.loss[500],
+  statusErrorFg: baseColors.loss[500],
+  statusErrorBg: baseColors.loss[100],
 });
 
 export const paletteLight = createPaletteLight(defaultBrandColors);

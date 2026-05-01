@@ -59,20 +59,20 @@ export const ContributionCustomInput = styled(TextField, {
   overflow: 'hidden',
   transition: 'background-color 250ms',
   backgroundColor: isFieldActive
-    ? 'rgba(101, 59, 163, 0.84)'
+    ? 'rgba(74, 167, 108, 0.84)'
     : `${(theme.vars || theme).palette.grey[200]} !important`,
   '&:hover': {
     backgroundColor: isFieldActive
-      ? '#653BA3'
+      ? '#4aa76c'
       : `${(theme.vars || theme).palette.grey[300]} !important`,
   },
   ...theme.applyStyles('light', {
     backgroundColor: isFieldActive
-      ? '#F0E5FF'
+      ? '#e6f0e8'
       : (theme.vars || theme).palette.grey[100],
     '&:hover': {
       backgroundColor: isFieldActive
-        ? darken('#F0E5FF', 0.08)
+        ? darken('#e6f0e8', 0.08)
         : (theme.vars || theme).palette.grey[300],
     },
   }),
@@ -158,13 +158,13 @@ export const ContributionButton = styled(Button, {
       {
         props: { selected: true },
         style: ({ theme }) => ({
-          backgroundColor: 'rgba(101, 59, 163, 0.84)',
-          '&:hover': { backgroundColor: '#653BA3' },
+          backgroundColor: 'rgba(74, 167, 108, 0.84)',
+          '&:hover': { backgroundColor: '#4aa76c' },
           ...theme.applyStyles('light', {
-            backgroundColor: '#F0E5FF',
+            backgroundColor: '#e6f0e8',
             '&:hover': {
               color: (theme.vars || theme).palette.text.primary,
-              backgroundColor: darken('#F0E5FF', 0.08),
+              backgroundColor: darken('#e6f0e8', 0.08),
             },
           }),
         }),
@@ -210,8 +210,8 @@ export const ContributionButtonCTA = styled(Button, {
         props: { isTxConfirmed: true },
         style: ({ theme }) => ({
           color: '#00B849',
-          backgroundColor: 'rgba(101, 59, 163, 0.84)',
-          '&:hover': { backgroundColor: '#653BA3' },
+          backgroundColor: 'rgba(74, 167, 108, 0.84)',
+          '&:hover': { backgroundColor: '#4aa76c' },
 
           ...theme.applyStyles('light', {
             backgroundColor: '#D6FFE7',
@@ -225,16 +225,16 @@ export const ContributionButtonCTA = styled(Button, {
       {
         props: { isTxConfirmed: false },
         style: ({ theme }) => ({
-          backgroundColor: 'rgba(101, 59, 163, 0.84)',
+          backgroundColor: 'rgba(74, 167, 108, 0.84)',
           color: (theme.vars || theme).palette.text.primary,
           '&:hover': {
-            backgroundColor: '#653BA3',
+            backgroundColor: '#4aa76c',
           },
           ...theme.applyStyles('light', {
-            backgroundColor: '#F0E5FF',
+            backgroundColor: '#e6f0e8',
             color: (theme.vars || theme).palette.text.primary,
             '&:hover': {
-              backgroundColor: darken('#F0E5FF', 0.08),
+              backgroundColor: darken('#e6f0e8', 0.08),
             },
           }),
         }),

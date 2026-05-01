@@ -14,14 +14,15 @@ export const PrivacyPolicyPage = () => {
     {
       key: 'generalInformation',
       title: '1. General Information',
+      // TODO(legal): confirm legal entity name & jurisdiction with counsel before publishing.
       content:
-        'Jumper (hereinafter "Jumper", "we" or "us") takes the protection of personal data very seriously. We treat personal data confidentially and always in accordance with the applicable data protection laws, in particular Regulation (EU) 2016/679 (hereinafter "General Data Protection Regulation" or "GDPR"), the German Federal Data Protection Act (hereinafter "BDSG"), and in accordance with the provisions of this privacy policy. The aim of this privacy policy is to inform you (hereinafter "data subject" or "you") in accordance with Art. 12 et seq. GDPR about how we process your personal data and for what purposes we process your personal data when using our websites (hereinafter "Websites") or contacting us. Unless otherwise stated in this privacy policy, the terms used here have the meaning as defined in the GDPR.',
+        'Levo (hereinafter "Levo", "we" or "us") takes the protection of personal data very seriously. We treat personal data confidentially and always in accordance with the applicable data protection laws, in particular Regulation (EU) 2016/679 (hereinafter "General Data Protection Regulation" or "GDPR"), the German Federal Data Protection Act (hereinafter "BDSG"), and in accordance with the provisions of this privacy policy. The aim of this privacy policy is to inform you (hereinafter "data subject" or "you") in accordance with Art. 12 et seq. GDPR about how we process your personal data and for what purposes we process your personal data when using our websites (hereinafter "Websites") or contacting us. Unless otherwise stated in this privacy policy, the terms used here have the meaning as defined in the GDPR.',
     },
     {
       key: 'dataController',
       title: '2. Data Controller',
       content:
-        'Jumper acts as a controller within the meaning of the GDPR in relation to your personal data processed in connection with the use of our Websites or a contact made to or by Jumper. If you have any questions about this privacy policy or the processing of your personal data, you can contact us at the following contact details:',
+        'Levo acts as a controller within the meaning of the GDPR in relation to your personal data processed in connection with the use of our Websites or a contact made to or by Levo. If you have any questions about this privacy policy or the processing of your personal data, you can contact us at the following contact details:',
       email: `E-mail: legal@${JUMPER_DOMAIN}`,
     },
     {
@@ -112,7 +113,7 @@ export const PrivacyPolicyPage = () => {
         'Right to restrict processing - You have the right to request that we restrict the processing of your personal data under the conditions of Art. 18 GDPR.',
         'Right to data portability - You have the right, under the conditions of Art. 20 GDPR, to request that we hand over, in a structured, common and machine-readable format, the personal data concerning you that you have provided to us. Please note that this right only applies where the processing is based on your consent, or a contract and the processing is carried out by automated means.',
         'Right to object - You have the right to object to the processing of your personal data under the conditions of Art. 21 GDPR.',
-        'Right to complain to a supervisory authority - Subject to the requirements of Art. 77 GDPR, you have the right to file a complaint with a competent supervisory authority. As a rule, the data subject may contact the supervisory authority of his or her habitual residence or place of work or place of the alleged infringement or the registered office of Jumper. The supervisory authority responsible for Jumper is the Berlin Commissioner for Data Protection and Information. A list of all German supervisory authorities and their contact details can be found here.',
+        'Right to complain to a supervisory authority - Subject to the requirements of Art. 77 GDPR, you have the right to file a complaint with a competent supervisory authority. As a rule, the data subject may contact the supervisory authority of his or her habitual residence or place of work or place of the alleged infringement or the registered office of Levo. The supervisory authority responsible for Levo is the Berlin Commissioner for Data Protection and Information. A list of all German supervisory authorities and their contact details can be found here.',
       ],
     },
     {

@@ -3,8 +3,10 @@ import type { Account, WalletConnector } from "@lifi/widget-provider";
 import type { SuiSourcePreference } from "@/stores/wallet";
 import { resolveConnectedAccount } from "./resolveConnectedAccount";
 
+export const WALLET_CONNECTOR_ICON = "/wallet-avatar.svg";
+
 export const dappKitSuiConnector: WalletConnector = {
-  icon: "/favicon.png",
+  icon: WALLET_CONNECTOR_ICON,
   id: "sui-dapp-kit",
   name: "Sui Wallet",
 };

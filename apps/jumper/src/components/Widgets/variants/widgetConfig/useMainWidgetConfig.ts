@@ -7,6 +7,7 @@ import { useMemelist } from 'src/hooks/useMemelist';
 import { tokens } from 'src/config/tokens';
 import { generateRouteLabel } from './utils';
 import { themeAllowChains } from '../../Widget.types';
+import { filterAllowedWidgetChainIds } from 'src/config/chains';
 
 /**
  * Configuration hook for the main widget variant
@@ -36,6 +37,10 @@ export function useMainWidgetConfig(
       const newAllowList = currentAllowList.concat(memeListTokens);
       _tokens.allow = newAllowList;
     }
+    const configThemeChains = deps.theme.configTheme?.chains;
+    const contextAllowFromChains = context.isConnectedAGW
+      ? [ChainId.ABS]
+      : context.allowFromChains || allowedChainsByVariant;
 
     const config: Partial<WidgetConfig> = {
       keyPrefix: `jumper-${context.starterVariant}`,
@@ -64,16 +69,24 @@ export function useMainWidgetConfig(
 
       // Chain configuration
       chains: {
-        ...(deps.theme.configTheme?.chains ?? {}),
-        allow: context.allowChains,
+        ...(configThemeChains ?? {}),
+        allow: filterAllowedWidgetChainIds(
+          context.allowChains ?? configThemeChains?.allow,
+        ),
         from: {
-          allow: context.isConnectedAGW
-            ? [ChainId.ABS]
-            : context.allowFromChains || allowedChainsByVariant,
+          ...(configThemeChains?.from ?? {}),
+          allow: filterAllowedWidgetChainIds(
+            contextAllowFromChains.length
+              ? contextAllowFromChains
+              : configThemeChains?.from?.allow,
+          ),
         },
         to: context.allowToChains
-          ? { allow: context.allowToChains }
-          : undefined,
+          ? { allow: filterAllowedWidgetChainIds(context.allowToChains) }
+          : {
+              ...(configThemeChains?.to ?? {}),
+              allow: filterAllowedWidgetChainIds(configThemeChains?.to?.allow),
+            },
       },
 
       // Token configuration

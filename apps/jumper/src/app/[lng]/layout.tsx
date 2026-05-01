@@ -76,10 +76,10 @@ export const metadata: Metadata = {
       version: 'next',
       imageUrl: baseMiniApp.iconUrl,
       button: {
-        title: `Launch Jumper`,
+        title: `Launch Levo`,
         action: {
           type: 'launch_miniapp',
-          name: 'Jumper',
+          name: 'Levo',
           url: PUBLIC_URL,
           splashImageUrl: baseMiniApp.splashImageUrl,
           splashBackgroundColor: baseMiniApp.splashBackgroundColor,
@@ -134,22 +134,14 @@ export default async function RootLayout({
             __html: `
             (function() {
               try {
-                var mode = localStorage.getItem('${THEME_MODE_STORAGE_KEY}') || 'system';
-                var dark = localStorage.getItem('${THEME_COLOR_SCHEME_STORAGE_KEY}-dark') || 'dark';
-                var light = localStorage.getItem('${THEME_COLOR_SCHEME_STORAGE_KEY}-light') || 'light';
-                var colorScheme = '';
-                if (mode === 'system') {
-                  colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? dark : light;
-                } else {
-                  colorScheme = (mode === 'dark') ? dark : light;
-                }
-                if (colorScheme) {
-                  var d = document.documentElement;
-                  d.classList.remove('light', 'dark', light, dark); 
-                  d.classList.add(colorScheme);
-                  d.setAttribute('data-mui-color-scheme', colorScheme);
-                  d.style.colorScheme = (colorScheme === dark) ? 'dark' : 'light';
-                }
+                localStorage.setItem('${THEME_MODE_STORAGE_KEY}', 'light');
+                localStorage.setItem('${THEME_COLOR_SCHEME_STORAGE_KEY}-light', 'light');
+                localStorage.setItem('${THEME_COLOR_SCHEME_STORAGE_KEY}-dark', 'light');
+                var d = document.documentElement;
+                d.classList.remove('dark');
+                d.classList.add('light');
+                d.setAttribute('data-mui-color-scheme', 'light');
+                d.style.colorScheme = 'light';
               } catch (e) {}
             })();
           `,
@@ -159,24 +151,9 @@ export default async function RootLayout({
         <style>
           {`
           /* Loading background: MUI vars with fallbacks to avoid flicker before ThemeProvider mounts */
-          /* Light mode */
+          body,
           :root.light body {
-            background-color: var(--jumper-palette-bg-main, #FCFAFF);
-          }
-          @media (prefers-color-scheme: light) {
-            body {
-              background-color: var(--jumper-palette-bg-main, #FCFAFF);
-            }
-          }
-
-          /* Dark mode */
-          :root.dark body {
-            background-color: var(--jumper-palette-bg-main, #120b1e);
-          }
-          @media (prefers-color-scheme: dark) {
-            body {
-              background-color: var(--jumper-palette-bg-main, #120b1e);
-            }
+            background-color: var(--jumper-palette-bg-main, #ffffff);
           }
 `}
         </style>

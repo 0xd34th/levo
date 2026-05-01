@@ -1,6 +1,6 @@
 {
-  "short_name": "Jumper",
-  "name": "Jumper",
+  "short_name": "Levo",
+  "name": "Levo",
   "description": "Multi-Chain Bridging & Swapping",
   "icons": [
     {
@@ -41,32 +41,8 @@
     {
       "name": "Swap/Bridge",
       "short_name": "swap/bridge",
-      "description": "Swap/bridge via Jumper",
+      "description": "Swap/bridge via Levo",
       "url": "/?source=pwa",
-      "icons": [
-        {
-          "src": "/shortcut-icon.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Gas",
-      "short_name": "Gas",
-      "description": "Gas via Jumper",
-      "url": "/gas?source=pwa",
-      "icons": [
-        {
-          "src": "/shortcut-icon.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Buy",
-      "short_name": "Buy",
-      "description": "Buy on Jumper",
-      "url": "/buy?source=pwa",
       "icons": [
         {
           "src": "/shortcut-icon.png",
@@ -77,6 +53,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#653BA3",
+  "theme_color": "#0e0e10",
   "background_color": "#ffffff"
 }
