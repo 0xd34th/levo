@@ -1,7 +1,8 @@
 import { ChainId } from '@lifi/sdk';
+import { HiddenUI } from '@lifi/widget';
 import { describe, expect, it } from 'vitest';
 import { filterAllowedWidgetChainIds } from '@/config/chains';
-import { themeAllowChains } from './Widget.types';
+import { defaultMainWidgetHiddenUI, themeAllowChains } from './Widget.types';
 
 describe('themeAllowChains', () => {
   it('limits the Jumper widget to the supported production chain set', () => {
@@ -30,5 +31,9 @@ describe('themeAllowChains', () => {
         ChainId.HYP,
       ]),
     ).toEqual([ChainId.SUI, ChainId.HYP]);
+  });
+
+  it('hides All Networks in the default exchange widget UI', () => {
+    expect(defaultMainWidgetHiddenUI).toContain(HiddenUI.AllNetworks);
   });
 });

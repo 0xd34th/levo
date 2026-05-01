@@ -6,7 +6,10 @@ import type { MainWidgetContext, HookDependencies } from './types';
 import { useMemelist } from 'src/hooks/useMemelist';
 import { tokens } from 'src/config/tokens';
 import { generateRouteLabel } from './utils';
-import { themeAllowChains } from '../../Widget.types';
+import {
+  defaultMainWidgetHiddenUI,
+  themeAllowChains,
+} from '../../Widget.types';
 import { filterAllowedWidgetChainIds } from 'src/config/chains';
 
 /**
@@ -56,10 +59,7 @@ export function useMainWidgetConfig(
       // UI configuration
       hiddenUI: [
         ...(deps.theme.configTheme?.hiddenUI ?? []),
-        HiddenUI.Appearance,
-        HiddenUI.Language,
-        HiddenUI.PoweredBy,
-        HiddenUI.WalletMenu,
+        ...defaultMainWidgetHiddenUI,
       ],
 
       // Theme configuration

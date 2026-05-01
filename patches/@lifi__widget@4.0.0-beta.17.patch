@@ -1,3 +1,61 @@
+diff --git a/dist/esm/components/SelectTokenButton/SelectTokenButton.js b/dist/esm/components/SelectTokenButton/SelectTokenButton.js
+index c024a8f88832fd23a5b7d321b29f660cd164d197..7220fd818b5594819492657f66f97c4f3f55f3d3 100644
+--- a/dist/esm/components/SelectTokenButton/SelectTokenButton.js
++++ b/dist/esm/components/SelectTokenButton/SelectTokenButton.js
+@@ -27,6 +27,7 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
+ 		navigate({ to: formType === "from" ? navigationRoutes.fromToken : subvariant === "refuel" ? navigationRoutes.toTokenNative : navigationRoutes.toToken });
+ 	};
+ 	const isSelected = !!(chain && token);
++	const isChainSelected = !!(chain && !token);
+ 	const onClick = !disabledUI?.includes(tokenKey) ? handleClick : void 0;
+ 	const defaultPlaceholder = `${t("main.select")}...`;
+ 	const cardTitle = formType === "from" && subvariant === "custom" ? t("header.payWith") : t(`main.${formType}`);
+@@ -56,9 +57,9 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
+ 				title: isSelected ? token.symbol : defaultPlaceholder,
+ 				slotProps: {
+ 					title: { title: isSelected ? token.symbol : defaultPlaceholder },
+-					subheader: { title: isSelected ? chain.name : void 0 }
++					subheader: { title: isSelected || isChainSelected ? chain.name : void 0 }
+ 				},
+-				subheader: isSelected ? chain.name : null,
++				subheader: isSelected || isChainSelected ? chain.name : null,
+ 				selected: isSelected
+ 			})]
+ 		})
+diff --git a/dist/esm/pages/SelectTokenPage/SelectTokenPage.js b/dist/esm/pages/SelectTokenPage/SelectTokenPage.js
+index 57231cba8a655f3bac09c02c528b98fc55ff8117..ba9055b9a11638c0dabb7e85ab67a606c36b57f3 100644
+--- a/dist/esm/pages/SelectTokenPage/SelectTokenPage.js
++++ b/dist/esm/pages/SelectTokenPage/SelectTokenPage.js
+@@ -5,6 +5,10 @@ import { useScrollableOverflowHidden } from "../../hooks/useScrollableContainer.
+ import { FullPageContainer } from "../../components/FullPageContainer.js";
+ import { useWideVariant } from "../../hooks/useWideVariant.js";
+ import { useHeader } from "../../hooks/useHeader.js";
++import { useChainOrderStore } from "../../stores/chains/ChainOrderStore.js";
++import { FormKeyHelper } from "../../stores/form/types.js";
++import { useFieldValues } from "../../stores/form/useFieldValues.js";
++import { SelectChainContent } from "../../components/Chains/SelectChainContent.js";
+ import { ChainSelect } from "../../components/ChainSelect/ChainSelect.js";
+ import { TokenList } from "../../components/TokenList/TokenList.js";
+ import { SearchTokenInput } from "./SearchTokenInput.js";
+@@ -20,10 +24,17 @@ const SelectTokenPage = ({ formType }) => {
+ 	const { subvariant, hiddenUI, subvariantOptions } = useWidgetConfig();
+ 	const wideVariant = useWideVariant();
+ 	const { t } = useTranslation();
+-	useHeader(formType === "from" ? subvariant === "custom" ? t("header.payWith") : t("header.from") : t("header.to"));
++	const [selectedChainId] = useFieldValues(FormKeyHelper.getChainKey(formType));
++	const isAllNetworks = useChainOrderStore((state) => state[`${formType}IsAllNetworks`]);
++	const needsChainSelection = !selectedChainId && !isAllNetworks;
++	useHeader(needsChainSelection ? t("header.selectChain") : formType === "from" ? subvariant === "custom" ? t("header.payWith") : t("header.from") : t("header.to"));
+ 	const hideChainSelect = wideVariant && !subvariantOptions?.wide?.disableChainSidebar || swapOnly && formType === "to" || hiddenUI?.includes("chainSelect");
+ 	const isMobile = useMediaQuery((theme) => theme.breakpoints.down(theme.breakpoints.values.xs));
+ 	const hideSearchTokenInput = hiddenUI?.includes("searchTokenInput");
++	if (needsChainSelection) return /* @__PURE__ */ jsx(SelectChainContent, {
++		inExpansion: false,
++		formType
++	});
+ 	return /* @__PURE__ */ jsxs(FullPageContainer, {
+ 		disableGutters: true,
+ 		children: [/* @__PURE__ */ jsxs(Box, {
 diff --git a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js b/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
 index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..30ac93c21bf4c63ba52ac8cbf71e12eefc2975e6 100644
 --- a/dist/esm/pages/SendToWallet/ConnectedWalletsPage.js
@@ -46,3 +104,140 @@ index 0f1a8f6419b7d82e95d82819c51ff4e418d1bff3..30ac93c21bf4c63ba52ac8cbf71e12ee
  			icon: /* @__PURE__ */ jsx(Wallet, { sx: { fontSize: 48 } }),
  			children: t("sendToWallet.noConnectedWallets")
  		})] })
+diff --git a/dist/esm/stores/chains/ChainOrderStore.js b/dist/esm/stores/chains/ChainOrderStore.js
+index 731fe35a4af58b1d9bbeffaeb81bc841f94c0af7..b0f48cfc849e4988b3edf88b63842124211fd1f3 100644
+--- a/dist/esm/stores/chains/ChainOrderStore.js
++++ b/dist/esm/stores/chains/ChainOrderStore.js
+@@ -36,14 +36,16 @@ function ChainOrderStoreProvider({ children, ...props }) {
+ 			const showAllNetworks = filteredChains.length > 1 && !hiddenUI?.includes("allNetworks") && !isSwapTo;
+ 			const urlValues = getDefaultValuesFromQueryString({ buildUrl });
+ 			const urlChainValue = key === "from" ? urlValues.fromChain : urlValues.toChain;
+-			const initialIsAllNetworks = showAllNetworks && !(key === "from" ? fromChainConfig : toChainConfig) && !urlChainValue;
++			const configChainValue = key === "from" ? fromChainConfig : toChainConfig;
++			const shouldRequireExplicitChain = !isSwapTo && hiddenUI?.includes("allNetworks") && !configChainValue && !urlChainValue;
++			const initialIsAllNetworks = showAllNetworks && !configChainValue && !urlChainValue;
+ 			storeRef.current?.getState().setIsAllNetworks(initialIsAllNetworks, key);
+ 			storeRef.current?.getState().setShowAllNetworks(showAllNetworks, key);
+ 			if (isSwapTo) {
+ 				const [fromChainValue] = getFieldValues("fromChain");
+ 				setFieldValue("toChain", fromChainValue);
+ 			}
+-			if (initialIsAllNetworks) return;
++			if (initialIsAllNetworks || shouldRequireExplicitChain) return;
+ 			const [chainValue] = getFieldValues(`${key}Chain`);
+ 			if (chainValue) return;
+ 			const firstAllowedPinnedChain = storeRef.current?.getState().pinnedChains?.find((chainId) => filteredChains.some((chain) => chain.id === chainId));
+diff --git a/src/components/SelectTokenButton/SelectTokenButton.tsx b/src/components/SelectTokenButton/SelectTokenButton.tsx
+index 87894d9c1b2d432cb4c4fe1dc77b2a5c005e6218..f7cdacb58c921651297cb87e89818a3d97ed5c55 100644
+--- a/src/components/SelectTokenButton/SelectTokenButton.tsx
++++ b/src/components/SelectTokenButton/SelectTokenButton.tsx
+@@ -51,6 +51,7 @@ export const SelectTokenButton: React.FC<
+   }
+ 
+   const isSelected = !!(chain && token)
++  const isChainSelected = !!(chain && !token)
+   const onClick = !disabledUI?.includes(tokenKey) ? handleClick : undefined
+   const defaultPlaceholder = `${t('main.select')}...`
+   const cardTitle: string =
+@@ -84,10 +85,10 @@ export const SelectTokenButton: React.FC<
+                 title: isSelected ? token.symbol : defaultPlaceholder,
+               },
+               subheader: {
+-                title: isSelected ? chain.name : undefined,
++                title: isSelected || isChainSelected ? chain.name : undefined,
+               },
+             }}
+-            subheader={isSelected ? chain.name : null}
++            subheader={isSelected || isChainSelected ? chain.name : null}
+             selected={isSelected}
+           />
+         )}
+diff --git a/src/pages/SelectTokenPage/SelectTokenPage.tsx b/src/pages/SelectTokenPage/SelectTokenPage.tsx
+index 062d75cb95ecb291d79d2b7410253d842719653c..fe690fc1ef3b6a913503caed73fd09bbfdae5649 100644
+--- a/src/pages/SelectTokenPage/SelectTokenPage.tsx
++++ b/src/pages/SelectTokenPage/SelectTokenPage.tsx
+@@ -3,6 +3,7 @@ import type { FC } from 'react'
+ import { useRef } from 'react'
+ import { useTranslation } from 'react-i18next'
+ import { ChainSelect } from '../../components/ChainSelect/ChainSelect.js'
++import { SelectChainContent } from '../../components/Chains/SelectChainContent.js'
+ import { FullPageContainer } from '../../components/FullPageContainer.js'
+ import { TokenList } from '../../components/TokenList/TokenList.js'
+ import { useHeader } from '../../hooks/useHeader.js'
+@@ -10,7 +11,10 @@ import { useScrollableOverflowHidden } from '../../hooks/useScrollableContainer.
+ import { useSwapOnly } from '../../hooks/useSwapOnly.js'
+ import { useWideVariant } from '../../hooks/useWideVariant.js'
+ import { useWidgetConfig } from '../../providers/WidgetProvider/WidgetProvider.js'
++import { useChainOrderStore } from '../../stores/chains/ChainOrderStore.js'
++import { FormKeyHelper } from '../../stores/form/types.js'
+ import type { FormTypeProps } from '../../stores/form/types.js'
++import { useFieldValues } from '../../stores/form/useFieldValues.js'
+ import { HiddenUI } from '../../types/widget.js'
+ import { SearchTokenInput } from './SearchTokenInput.js'
+ 
+@@ -25,12 +29,19 @@ export const SelectTokenPage: FC<FormTypeProps> = ({ formType }) => {
+   const wideVariant = useWideVariant()
+ 
+   const { t } = useTranslation()
++  const [selectedChainId] = useFieldValues(FormKeyHelper.getChainKey(formType))
++  const isAllNetworks = useChainOrderStore(
++    (state) => state[`${formType}IsAllNetworks`]
++  )
++  const needsChainSelection = !selectedChainId && !isAllNetworks
+   const title =
+-    formType === 'from'
+-      ? subvariant === 'custom'
+-        ? t('header.payWith')
+-        : t('header.from')
+-      : t('header.to')
++    needsChainSelection
++      ? t('header.selectChain')
++      : formType === 'from'
++        ? subvariant === 'custom'
++          ? t('header.payWith')
++          : t('header.from')
++        : t('header.to')
+ 
+   useHeader(title)
+ 
+@@ -46,6 +57,15 @@ export const SelectTokenPage: FC<FormTypeProps> = ({ formType }) => {
+ 
+   const hasHeader = !hideChainSelect || !hideSearchTokenInput
+ 
++  if (needsChainSelection) {
++    return (
++      <SelectChainContent
++        inExpansion={false}
++        formType={formType}
++      />
++    )
++  }
++
+   return (
+     <FullPageContainer disableGutters>
+       <Box
+diff --git a/src/stores/chains/ChainOrderStore.tsx b/src/stores/chains/ChainOrderStore.tsx
+index c28231183b106a29306c54cb543156c1bb2427bb..935073c93b51c4f22de05768aaae23d79dad7227 100644
+--- a/src/stores/chains/ChainOrderStore.tsx
++++ b/src/stores/chains/ChainOrderStore.tsx
+@@ -88,6 +88,11 @@ export function ChainOrderStoreProvider({
+           key === 'from' ? urlValues.fromChain : urlValues.toChain
+         const configChainValue =
+           key === 'from' ? fromChainConfig : toChainConfig
++        const shouldRequireExplicitChain =
++          !isSwapTo &&
++          hiddenUI?.includes(HiddenUI.AllNetworks) &&
++          !configChainValue &&
++          !urlChainValue
+         const initialIsAllNetworks =
+           showAllNetworks && !configChainValue && !urlChainValue
+         storeRef.current?.getState().setIsAllNetworks(initialIsAllNetworks, key)
+@@ -103,7 +108,7 @@ export function ChainOrderStoreProvider({
+         // persisted chain order. This prevents stale cross-ecosystem selections
+         // (e.g. EVM from + Solana to) from triggering the "destination wallet
+         // address required" message after a page refresh.
+-        if (initialIsAllNetworks) {
++        if (initialIsAllNetworks || shouldRequireExplicitChain) {
+           return
+         }
+ 
