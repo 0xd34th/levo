@@ -2,18 +2,26 @@ diff --git a/dist/esm/components/SelectTokenButton/SelectTokenButton.js b/dist/e
 index c024a8f88832fd23a5b7d321b29f660cd164d197..7220fd818b5594819492657f66f97c4f3f55f3d3 100644
 --- a/dist/esm/components/SelectTokenButton/SelectTokenButton.js
 +++ b/dist/esm/components/SelectTokenButton/SelectTokenButton.js
-@@ -27,6 +27,7 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
+@@ -27,6 +27,13 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
  		navigate({ to: formType === "from" ? navigationRoutes.fromToken : subvariant === "refuel" ? navigationRoutes.toTokenNative : navigationRoutes.toToken });
  	};
  	const isSelected = !!(chain && token);
 +	const isChainSelected = !!(chain && !token);
  	const onClick = !disabledUI?.includes(tokenKey) ? handleClick : void 0;
  	const defaultPlaceholder = `${t("main.select")}...`;
++	const selectChainPlaceholder = t("header.selectChain");
++	const selectTokenPlaceholder = t("main.selectToken", {
++		defaultValue: "Select token"
++	});
++	const placeholder = isChainSelected ? selectTokenPlaceholder : !isAllNetworks && !chain ? selectChainPlaceholder : defaultPlaceholder;
++	const title = isSelected ? token.symbol : placeholder;
  	const cardTitle = formType === "from" && subvariant === "custom" ? t("header.payWith") : t(`main.${formType}`);
-@@ -56,9 +57,9 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
- 				title: isSelected ? token.symbol : defaultPlaceholder,
+@@ -56,9 +63,9 @@ const SelectTokenButton = ({ formType, hiddenReverse }) => {
+-				title: isSelected ? token.symbol : defaultPlaceholder,
++				title,
  				slotProps: {
- 					title: { title: isSelected ? token.symbol : defaultPlaceholder },
+-					title: { title: isSelected ? token.symbol : defaultPlaceholder },
++					title: { title },
 -					subheader: { title: isSelected ? chain.name : void 0 }
 +					subheader: { title: isSelected || isChainSelected ? chain.name : void 0 }
  				},
@@ -131,16 +139,27 @@ diff --git a/src/components/SelectTokenButton/SelectTokenButton.tsx b/src/compon
 index 87894d9c1b2d432cb4c4fe1dc77b2a5c005e6218..f7cdacb58c921651297cb87e89818a3d97ed5c55 100644
 --- a/src/components/SelectTokenButton/SelectTokenButton.tsx
 +++ b/src/components/SelectTokenButton/SelectTokenButton.tsx
-@@ -51,6 +51,7 @@ export const SelectTokenButton: React.FC<
+@@ -51,6 +51,17 @@ export const SelectTokenButton: React.FC<
    }
  
    const isSelected = !!(chain && token)
 +  const isChainSelected = !!(chain && !token)
    const onClick = !disabledUI?.includes(tokenKey) ? handleClick : undefined
    const defaultPlaceholder = `${t('main.select')}...`
++  const selectChainPlaceholder = t('header.selectChain')
++  const selectTokenPlaceholder = t('main.selectToken', {
++    defaultValue: 'Select token',
++  })
++  const placeholder = isChainSelected
++    ? selectTokenPlaceholder
++    : !isAllNetworks && !chain
++      ? selectChainPlaceholder
++      : defaultPlaceholder
++  const title = isSelected ? token.symbol : placeholder
    const cardTitle: string =
-@@ -84,10 +85,10 @@ export const SelectTokenButton: React.FC<
-                 title: isSelected ? token.symbol : defaultPlaceholder,
+@@ -84,10 +96,10 @@ export const SelectTokenButton: React.FC<
+-                title: isSelected ? token.symbol : defaultPlaceholder,
++                title,
                },
                subheader: {
 -                title: isSelected ? chain.name : undefined,

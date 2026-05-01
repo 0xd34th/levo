@@ -104,6 +104,15 @@ test.describe('chain-first token selection', () => {
     await page.addInitScript(() => window.localStorage.clear());
   });
 
+  test('shows chain-first placeholders on the exchange form', async ({
+    page,
+  }) => {
+    await openWidget(page);
+
+    await expect(tokenPickerButton(page, 'From')).toContainText('Select chain');
+    await expect(tokenPickerButton(page, 'To')).toContainText('Select chain');
+  });
+
   test('opens From token selection on a chain list before showing tokens', async ({
     page,
   }) => {
@@ -145,6 +154,11 @@ test.describe('chain-first token selection', () => {
   }) => {
     await openWidget(page, `/?fromChain=${ChainId.SOL}&toChain=${ChainId.BAS}`);
 
+    await expect(tokenPickerButton(page, 'From')).toContainText('Solana');
+    await expect(tokenPickerButton(page, 'From')).toContainText('Select token');
+    await expect(tokenPickerButton(page, 'To')).toContainText('Base');
+    await expect(tokenPickerButton(page, 'To')).toContainText('Select token');
+
     await openTokenPicker(page, 'From');
 
     await expect(page.getByText('Select chain').first()).toHaveCount(0);
@@ -161,11 +175,11 @@ async function openWidget(page: Page, url = '/') {
 }
 
 async function openTokenPicker(page: Page, label: 'From' | 'To') {
-  await page
-    .locator('.widget-wrapper button')
-    .filter({ hasText: label })
-    .first()
-    .click();
+  await tokenPickerButton(page, label).click();
+}
+
+function tokenPickerButton(page: Page, label: 'From' | 'To') {
+  return page.getByRole('button', { name: new RegExp(`^${label}\\b`, 'i') });
 }
 
 function chainOption(page: Page, name: string) {
