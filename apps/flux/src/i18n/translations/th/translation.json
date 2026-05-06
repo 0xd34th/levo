@@ -1,0 +1,301 @@
+{
+  "navbar": {
+    "welcome": {
+      "title": "หาเส้นทางที่ดีที่สุด",
+      "subtitle": "4x ในการตรวจสอบหลายเชนโดย LI.FI",
+      "cta": "เริ่มต้นใช้งาน"
+    },
+    "links": {
+      "exchange": "แลกเปลี่ยน",
+      "dashboard": "แผงหน้าจอ",
+      "buy": "ซื้อ",
+      "back": ""
+    },
+    "statsCards": {
+      "dexs": "DEX",
+      "bridges": "บริดจ์",
+      "chains": "เชน"
+    },
+    "connect": "เชื่อมต่อ",
+    "walletSelectMenu": {
+      "connectWallet": "เชื่อมต่อกระเป๋าเงิน",
+      "wallets": "กระเป๋าเงิน",
+      "ecosystemSelectMenu": {
+        "selectEcosystem": "เลือก ecosystem ของ wallet",
+        "noEcosystemAdapter": "ไม่พบอแดปเตอร์ Ecosystem ที่เหมาะสม"
+      }
+    },
+    "wallets": "",
+    "seeAllWallets": "ดูกระเป๋าเงินทั้งหมด",
+    "navbarMenu": {
+      "brandAssets": "มูลค่าสินทรัพท์ของแบรนด์",
+      "theme": "ธีม",
+      "developers": "ผู้พัฒนา",
+      "support": "สนับสนุน",
+      "resources": "",
+      "profile": "โปรไฟล์ Flux",
+      "privacyPolicy": "",
+      "termsConditions": ""
+    },
+    "walletMenu": {
+      "disconnect": "ยกเลิกการเชื่อมต่อ",
+      "chains": "เชน",
+      "switchChain": "เปลี่ยนเชน",
+      "copy": "คัดลอก",
+      "explore": "สำรวจ",
+      "copiedMsg": "คัดลอกที่อยู่กระเป๋าเงินแล้ว",
+      "walletNotInstalled": "{{wallet}} ยังไม่ถูกติดตั้ง",
+      "connectAnotherWallet": "เชื่อมต่อกระเป๋าเงินอื่น",
+      "refreshBalances": "",
+      "totalBalance": "",
+      "walletBalance": "",
+      "totalBalanceTooltip": "",
+      "totalBalanceRefresh": "",
+      "numberOfChains": ""
+    },
+    "themes": {
+      "dark": "",
+      "light": "",
+      "system": "",
+      "switchToLight": "เปลี่ยนเป็นธีมสว่าง",
+      "switchToDark": "เปลี่ยนเป็นธีมมืด",
+      "switchToSystem": "เปลี่ยนไปยังระบบ",
+      "lightModeDisabled": "",
+      "darkModeDisabled": "",
+      "systemModeDisabled": "",
+      "default": ""
+    },
+    "developers": {
+      "github": "เว็บไซท์ Github",
+      "documentation": "เอกสาร"
+    }
+  },
+  "discordBanner": {
+    "ctaHeadline": "เข้าร่วม Discord ของเราเพื่อเรียนรู้เพิ่มเติม",
+    "ctaButton": "เข้าร่วมเซิฟเวอร์ Discord ของเรา"
+  },
+  "badge": {
+    "updated": ""
+  },
+  "solanaAlert": {
+    "title": "รองรับโทเค็น Solana อย่างจำกัด",
+    "subtitle": "ขณะนี้เฉพาะ USDC และ USDT เท่านั้นที่สามารถสร้างสะสมและเบริดไปยังและมาจาก Solana ได้"
+  },
+  "seiAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "abstractAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "featureCard": {
+    "learnMore": "เรียนรู้เพิ่มเติม"
+  },
+  "button": {
+    "okay": "ตกลง",
+    "manageYourPosition": "",
+    "goBack": "",
+    "connectAnotherWallet": ""
+  },
+  "error": {
+    "message": "เกิดข้อผิดพลาดบางอย่าง โปรดลองโหลดหน้าเว็บใหม่อีกครั้ง หากปัญหายังคงอยู่ กรุณาติดต่อฝ่ายสนับสนุนของเรา"
+  },
+  "multisig": {
+    "connected": {
+      "title": "Multisig wallet เชื่อมต่อแล้ว",
+      "description": "กรุณาแจ้งผู้ใช้งานวอลเล็ตอื่น ๆ ให้เตรียมพร้อมที่จะลงนาม"
+    },
+    "transactionInitiated": {
+      "title": "จำเป็นต้องใช้ Multiple signatures",
+      "description": "กรุณาแจ้งผู้ใช้งานอื่นที่เข้าร่วมในวอลเล็ตมัลติซิกให้ลงนามก่อนที่ธุรกรรมจะหมดอายุ"
+    }
+  },
+  "promo": {
+    "new": ""
+  },
+  "completedMissionsInformation": {
+    "title": "",
+    "description": ""
+  },
+  "format": {
+    "currency": "",
+    "currencyCompact": "",
+    "decimal": "",
+    "decimalCompact": "",
+    "percent": "",
+    "decimal2Digit": "",
+    "date": "",
+    "shortDate": ""
+  },
+  "contribution": {
+    "title": "",
+    "custom": "",
+    "confirm": "",
+    "thankYou": "",
+    "description": "",
+    "error": {
+      "amountTooSmall": "",
+      "errorSending": "",
+      "invalidTokenPrice": "",
+      "noFeeAddress": ""
+    }
+  },
+  "tooltips": {
+    "tvl": "",
+    "apy": "",
+    "rewardsApy": "",
+    "deposit": "",
+    "deposited": "",
+    "boostedApy": "",
+    "lockupPeriod": "",
+    "manageYourPosition": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "noPositionsToManage": "",
+    "capInDollar": ""
+  },
+  "labels": {
+    "apy": "",
+    "rewardsApy": "",
+    "lockupPeriod": "",
+    "tvl": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "overview": "",
+    "capInDollar": ""
+  },
+  "widget": {
+    "depositCard": {
+      "apy": "",
+      "boostedApy": "",
+      "tvl": "",
+      "lockupPeriod": "",
+      "token": ""
+    },
+    "sweepTokensCard": {
+      "button": {
+        "claim": "",
+        "switchChain": "",
+        "waitingForTransaction": "",
+        "transactionInProgress": "",
+        "viewTransaction": ""
+      },
+      "error": {
+        "title": "",
+        "description": ""
+      },
+      "success": {
+        "title": "",
+        "description": ""
+      }
+    },
+    "zap": {
+      "sendToAddressName": "",
+      "sentToAddressName": "",
+      "depositSuccess": "",
+      "tabs": {
+        "deposit": "",
+        "withdraw": ""
+      },
+      "placeholder": {
+        "comingSoon": "",
+        "embedded-multisig": {
+          "title": "",
+          "description": ""
+        },
+        "non-evm": {
+          "title": "",
+          "description": ""
+        }
+      }
+    },
+    "earn": {
+      "depositSuccess": ""
+    },
+    "withdraw": {
+      "title": ""
+    }
+  },
+  "links": {
+    "discover": ""
+  },
+  "buttons": {
+    "depositButtonLabel": "",
+    "withdrawButtonLabel": "",
+    "managePositionsButtonLabel": "",
+    "deposit": "",
+    "depositNow": ""
+  },
+  "modal": {
+    "perks": {
+      "unclaimedPerk": {
+        "title": ""
+      },
+      "claimedPerk": {
+        "title": "",
+        "description": "",
+        "nextSteps": "",
+        "howToUsePerk": "",
+        "howToUsePerkDescription": ""
+      },
+      "signatureFailed": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "validationFailed": {
+        "title": "",
+        "description": "",
+        "close": ""
+      },
+      "unsupportedWallet": {
+        "title": "",
+        "description": "",
+        "switchWallet": ""
+      },
+      "unknown": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "stepper": {
+        "steps": {
+          "username": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "email": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "wallet": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "position": {
+            "first": "",
+            "next": "",
+            "finally": ""
+          }
+        },
+        "continue": "",
+        "submit": "",
+        "submitting": ""
+      }
+    }
+  }
+}

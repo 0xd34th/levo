@@ -1,0 +1,301 @@
+{
+  "navbar": {
+    "welcome": {
+      "title": "Temukan rute terbaik",
+      "subtitle": "<0>4x diaudit</0> agregator likuiditas multi-rantai yang didukung oleh <1>LI.FI</1>",
+      "cta": "Memulai"
+    },
+    "links": {
+      "exchange": "Pertukaran",
+      "dashboard": "Dasbor",
+      "buy": "Beli",
+      "back": ""
+    },
+    "statsCards": {
+      "dexs": "DEX",
+      "bridges": "Bridge",
+      "chains": "Jaringan"
+    },
+    "connect": "Hubungkan",
+    "walletSelectMenu": {
+      "connectWallet": "Hubungkan ke wallet",
+      "wallets": "Dompet",
+      "ecosystemSelectMenu": {
+        "selectEcosystem": "Pilih ekosistem dompet",
+        "noEcosystemAdapter": "Tidak ditemukan adaptor ekosistem yang sesuai"
+      }
+    },
+    "wallets": "",
+    "seeAllWallets": "Lihat semua dompet",
+    "navbarMenu": {
+      "brandAssets": "Merek Aset",
+      "theme": "Tema",
+      "developers": "Para Pengembang",
+      "support": "Bantuan",
+      "resources": "",
+      "profile": "Profil Flux",
+      "privacyPolicy": "",
+      "termsConditions": ""
+    },
+    "walletMenu": {
+      "disconnect": "Tidak terkoneksi",
+      "chains": "Jaringan",
+      "switchChain": "Pindah Jaringan",
+      "copy": "Salin",
+      "explore": "Jelajah",
+      "copiedMsg": "Alamat dompet disalin",
+      "walletNotInstalled": "{{wallet}} belum terinstall",
+      "connectAnotherWallet": "Hubungkan dompet yang lain",
+      "refreshBalances": "",
+      "totalBalance": "",
+      "walletBalance": "",
+      "totalBalanceTooltip": "",
+      "totalBalanceRefresh": "",
+      "numberOfChains": ""
+    },
+    "themes": {
+      "dark": "",
+      "light": "",
+      "system": "",
+      "switchToLight": "Beralih ke Tema Terang",
+      "switchToDark": "Beralih ke Tema Gelap",
+      "switchToSystem": "Beralih ke Sistem",
+      "lightModeDisabled": "",
+      "darkModeDisabled": "",
+      "systemModeDisabled": "",
+      "default": ""
+    },
+    "developers": {
+      "github": "",
+      "documentation": "Dokumentasi"
+    }
+  },
+  "discordBanner": {
+    "ctaHeadline": "Gabung ke Discord untuk mengetahui lebih lanjut",
+    "ctaButton": "Bergabunglah ke Discord kami"
+  },
+  "badge": {
+    "updated": ""
+  },
+  "solanaAlert": {
+    "title": "Dukungan token Solana terbatas",
+    "subtitle": "Saat ini hanya USDC dan USDT yang dapat dijembatani ke dan dari Solana."
+  },
+  "seiAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "abstractAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "featureCard": {
+    "learnMore": "Pelajari lebih lanjut"
+  },
+  "button": {
+    "okay": "Oke",
+    "manageYourPosition": "",
+    "goBack": "",
+    "connectAnotherWallet": ""
+  },
+  "error": {
+    "message": "Ada yang salah. Silakan coba memuat ulang halaman tersebut. Jika masalah terus berlanjut, hubungi dukungan kami."
+  },
+  "multisig": {
+    "connected": {
+      "title": "Dompet multisig terhubung",
+      "description": "Harap beri tahu peserta dompet lainnya untuk siap menandatangani."
+    },
+    "transactionInitiated": {
+      "title": "Dibutuhkan banyak tanda tangan",
+      "description": "Harap beri tahu peserta dalam dompet multisig lainnya untuk menandatangani sebelum transaksi berakhir."
+    }
+  },
+  "promo": {
+    "new": ""
+  },
+  "completedMissionsInformation": {
+    "title": "",
+    "description": ""
+  },
+  "format": {
+    "currency": "",
+    "currencyCompact": "",
+    "decimal": "",
+    "decimalCompact": "",
+    "percent": "",
+    "decimal2Digit": "",
+    "date": "",
+    "shortDate": ""
+  },
+  "contribution": {
+    "title": "",
+    "custom": "",
+    "confirm": "",
+    "thankYou": "",
+    "description": "",
+    "error": {
+      "amountTooSmall": "",
+      "errorSending": "",
+      "invalidTokenPrice": "",
+      "noFeeAddress": ""
+    }
+  },
+  "tooltips": {
+    "tvl": "",
+    "apy": "",
+    "rewardsApy": "",
+    "deposit": "",
+    "deposited": "",
+    "boostedApy": "",
+    "lockupPeriod": "",
+    "manageYourPosition": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "noPositionsToManage": "",
+    "capInDollar": ""
+  },
+  "labels": {
+    "apy": "",
+    "rewardsApy": "",
+    "lockupPeriod": "",
+    "tvl": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "overview": "",
+    "capInDollar": ""
+  },
+  "widget": {
+    "depositCard": {
+      "apy": "",
+      "boostedApy": "",
+      "tvl": "",
+      "lockupPeriod": "",
+      "token": ""
+    },
+    "sweepTokensCard": {
+      "button": {
+        "claim": "",
+        "switchChain": "",
+        "waitingForTransaction": "",
+        "transactionInProgress": "",
+        "viewTransaction": ""
+      },
+      "error": {
+        "title": "",
+        "description": ""
+      },
+      "success": {
+        "title": "",
+        "description": ""
+      }
+    },
+    "zap": {
+      "sendToAddressName": "",
+      "sentToAddressName": "",
+      "depositSuccess": "",
+      "tabs": {
+        "deposit": "",
+        "withdraw": ""
+      },
+      "placeholder": {
+        "comingSoon": "",
+        "embedded-multisig": {
+          "title": "",
+          "description": ""
+        },
+        "non-evm": {
+          "title": "",
+          "description": ""
+        }
+      }
+    },
+    "earn": {
+      "depositSuccess": ""
+    },
+    "withdraw": {
+      "title": ""
+    }
+  },
+  "links": {
+    "discover": ""
+  },
+  "buttons": {
+    "depositButtonLabel": "",
+    "withdrawButtonLabel": "",
+    "managePositionsButtonLabel": "",
+    "deposit": "",
+    "depositNow": ""
+  },
+  "modal": {
+    "perks": {
+      "unclaimedPerk": {
+        "title": ""
+      },
+      "claimedPerk": {
+        "title": "",
+        "description": "",
+        "nextSteps": "",
+        "howToUsePerk": "",
+        "howToUsePerkDescription": ""
+      },
+      "signatureFailed": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "validationFailed": {
+        "title": "",
+        "description": "",
+        "close": ""
+      },
+      "unsupportedWallet": {
+        "title": "",
+        "description": "",
+        "switchWallet": ""
+      },
+      "unknown": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "stepper": {
+        "steps": {
+          "username": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "email": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "wallet": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "position": {
+            "first": "",
+            "next": "",
+            "finally": ""
+          }
+        },
+        "continue": "",
+        "submit": "",
+        "submitting": ""
+      }
+    }
+  }
+}
