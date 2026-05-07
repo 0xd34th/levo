@@ -171,7 +171,7 @@ export default function Home() {
       <main className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-32 pt-2">
         {empty ? (
           <>
-            <Landing onPick={submit} />
+            <Landing onPick={onChipFromCard} />
             <div className="mx-auto mt-2 w-full max-w-[600px]">
               <Composer
                 onSubmit={submit}

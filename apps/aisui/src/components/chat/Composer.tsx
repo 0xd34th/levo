@@ -28,7 +28,15 @@ export function Composer({
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (initialValue !== undefined) setText(initialValue);
+    if (initialValue === undefined) return;
+    setText(initialValue);
+    requestAnimationFrame(() => {
+      const ta = ref.current;
+      if (!ta) return;
+      ta.focus();
+      const end = ta.value.length;
+      ta.setSelectionRange(end, end);
+    });
   }, [initialValue]);
 
   useEffect(() => {
