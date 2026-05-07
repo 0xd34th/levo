@@ -1,5 +1,8 @@
 import { ChainId, ChainType } from "@lifi/sdk";
 import type { Account, WalletConnector } from "@lifi/widget-provider";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   dappKitSuiConnector,
@@ -23,10 +26,24 @@ const disconnectedAccount: Account = {
   status: "disconnected",
 };
 
+const walletAvatarSvgPath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../public/wallet-avatar.svg",
+);
+
 describe("selectSuiProviderTag", () => {
   it("uses the dedicated wallet avatar asset instead of the favicon", () => {
     expect(WALLET_CONNECTOR_ICON).toBe("/wallet-avatar.svg");
     expect(dappKitSuiConnector.icon).toBe(WALLET_CONNECTOR_ICON);
+  });
+
+  it("uses Flux branding for the dedicated wallet avatar", () => {
+    const walletAvatarSvg = readFileSync(walletAvatarSvgPath, "utf8");
+
+    expect(walletAvatarSvg).toContain('aria-label="Flux wallet"');
+    expect(walletAvatarSvg).toContain(">F</text>");
+    expect(walletAvatarSvg).not.toContain(">L</text>");
+    expect(walletAvatarSvg).not.toContain("Levo wallet");
   });
 
   it("returns 'dapp-kit' when an external Sui account is connected", () => {

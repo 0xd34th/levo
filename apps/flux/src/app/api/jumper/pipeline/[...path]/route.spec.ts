@@ -210,9 +210,7 @@ describe("/api/jumper/pipeline/[...path]", () => {
 
     const [target] = vi.mocked(fetch).mock.calls[0] as [URL];
 
-    expect(String(target)).toBe(
-      "https://api.jumper.exchange/pipeline/v1/chains",
-    );
+    expect(String(target)).toBe("https://li.quest/v1/chains");
   });
 
   it("rejects dot-segment traversal attempts before reaching upstream", async () => {

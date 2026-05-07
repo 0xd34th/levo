@@ -4,8 +4,7 @@ import {
   stripTrailingSlashes,
 } from "@/utils/serverProxyTargets";
 const DEFAULT_BACKEND_ORIGIN = "https://api.jumper.exchange/v1";
-const DEFAULT_LIFI_BACKEND_ORIGIN =
-  "https://api.jumper.exchange/pipeline";
+const DEFAULT_LIFI_BACKEND_ORIGIN = "https://li.quest";
 
 export const getBackendOrigin = (): string => {
   const url =

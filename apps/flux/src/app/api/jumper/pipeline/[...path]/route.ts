@@ -5,7 +5,7 @@ import {
 } from "@/app/api/jumper/proxyUtils";
 
 const pipelineProxyConfig = {
-  defaultTarget: "https://api.jumper.exchange/pipeline",
+  defaultTarget: "https://li.quest",
   internalEnvKey: "LIFI_INTERNAL_BACKEND_URL",
   publicEnvKey: "NEXT_PUBLIC_LIFI_BACKEND_URL",
   publicProxyPath: "/api/jumper/pipeline",

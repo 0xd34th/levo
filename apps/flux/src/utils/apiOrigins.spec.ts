@@ -41,8 +41,6 @@ describe("apiOrigins", () => {
       await import("./apiOrigins");
 
     expect(getBackendOrigin()).toBe("https://api.jumper.exchange/v1");
-    expect(getLifiBackendOrigin()).toBe(
-      "https://api.jumper.exchange/pipeline",
-    );
+    expect(getLifiBackendOrigin()).toBe("https://li.quest");
   });
 });
