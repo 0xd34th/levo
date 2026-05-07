@@ -10,11 +10,16 @@ import { Landing } from "@/components/chat/Landing";
 import { MessageList } from "@/components/chat/MessageList";
 import type { ModelMode } from "@/lib/llm/model-router";
 import type { ExplainedTx } from "@/lib/sui/ptb-explainer";
+import { useTurnstile } from "@/lib/security/use-turnstile";
+
+const TURNSTILE_SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY;
 
 export default function Home() {
   const account = useCurrentAccount();
   const [mode, setMode] = useState<ModelMode>("fast");
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
+  const [challengeError, setChallengeError] = useState<string | null>(null);
+  const { getToken: getTurnstileToken, containerRef: turnstileRef } = useTurnstile(TURNSTILE_SITEKEY);
 
   // Mirror the latest mode + connected wallet into refs so the transport,
   // which AI SDK 5's useChat binds once, can read fresh values on every send.
@@ -34,11 +39,12 @@ export default function Home() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages }) => ({
+        prepareSendMessagesRequest: ({ messages, body }) => ({
           body: {
             messages,
             mode: modeRef.current,
             sender: senderRef.current,
+            turnstileToken: (body as { turnstileToken?: string } | undefined)?.turnstileToken,
           },
         }),
       }),
@@ -52,10 +58,20 @@ export default function Home() {
   }, []);
 
   const submit = useCallback(
-    (text: string) => {
-      void sendMessage({ text });
+    async (text: string) => {
+      setChallengeError(null);
+      let turnstileToken: string | undefined;
+      if (TURNSTILE_SITEKEY) {
+        const tok = await getTurnstileToken();
+        if (tok === null) {
+          setChallengeError("Bot challenge failed. Please try again.");
+          return;
+        }
+        turnstileToken = tok;
+      }
+      await sendMessage({ text }, { body: { turnstileToken } });
     },
-    [sendMessage],
+    [sendMessage, getTurnstileToken],
   );
 
   const onChipFromCard = useCallback(
@@ -139,6 +155,19 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
+      {TURNSTILE_SITEKEY ? (
+        <div
+          ref={turnstileRef}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            bottom: 0,
+            right: 0,
+            visibility: "hidden",
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
       <main className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-32 pt-2">
         {empty ? (
           <>
@@ -152,6 +181,11 @@ export default function Home() {
                 onModeChange={setMode}
                 initialValue={composerSeed}
               />
+              {challengeError ? (
+                <div className="mt-2 rounded-md bg-[var(--color-down)]/10 p-3 text-sm text-[var(--color-down)]">
+                  {challengeError}
+                </div>
+              ) : null}
             </div>
           </>
         ) : (
@@ -163,9 +197,9 @@ export default function Home() {
                 onChip={onChipFromCard}
                 onReceipt={onReceipt}
               />
-              {error ? (
+              {error || challengeError ? (
                 <div className="rounded-md bg-[var(--color-down)]/10 p-3 text-sm text-[var(--color-down)]">
-                  {error.message}
+                  {challengeError ?? error?.message}
                 </div>
               ) : null}
             </div>
