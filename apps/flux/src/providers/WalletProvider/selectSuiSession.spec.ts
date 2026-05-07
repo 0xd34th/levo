@@ -28,12 +28,12 @@ const disconnectedAccount: Account = {
 
 const walletAvatarSvgPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../public/wallet-avatar.svg",
+  `../../../public${WALLET_CONNECTOR_ICON}`,
 );
 
 describe("selectSuiProviderTag", () => {
-  it("uses the dedicated wallet avatar asset instead of the favicon", () => {
-    expect(WALLET_CONNECTOR_ICON).toBe("/wallet-avatar.svg");
+  it("uses the Flux wallet avatar asset instead of the cached legacy avatar", () => {
+    expect(WALLET_CONNECTOR_ICON).toBe("/flux-wallet-avatar.svg");
     expect(dappKitSuiConnector.icon).toBe(WALLET_CONNECTOR_ICON);
   });
 
