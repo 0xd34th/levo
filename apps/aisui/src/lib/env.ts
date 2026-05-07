@@ -32,7 +32,7 @@ export const env = {
   sevenKReferralAddr: () => maybe("SEVENK_REFERRAL_ADDRESS"),
   sevenKReferralBps: () => Number.parseInt(maybe("SEVENK_REFERRAL_BPS", "20")!, 10),
 
-  dailyFreeMessages: () => Number.parseInt(maybe("DAILY_FREE_MESSAGES", "20")!, 10),
+  dailyFreeMessages: () => Number.parseInt(maybe("DAILY_FREE_MESSAGES", "10")!, 10),
   dailyFreeBvCalls: () => Number.parseInt(maybe("DAILY_FREE_BV_CALLS", "200")!, 10),
   dailyFreeOkxCalls: () => Number.parseInt(maybe("DAILY_FREE_OKX_CALLS", "200")!, 10),
 
