@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Route } from '@lifi/sdk';
 import { ChainId } from '@lifi/sdk';
 import type { AssetGroup } from '@/types/assets';
-import { buildCandidatePairs, scoreRoute } from './useBestRoute';
+import {
+  buildBestRouteRequestOptions,
+  buildCandidatePairs,
+  scoreRoute,
+  shouldEnableBestRouteFanout,
+  toRawFromAmount,
+} from './useBestRoute';
 
 const baseToken = (chainId: number, address: string, symbol = 'USDC') => ({
   type: 'base' as const,
@@ -110,5 +116,85 @@ describe('scoreRoute', () => {
     const highScore = scoreRoute(highImpact as Route);
     expect(lowScore.netUSD).toBeGreaterThan(highScore.netUSD);
     expect(highScore.priceImpact).toBeGreaterThan(0.005);
+  });
+});
+
+describe('toRawFromAmount', () => {
+  // Regression for the bug where useBestRoute treated the widget's display
+  // amount as raw token units, which (a) disabled the fanout entirely for
+  // decimal inputs (BigInt('1.5') threw) and (b) caused whole-number inputs
+  // like "1" USDC to quote 1 base unit instead of 1_000_000.
+  it('converts a decimal USDC display amount to raw 6-decimal units', () => {
+    expect(toRawFromAmount('1.5', 6)).toBe('1500000');
+  });
+
+  it('converts a whole-number USDC display amount to raw 6-decimal units', () => {
+    expect(toRawFromAmount('1', 6)).toBe('1000000');
+  });
+
+  it('respects per-pair decimals (e.g. 18-decimal USDT on BSC)', () => {
+    expect(toRawFromAmount('1.5', 18)).toBe('1500000000000000000');
+  });
+});
+
+describe('shouldEnableBestRouteFanout', () => {
+  it('keeps the fanout disabled when the executable widget path uses relayer routes', () => {
+    expect(
+      shouldEnableBestRouteFanout({
+        enabled: true,
+        useRelayerRoutes: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps explicit disabled state authoritative', () => {
+    expect(
+      shouldEnableBestRouteFanout({
+        enabled: false,
+        useRelayerRoutes: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('allows the fanout for ordinary getRoutes mode', () => {
+    expect(
+      shouldEnableBestRouteFanout({
+        enabled: undefined,
+        useRelayerRoutes: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('buildBestRouteRequestOptions', () => {
+  it('mirrors widget constraints and applies the Sui exchange guard per candidate', () => {
+    expect(
+      buildBestRouteRequestOptions(
+        {
+          bridges: { allow: ['stargate'] },
+          exchanges: { allow: ['hop', 'aftermath'] },
+          routeOptions: {
+            allowSwitchChain: false,
+            maxPriceImpact: 0.4,
+          },
+          fee: 0.01,
+          slippage: 0.005,
+          routePriority: 'RECOMMENDED',
+        },
+        baseToken(ChainId.SUI, '0xsui-usdc'),
+        baseToken(ChainId.ETH, '0xeth-usdc'),
+      ),
+    ).toEqual({
+      allowSwitchChain: false,
+      maxPriceImpact: 0.4,
+      bridges: { allow: ['stargate'] },
+      exchanges: {
+        allow: ['hop'],
+        deny: ['aftermath'],
+      },
+      fee: 0.01,
+      slippage: 0.005,
+      order: 'RECOMMENDED',
+    });
   });
 });
