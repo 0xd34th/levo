@@ -11,19 +11,16 @@ vi.mock("@/lib/sui/names", () => ({
 interface ScenarioOpts {
   bvCoinsStatus?: number;
   bvNftsStatus?: number;
-  okxStatus?: number;
-  enableOkx?: boolean;
   bvCoins?: Array<Record<string, unknown>>;
 }
 
 interface CallCounters {
   bvCoins: number;
   bvNfts: number;
-  okxBalances: number;
 }
 
 function installFetchScenario(opts: ScenarioOpts): CallCounters {
-  const counters: CallCounters = { bvCoins: 0, bvNfts: 0, okxBalances: 0 };
+  const counters: CallCounters = { bvCoins: 0, bvNfts: 0 };
   const fetchMock = vi.fn(async (url: string) => {
     const u = String(url);
     if (u.includes("/account/coins")) {
@@ -49,32 +46,6 @@ function installFetchScenario(opts: ScenarioOpts): CallCounters {
       counters.bvNfts++;
       return new Response(JSON.stringify({ code: 0, result: { items: [] } }), { status: 200 });
     }
-    if (u.includes("/api/v5/wallet/asset/all-token-balances-by-address")) {
-      counters.okxBalances++;
-      const status = opts.okxStatus ?? 200;
-      if (status >= 400) return new Response("err", { status });
-      return new Response(
-        JSON.stringify({
-          code: "0",
-          data: [
-            {
-              tokenAssets: [
-                {
-                  tokenAddress: "0x2::sui::SUI",
-                  symbol: "SUI",
-                  balance: "1.5",
-                  rawBalance: "1500000000",
-                  decimals: "9",
-                  tokenPrice: "4.2",
-                  isRiskToken: false,
-                },
-              ],
-            },
-          ],
-        }),
-        { status: 200 },
-      );
-    }
     throw new Error("unexpected URL " + u);
   });
   vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
@@ -82,20 +53,12 @@ function installFetchScenario(opts: ScenarioOpts): CallCounters {
 }
 
 describe("get_portfolio", () => {
-  beforeEach(() => {
-    process.env.OKX_FALLBACK_ENABLED = "false";
-    delete process.env.OKX_API_KEY;
-    delete process.env.OKX_SECRET_KEY;
-    delete process.env.OKX_API_PASSPHRASE;
-    delete process.env.OKX_PROJECT_ID;
-  });
-
   afterEach(() => {
     process.env = { ...ORIGINAL };
   });
 
-  it("returns BlockVision data when call succeeds (no OKX call)", async () => {
-    const counters = installFetchScenario({});
+  it("returns BlockVision data when call succeeds", async () => {
+    installFetchScenario({});
     const out = await runGetPortfolio({
       addressOrName: ADDRESS + Math.random(),
       includeNfts: true,
@@ -103,65 +66,9 @@ describe("get_portfolio", () => {
     });
     expect(out.source).toBe("blockvision");
     expect(out.coinCount).toBe(1);
-    expect(counters.okxBalances).toBe(0);
   });
 
-  it("falls back to OKX when BlockVision returns 403 (Free trial exhausted)", async () => {
-    process.env.OKX_API_KEY = "k";
-    process.env.OKX_SECRET_KEY = "s";
-    process.env.OKX_API_PASSPHRASE = "p";
-    process.env.OKX_PROJECT_ID = "pj";
-    process.env.OKX_FALLBACK_ENABLED = "true";
-
-    const counters = installFetchScenario({ bvCoinsStatus: 403 });
-    const out = await runGetPortfolio({
-      addressOrName: ADDRESS + Math.random(),
-      includeNfts: false,
-      limit: 5,
-    });
-    expect(out.source).toBe("okx");
-    expect(out.fallbackReason).toMatch(/Free trial|403/);
-    expect(counters.okxBalances).toBeGreaterThan(0);
-    expect(out.topCoins[0].symbol).toBe("SUI");
-  });
-
-  it("falls back to OKX when BlockVision returns 429 and fallback is enabled", async () => {
-    process.env.OKX_API_KEY = "k";
-    process.env.OKX_SECRET_KEY = "s";
-    process.env.OKX_API_PASSPHRASE = "p";
-    process.env.OKX_PROJECT_ID = "pj";
-    process.env.OKX_FALLBACK_ENABLED = "true";
-
-    const counters = installFetchScenario({ bvCoinsStatus: 429 });
-    const out = await runGetPortfolio({
-      addressOrName: ADDRESS + Math.random(),
-      includeNfts: false,
-      limit: 5,
-    });
-    expect(out.source).toBe("okx");
-    expect(out.fallbackReason).toMatch(/429/);
-    expect(counters.okxBalances).toBeGreaterThan(0);
-    expect(out.topCoins[0].symbol).toBe("SUI");
-  });
-
-  it("re-throws when BlockVision fails and fallback is disabled", async () => {
-    process.env.OKX_API_KEY = "k";
-    process.env.OKX_SECRET_KEY = "s";
-    process.env.OKX_API_PASSPHRASE = "p";
-    process.env.OKX_PROJECT_ID = "pj";
-    process.env.OKX_FALLBACK_ENABLED = "false";
-    installFetchScenario({ bvCoinsStatus: 429 });
-    await expect(
-      runGetPortfolio({
-        addressOrName: ADDRESS + Math.random(),
-        includeNfts: false,
-        limit: 5,
-      }),
-    ).rejects.toThrow();
-  });
-
-  it("re-throws when BlockVision fails and OKX is not configured", async () => {
-    process.env.OKX_FALLBACK_ENABLED = "true";
+  it("re-throws when BlockVision fails (no fallback wired)", async () => {
     installFetchScenario({ bvCoinsStatus: 429 });
     await expect(
       runGetPortfolio({

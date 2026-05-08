@@ -4,12 +4,8 @@ import { bvGet } from "@/lib/blockvision/client";
 import { bvFallbackDecision } from "@/lib/blockvision/fallback";
 import type { BVCoinMarket, BVOhlcvPoint } from "@/lib/blockvision/types";
 import { resolveCoinMetadata } from "@/lib/sui/coin-metadata";
-import { getOkxSwapQuote } from "@/lib/sui/aggregators/okx";
-import { env, okxConfigured } from "@/lib/env";
 
 const SUI_COIN = "0x2::sui::SUI";
-const USDC_COIN =
-  "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
 
 export const getTokenMetricsParams = z.object({
   coinType: z
@@ -26,7 +22,7 @@ export const getTokenMetricsParams = z.object({
 
 export type GetTokenMetricsInput = z.infer<typeof getTokenMetricsParams>;
 
-export type TokenMetricsSource = "blockvision" | "okx" | "partial";
+export type TokenMetricsSource = "blockvision" | "partial";
 
 export interface TokenMetricsResult {
   coinType: string;
@@ -56,27 +52,6 @@ export interface TokenMetricsResult {
   unavailable?: { market?: boolean; ohlcv?: boolean };
   fallbackReason?: string;
   warnings: string[];
-}
-
-/** USDC decimals (6) — used to convert OKX swap quote into a USD price. */
-const USDC_DECIMALS = 6;
-
-async function fetchOkxSpotPrice(coinType: string, decimalsIn: number): Promise<number | null> {
-  if (!env.okxSwapEnabled() || !okxConfigured()) return null;
-  if (coinType === USDC_COIN) return 1;
-  try {
-    const amountIn = (10n ** BigInt(decimalsIn)).toString(); // 1 unit of the token
-    const quote = await getOkxSwapQuote({
-      tokenIn: coinType,
-      tokenOut: USDC_COIN,
-      amountIn,
-      slippageBps: 50,
-    });
-    const usdcOut = Number(quote.amountOut) / 10 ** USDC_DECIMALS;
-    return Number.isFinite(usdcOut) && usdcOut > 0 ? usdcOut : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function runGetTokenMetrics(
@@ -114,17 +89,12 @@ export async function runGetTokenMetrics(
     warnings.push(`OHLCV chart from BlockVision unavailable.`);
   }
 
-  // 3. Spot price — prefer BV, fall back to OKX swap quote (1 token → USDC).
-  let price = market?.price ?? 0;
-  let priceSource: TokenMetricsSource = market ? "blockvision" : "partial";
-  if (!market || !Number.isFinite(price) || price <= 0) {
-    const okxPrice = await fetchOkxSpotPrice(coinType, meta.decimals);
-    if (okxPrice !== null) {
-      price = okxPrice;
-      priceSource = "okx";
-      warnings.push("Live price derived from OKX X Routing quote (1 token → USDC).");
-    }
-  }
+  // 3. Spot price — sourced from BlockVision; if unavailable, surface
+  //    `priceSource: "partial"` so the LLM does not hallucinate a number.
+  const price = market?.price ?? 0;
+  const priceSource: TokenMetricsSource = market && Number.isFinite(price) && price > 0
+    ? "blockvision"
+    : "partial";
 
   const series = Array.isArray(ohlcvRaw) ? ohlcvRaw : (ohlcvRaw?.items ?? []);
 

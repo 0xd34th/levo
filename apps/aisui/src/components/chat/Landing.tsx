@@ -28,7 +28,6 @@ const ONCHAIN: Chip[] = [
 const TRADE: Chip[] = [
   { emoji: "🔄", label: "Swap 1 SUI → USDC", prompt: "Quote me a swap of 1 SUI to USDC" },
   { emoji: "✈️", label: "Send to a .sui name", prompt: "Send 1 SUI to alice.sui" },
-  { emoji: "🌉", label: "Bridge from ETH", prompt: "Bridge 0.1 ETH from Ethereum to Sui" },
 ];
 
 export function Landing({ onPick }: LandingProps) {
@@ -59,7 +58,7 @@ export function Landing({ onPick }: LandingProps) {
       <div className="landing-foot rise" style={{ animationDelay: "320ms" }}>
         <FootStat icon={<Zap size={11} />} label="Sub-second streaming" />
         <FootStat icon={<Box size={11} />} label="Sui-native: PTB, Objects, SuiNS" />
-        <FootStat icon={<ArrowLeftRight size={11} />} label="7K + OKX dual-source quotes" />
+        <FootStat icon={<ArrowLeftRight size={11} />} label="7K Aggregator quotes" />
         <FootStat icon={<Sparkles size={11} />} label="10 free messages / day" />
       </div>
 

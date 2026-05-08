@@ -10,4 +10,3 @@ process.env.BLOCKVISION_API_URL = process.env.BLOCKVISION_API_URL ?? "https://ap
 process.env.SUI_RPC_URL = process.env.SUI_RPC_URL ?? "https://fullnode.mainnet.sui.io:443";
 process.env.DAILY_FREE_MESSAGES = process.env.DAILY_FREE_MESSAGES ?? "20";
 process.env.DAILY_FREE_BV_CALLS = process.env.DAILY_FREE_BV_CALLS ?? "200";
-process.env.DAILY_FREE_OKX_CALLS = process.env.DAILY_FREE_OKX_CALLS ?? "200";

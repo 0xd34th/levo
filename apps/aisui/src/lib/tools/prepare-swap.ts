@@ -207,7 +207,7 @@ export async function runPrepareSwap(input: PrepareSwapInput): Promise<PrepareSw
 
 export const prepareSwapTool = tool({
   description:
-    "Prepare a swap quote (and tx bytes when sender is provided) by comparing 7K Aggregator and OKX X Routing in parallel; the user signs in their wallet — never broadcast here.",
+    "Prepare a swap quote (and tx bytes when sender is provided) via the 7K Aggregator; the user signs in their wallet — never broadcast here.",
   inputSchema: prepareSwapParams,
   execute: runPrepareSwap,
 });

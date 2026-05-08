@@ -66,7 +66,7 @@ export function PortfolioCard({ data }: { data: PortfolioResult }) {
           <span className="mono">{shortAddr(data.address, 8, 6)}</span>
         </span>
       }
-      source={data.source === "okx" ? "OKX Wallet" : "BlockVision"}
+      source="BlockVision"
       rightSlot={
         <div style={{ textAlign: "right" }}>
           <div

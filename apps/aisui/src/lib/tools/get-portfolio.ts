@@ -1,11 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { bvGet } from "@/lib/blockvision/client";
-import { bvFallbackDecision } from "@/lib/blockvision/fallback";
 import type { BVAccountCoin, BVAccountNftItem } from "@/lib/blockvision/types";
 import { resolveAddressOrName } from "@/lib/sui/names";
-import { env, okxConfigured } from "@/lib/env";
-import { getOkxSuiCoins, getOkxSuiNfts } from "@/lib/okx/wallet";
 import { classifyCoin, type CoinTrust } from "@/lib/sui/coin-trust";
 
 export const getPortfolioParams = z.object({
@@ -18,13 +15,12 @@ export const getPortfolioParams = z.object({
 
 export type GetPortfolioInput = z.infer<typeof getPortfolioParams>;
 
-export type PortfolioSource = "blockvision" | "okx";
+export type PortfolioSource = "blockvision";
 
 export interface PortfolioResult {
   address: string;
   resolvedFrom?: string;
   source: PortfolioSource;
-  fallbackReason?: string;
   /** Verified-bucket total. Safe to display as the headline portfolio value. */
   totalUsd: number;
   /** Sum of unverified low-value tokens (no red flags). Shown but not in headline. */
@@ -67,11 +63,6 @@ interface PortfolioRaw {
   coins: BVAccountCoin[];
   nfts: BVAccountNftItem[];
   source: PortfolioSource;
-  fallbackReason?: string;
-}
-
-export function okxFallbackEligible(): boolean {
-  return env.okxFallbackEnabled() && okxConfigured();
 }
 
 async function fetchFromBlockvision(
@@ -99,35 +90,13 @@ async function fetchFromBlockvision(
   return { coins, nfts, source: "blockvision" };
 }
 
-async function fetchFromOkx(
-  address: string,
-  includeNfts: boolean,
-  reason: string,
-): Promise<PortfolioRaw> {
-  const [coins, nfts] = await Promise.all([
-    getOkxSuiCoins(address),
-    includeNfts ? getOkxSuiNfts(address) : Promise.resolve<BVAccountNftItem[]>([]),
-  ]);
-  return { coins, nfts, source: "okx", fallbackReason: reason };
-}
-
 export async function runGetPortfolio(input: GetPortfolioInput): Promise<PortfolioResult> {
   const resolved = await resolveAddressOrName(input.addressOrName);
   if (!resolved) {
     throw new Error(`Could not resolve address or name: ${input.addressOrName}`);
   }
 
-  let raw: PortfolioRaw;
-  try {
-    raw = await fetchFromBlockvision(resolved, input.includeNfts, input.limit);
-  } catch (err) {
-    const decision = bvFallbackDecision(err);
-    if (decision.ok && okxFallbackEligible()) {
-      raw = await fetchFromOkx(resolved, input.includeNfts, decision.reason);
-    } else {
-      throw err;
-    }
-  }
+  const raw = await fetchFromBlockvision(resolved, input.includeNfts, input.limit);
 
   const classified = raw.coins.map((c) => ({ coin: c, verdict: classifyCoin(c) }));
 
@@ -165,7 +134,6 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
     address: resolved,
     resolvedFrom: input.addressOrName !== resolved ? input.addressOrName : undefined,
     source: raw.source,
-    fallbackReason: raw.fallbackReason,
     totalUsd,
     unverifiedUsd,
     suspectUsd,
@@ -201,7 +169,7 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
 
 export const getPortfolioTool = tool({
   description:
-    "Fetch wallet holdings (coins + NFTs) for a Sui address or .sui name. Use for 'show my portfolio' / 'what does <addr> hold'. Falls back to OKX Wallet API when BlockVision is rate-limited. `totalUsd` excludes suspicious tokens AND LP receipts; `suspectUsd`, `unverifiedUsd`, and `lpUsd` are reported separately so the UI can disclose them honestly. LP receipts (e.g. AF_LP) are tracked via `get_defi_positions`, not added to spot total.",
+    "Fetch wallet holdings (coins + NFTs) for a Sui address or .sui name via BlockVision. Use for 'show my portfolio' / 'what does <addr> hold'. `totalUsd` excludes suspicious tokens AND LP receipts; `suspectUsd`, `unverifiedUsd`, and `lpUsd` are reported separately so the UI can disclose them honestly. LP receipts (e.g. AF_LP) are tracked via `get_defi_positions`, not added to spot total.",
   inputSchema: getPortfolioParams,
   execute: runGetPortfolio,
 });

@@ -1,16 +1,14 @@
 /**
- * Centralised predicate for "this BlockVision failure should trigger a
- * fallback data source." Used by `get_portfolio`, `get_recent_activity`, and
- * `coin-metadata` so they all agree on what counts as fallbackable.
+ * Centralised predicate for "this BlockVision failure should be treated as a
+ * recoverable outage." Used by `coin-metadata` (which falls back to Sui RPC)
+ * and by `get_token_metrics` / `get_defi_positions` to surface a
+ * `fallbackReason` to the user when the upstream is degraded.
  *
  * BV returns:
  *  - 403  + "Your 30 trial requests have been used"  (Free trial cap)
  *  - 402                                              (some paid plans)
  *  - 429                                              (rate-limited bursts)
  *  - 5xx                                              (upstream outage)
- *
- * All four are recoverable by switching to OKX Wallet (for portfolio/activity)
- * or Sui RPC (for coin metadata).
  */
 import { BlockVisionError } from "./client";
 

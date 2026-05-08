@@ -13,7 +13,6 @@ import { ObjectCard } from "@/components/cards/ObjectCard";
 import { TxExplainCard } from "@/components/cards/TxExplainCard";
 import { SwapCard } from "@/components/cards/SwapCard";
 import { TransferCard } from "@/components/cards/TransferCard";
-import { BridgeCard } from "@/components/cards/BridgeCard";
 import type { TokenMetricsResult } from "@/lib/tools/get-token-metrics";
 import type { PortfolioResult } from "@/lib/tools/get-portfolio";
 import type { DefiPositionsResult } from "@/lib/tools/get-defi-positions";
@@ -24,7 +23,6 @@ import type { ObjectResult } from "@/lib/tools/get-object";
 import type { ExplainedTx } from "@/lib/sui/ptb-explainer";
 import type { PrepareSwapResult } from "@/lib/tools/prepare-swap";
 import type { PrepareTransferResult } from "@/lib/tools/prepare-transfer";
-import type { PrepareBridgeResult } from "@/lib/tools/prepare-bridge";
 
 interface MessageListProps {
   messages: UIMessage[];
@@ -363,8 +361,6 @@ function renderToolPart(
           onReceipt={onReceipt}
         />
       );
-    case "prepare_bridge":
-      return <BridgeCard key={key} data={part.output as PrepareBridgeResult} />;
     case "suggest_followups": {
       const out = part.output as { questions?: string[] } | undefined;
       const questions = out?.questions ?? [];

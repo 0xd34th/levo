@@ -1,9 +1,9 @@
 /**
  * Trust classification for portfolio coins.
  *
- * BlockVision and OKX both pull token prices from on-chain DEX pools, which
- * means a low-liquidity scam pool can produce a fake $X million USD value for
- * an airdropped dust token. We bucket coins so the headline portfolio total
+ * BlockVision pulls token prices from on-chain DEX pools, which means a
+ * low-liquidity scam pool can produce a fake $X million USD value for an
+ * airdropped dust token. We bucket coins so the headline portfolio total
  * can exclude obviously-suspect entries while still listing them on the card.
  *
  * Four buckets:

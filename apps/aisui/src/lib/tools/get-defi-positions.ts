@@ -31,11 +31,9 @@ export async function runGetDefiPositions(
   const resolved = await resolveAddressOrName(input.addressOrName);
   if (!resolved) throw new Error(`Could not resolve: ${input.addressOrName}`);
 
-  // BV is the only DeFi data source we have right now (OKX wallet API doesn't
-  // expose Sui DeFi positions). On BV failure, degrade to an empty payload
-  // with `unavailable: true` so the LLM can tell the user honestly instead of
-  // throwing — and, critically, can fall back to the portfolio summary which
-  // already shows LP token holdings via OKX.
+  // BV is the only DeFi data source wired right now. On BV failure, degrade
+  // to an empty payload with `unavailable: true` so the LLM can tell the user
+  // honestly instead of throwing.
   try {
     const data = await bvGet<{ protocols?: BVDefiPosition[]; data?: BVDefiPosition[] }>(
       "/account/defiPortfolio",

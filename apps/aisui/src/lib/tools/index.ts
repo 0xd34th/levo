@@ -9,7 +9,6 @@ import { getObjectTool, runGetObject } from "./get-object";
 import { explainTxTool, runExplainTx } from "./explain-tx";
 import { prepareSwapTool, runPrepareSwap } from "./prepare-swap";
 import { prepareTransferTool, runPrepareTransfer } from "./prepare-transfer";
-import { prepareBridgeTool, runPrepareBridge } from "./prepare-bridge";
 import { suggestFollowupsTool } from "./suggest-followups";
 
 export const tools = {
@@ -23,7 +22,6 @@ export const tools = {
   explain_tx: explainTxTool,
   prepare_swap: prepareSwapTool,
   prepare_transfer: prepareTransferTool,
-  prepare_bridge: prepareBridgeTool,
   suggest_followups: suggestFollowupsTool,
 } as const;
 
@@ -41,5 +39,4 @@ export const runners = {
   explain_tx: runExplainTx,
   prepare_swap: runPrepareSwap,
   prepare_transfer: runPrepareTransfer,
-  prepare_bridge: runPrepareBridge,
 } as const;

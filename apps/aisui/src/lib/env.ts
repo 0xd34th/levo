@@ -32,36 +32,12 @@ export const env = {
 
   dailyFreeMessages: () => Number.parseInt(maybe("DAILY_FREE_MESSAGES", "10")!, 10),
   dailyFreeBvCalls: () => Number.parseInt(maybe("DAILY_FREE_BV_CALLS", "200")!, 10),
-  dailyFreeOkxCalls: () => Number.parseInt(maybe("DAILY_FREE_OKX_CALLS", "200")!, 10),
 
   publicSuiNetwork: () => maybe("NEXT_PUBLIC_SUI_NETWORK", "mainnet")!,
-
-  okxApiKey: () => maybe("OKX_API_KEY"),
-  okxSecretKey: () => maybe("OKX_SECRET_KEY"),
-  /** Accept either OKX_API_PASSPHRASE (preferred) or the shorter OKX_PASSPHRASE. */
-  okxPassphrase: () => maybe("OKX_API_PASSPHRASE") ?? maybe("OKX_PASSPHRASE"),
-  okxProjectId: () => maybe("OKX_PROJECT_ID"),
-  okxBaseUrl: () => maybe("OKX_BASE_URL", "https://web3.okx.com")!,
-  okxSwapEnabled: () => parseBool(maybe("OKX_SWAP_ENABLED"), false),
-  okxFallbackEnabled: () => parseBool(maybe("OKX_FALLBACK_ENABLED"), false),
-  okxBridgeEnabled: () => parseBool(maybe("OKX_BRIDGE_ENABLED"), false),
 
   mcpServers: () => maybe("MCP_SERVERS"),
   mcpTimeoutMs: () => Number.parseInt(maybe("MCP_TIMEOUT_MS", "3000")!, 10),
 };
-
-function parseBool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) return fallback;
-  const v = value.trim().toLowerCase();
-  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
-  if (v === "0" || v === "false" || v === "no" || v === "off" || v === "") return false;
-  return fallback;
-}
-
-/** True only if the four-piece OKX credential set is fully configured. */
-export function okxConfigured(): boolean {
-  return Boolean(env.okxApiKey() && env.okxSecretKey() && env.okxPassphrase() && env.okxProjectId());
-}
 
 export function isProd(): boolean {
   return process.env.NODE_ENV === "production";

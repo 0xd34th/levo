@@ -47,7 +47,9 @@ export function Header() {
     <header className="aisui-header">
       <div className="aisui-header-l">
         <Logo />
-        {price ? <SuiPriceChip price={price.price} change={price.priceChange24H} /> : null}
+        {price && typeof price.price === "number" ? (
+          <SuiPriceChip price={price.price} change={price.priceChange24H} />
+        ) : null}
       </div>
       <div className="aisui-header-r">
         <ThemeToggle />
