@@ -7,9 +7,9 @@ export type Theme = "dark" | "light";
 const THEME_KEY = "aisui-theme";
 
 function readTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem(THEME_KEY);
-  return stored === "light" ? "light" : "dark";
+  return stored === "dark" ? "dark" : "light";
 }
 
 export function useTheme(): {
@@ -17,7 +17,7 @@ export function useTheme(): {
   setTheme: (t: Theme) => void;
   toggle: () => void;
 } {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     setThemeState(readTheme());

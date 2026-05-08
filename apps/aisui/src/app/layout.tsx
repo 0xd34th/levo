@@ -33,11 +33,11 @@ export const metadata: Metadata = {
 
 // Inline script that applies the persisted theme + accent BEFORE React hydrates,
 // so the first paint matches the user's preference and we avoid a flash.
-const themeBoot = `(function(){try{var t=localStorage.getItem("aisui-theme")||"dark";var a=localStorage.getItem("aisui-accent")||"aqua";var d=document.documentElement;d.setAttribute("data-theme",t);d.setAttribute("data-accent",a);d.setAttribute("data-density","comfortable");}catch(e){document.documentElement.setAttribute("data-theme","dark");document.documentElement.setAttribute("data-accent","aqua");}})();`;
+const themeBoot = `(function(){try{var t=localStorage.getItem("aisui-theme")||"light";var a=localStorage.getItem("aisui-accent")||"aqua";var d=document.documentElement;d.setAttribute("data-theme",t);d.setAttribute("data-accent",a);d.setAttribute("data-density","comfortable");}catch(e){document.documentElement.setAttribute("data-theme","light");document.documentElement.setAttribute("data-accent","aqua");}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" data-accent="aqua" data-density="comfortable" suppressHydrationWarning>
+    <html lang="en" data-theme="light" data-accent="aqua" data-density="comfortable" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>
