@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@cetusprotocol/terminal@2.0.5':
-    hash: 78887a52ee8b9a0b7642cb8a5c96db020ba85dfd0c630ca33f42385a16494d3c
+    hash: f8e82d23c4b72330cd9fae437ba8aa71f0714eb33bdbcdf6cb6ae5f7d18b3638
     path: patches/@cetusprotocol__terminal@2.0.5.patch
   '@lifi/widget@4.0.0-beta.17':
     hash: fdf341914f291a2caf15ed4ad29c04d4a3c9c178c68c569f0e88951afd09e58d
@@ -33,7 +33,7 @@ importers:
         version: 2.0.187(react@19.2.6)(zod@3.25.76)
       '@cetusprotocol/terminal':
         specifier: ^2.0.5
-        version: 2.0.5(patch_hash=78887a52ee8b9a0b7642cb8a5c96db020ba85dfd0c630ca33f42385a16494d3c)(@mysten/dapp-kit@1.0.4(@mysten/sui@2.16.0(typescript@5.9.3))(@tanstack/react-query@5.99.2(react@19.2.6))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6)))(@mysten/sui@2.16.0(typescript@5.9.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(axios@1.13.6)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6))
+        version: 2.0.5(patch_hash=f8e82d23c4b72330cd9fae437ba8aa71f0714eb33bdbcdf6cb6ae5f7d18b3638)(@mysten/dapp-kit@1.0.4(@mysten/sui@2.16.0(typescript@5.9.3))(@tanstack/react-query@5.99.2(react@19.2.6))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6)))(@mysten/sui@2.16.0(typescript@5.9.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(axios@1.13.6)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6))
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
@@ -494,7 +494,7 @@ importers:
         version: 7.0.1(@babel/plugin-syntax-flow@7.28.6(@babel/core@7.29.0))(@babel/plugin-transform-react-jsx@7.28.6(@babel/core@7.29.0))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint-plugin-import:
         specifier: ^2.31.0
-        version: 2.32.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))
+        version: 2.32.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-jsx-a11y:
         specifier: ^6.10.2
         version: 6.10.2(eslint@9.39.2(jiti@2.6.1))
@@ -14658,7 +14658,7 @@ snapshots:
       - '@gql.tada/vue-support'
       - axios
 
-  '@cetusprotocol/terminal@2.0.5(patch_hash=78887a52ee8b9a0b7642cb8a5c96db020ba85dfd0c630ca33f42385a16494d3c)(@mysten/dapp-kit@1.0.4(@mysten/sui@2.16.0(typescript@5.9.3))(@tanstack/react-query@5.99.2(react@19.2.6))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6)))(@mysten/sui@2.16.0(typescript@5.9.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(axios@1.13.6)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6))':
+  '@cetusprotocol/terminal@2.0.5(patch_hash=f8e82d23c4b72330cd9fae437ba8aa71f0714eb33bdbcdf6cb6ae5f7d18b3638)(@mysten/dapp-kit@1.0.4(@mysten/sui@2.16.0(typescript@5.9.3))(@tanstack/react-query@5.99.2(react@19.2.6))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6)))(@mysten/sui@2.16.0(typescript@5.9.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(axios@1.13.6)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6))':
     dependencies:
       '@cetusprotocol/aggregator-sdk': 1.5.3(axios@1.13.6)(typescript@5.9.3)
       '@mysten/dapp-kit': 1.0.4(@mysten/sui@2.16.0(typescript@5.9.3))(@tanstack/react-query@5.99.2(react@19.2.6))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(immer@11.1.4)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -18914,7 +18914,7 @@ snapshots:
       debug: 4.4.3
       invariant: 2.2.4
       metro: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.84.3
       semver: 7.7.4
     transitivePeerDependencies:
@@ -23012,10 +23012,10 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/parser': 8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/scope-manager': 5.62.0
       '@typescript-eslint/type-utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -27993,7 +27993,7 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/eslint-parser': 7.28.6(@babel/core@7.29.0)(eslint@9.39.2(jiti@2.6.1))
       '@rushstack/eslint-patch': 1.16.1
-      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/parser': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       babel-preset-react-app: 10.1.0
       confusing-browser-globals: 1.0.11
@@ -28071,16 +28071,6 @@ snapshots:
       eslint: 9.39.2(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.2(jiti@2.6.1))
-    transitivePeerDependencies:
-      - supports-color
-
-  eslint-module-utils@2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint@9.39.2(jiti@2.6.1)):
-    dependencies:
-      debug: 3.2.7
-    optionalDependencies:
-      '@typescript-eslint/parser': 8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
-      eslint: 9.39.2(jiti@2.6.1)
-      eslint-import-resolver-node: 0.3.9
     transitivePeerDependencies:
       - supports-color
 
@@ -28171,7 +28161,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.2(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint@9.39.2(jiti@2.6.1))
+      eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.2(jiti@2.6.1))
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -28188,6 +28178,7 @@ snapshots:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
       - supports-color
+    optional: true
 
   eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.6.1)):
     dependencies:
@@ -28221,7 +28212,7 @@ snapshots:
       '@typescript-eslint/experimental-utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint: 9.39.2(jiti@2.6.1)
     optionalDependencies:
-      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -30077,22 +30068,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10):
-    dependencies:
-      connect: 3.7.0
-      flow-enums-runtime: 0.0.6
-      jest-validate: 29.7.0
-      metro: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      metro-cache: 0.84.3
-      metro-core: 0.84.3
-      metro-runtime: 0.84.3
-      yaml: 2.8.3
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-    optional: true
-
   metro-config@0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       connect: 3.7.0
@@ -30245,7 +30220,7 @@ snapshots:
       metro-babel-transformer: 0.84.3
       metro-cache: 0.84.3
       metro-cache-key: 0.84.3
-      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      metro-config: 0.84.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.84.3
       metro-file-map: 0.84.3
       metro-resolver: 0.84.3
