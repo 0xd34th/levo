@@ -32,6 +32,14 @@ export async function POST(req: Request) {
   const body = (await req.json()) as ChatBody;
   const mode: ModelMode = isModelMode(body.mode) ? body.mode : "fast";
 
+  const sender = typeof body.sender === "string" ? body.sender : null;
+  if (!sender || !/^0x[0-9a-fA-F]+$/.test(sender)) {
+    return NextResponse.json(
+      { error: "Wallet not connected. Connect a Sui wallet to chat." },
+      { status: 401 },
+    );
+  }
+
   if (turnstileEnabled()) {
     const ok = await verifyTurnstile(body.turnstileToken);
     if (!ok) {
@@ -62,13 +70,10 @@ export async function POST(req: Request) {
     ? { ...localTools, ...mcpRegistry.tools }
     : localTools;
 
-  // When the user has a wallet connected, pin the address into the system
-  // prompt so "my portfolio" / "my assets" / "my recent activity" can be
-  // resolved without asking the user to retype their 0x… address.
-  const senderHint =
-    body.sender && /^0x[0-9a-fA-F]+$/.test(body.sender)
-      ? `\n\nUser context:\n- Connected wallet address: ${body.sender}\n- When the user says "me", "my", or refers to their wallet without an explicit address, use this address as the addressOrName argument to portfolio / activity / object tools. Never ask for the address if the user is already connected.`
-      : "";
+  // Pin the connected wallet into the system prompt so "my portfolio" /
+  // "my assets" / "my recent activity" can be resolved without asking the
+  // user to retype their 0x… address.
+  const senderHint = `\n\nUser context:\n- Connected wallet address: ${sender}\n- When the user says "me", "my", or refers to their wallet without an explicit address, use this address as the addressOrName argument to portfolio / activity / object tools. Never ask for the address if the user is already connected.`;
 
   const result = streamText({
     model: picked.model,

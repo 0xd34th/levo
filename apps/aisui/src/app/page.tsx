@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useCurrentAccount } from "@mysten/dapp-kit";
+import { ConnectModal, useCurrentAccount } from "@mysten/dapp-kit";
 import { Header } from "@/components/Header";
 import { Composer } from "@/components/chat/Composer";
 import { Landing } from "@/components/chat/Landing";
@@ -19,6 +19,7 @@ export default function Home() {
   const [mode, setMode] = useState<ModelMode>("fast");
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
   const [challengeError, setChallengeError] = useState<string | null>(null);
+  const [walletPromptOpen, setWalletPromptOpen] = useState(false);
   const { getToken: getTurnstileToken, containerRef: turnstileRef } = useTurnstile(TURNSTILE_SITEKEY);
 
   // Mirror the latest mode + connected wallet into refs so the transport,
@@ -59,6 +60,10 @@ export default function Home() {
 
   const submit = useCallback(
     async (text: string) => {
+      if (!account?.address) {
+        setWalletPromptOpen(true);
+        return;
+      }
       setChallengeError(null);
       let turnstileToken: string | undefined;
       if (TURNSTILE_SITEKEY) {
@@ -71,7 +76,7 @@ export default function Home() {
       }
       await sendMessage({ text }, { body: { turnstileToken } });
     },
-    [sendMessage, getTurnstileToken],
+    [account?.address, sendMessage, getTurnstileToken],
   );
 
   const onChipFromCard = useCallback(
@@ -155,6 +160,11 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
+      <ConnectModal
+        open={walletPromptOpen}
+        onOpenChange={setWalletPromptOpen}
+        trigger={<span style={{ display: "none" }} aria-hidden />}
+      />
       {TURNSTILE_SITEKEY ? (
         <div
           ref={turnstileRef}
