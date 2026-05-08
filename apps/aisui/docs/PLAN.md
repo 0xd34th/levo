@@ -1,6 +1,6 @@
 # aisui — Sui 版 Lana.ai 开发计划
 
-> 当前实现状态（2026-05-08）：本文件保留早期 MVP 计划和历史阶段记录；线上 runtime 已收敛为单档 DeepSeek chat、钱包门禁、无 OKX/bridge、swap 由 `@cetusprotocol/terminal` 的 `CetusSwapCard` 处理。下文涉及 7K/OKX/`SwapCard`/`src/lib/sui/aggregators/*` 的内容均是历史计划或已下线实现，不再是当前运行契约。
+> 当前实现状态（2026-05-08）：本文件保留早期 MVP 计划和历史阶段记录；线上 runtime 已收敛为单档 DeepSeek chat、钱包门禁、无 OKX/bridge、swap 由自建 `SwapCard` 调 `@7kprotocol/sdk-ts` MetaAg 处理，并过滤 OKX provider。下文涉及 `src/lib/sui/aggregators/*`、`swap-build`、OKX/bridge 的内容均是历史计划或已下线实现，不再是当前运行契约。
 
 ## Context
 

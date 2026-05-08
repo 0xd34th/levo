@@ -10,7 +10,7 @@ export const prepareSwapParams = z.object({
   amountIn: z
     .string()
     .describe(
-      "Human-readable input amount, e.g. '0.5'. Shown to the user as a hint above the embedded swap widget; the user enters the actual amount themselves.",
+      "Human-readable input amount, e.g. '0.5'. This is the locked amount that will be swapped — to change it the user must restate the request.",
     ),
   slippageBps: z.number().int().min(1).max(10000).default(50),
 });
@@ -21,9 +21,9 @@ export interface PrepareSwapResult {
   tokenIn: { coinType: string; symbol: string; decimals: number };
   tokenOut: { coinType: string; symbol: string; decimals: number };
   amountInHuman: string;
+  /** Smallest-unit amount as a base-10 string (u64-shaped). Empty when amount couldn't be parsed. */
+  amountInRaw: string;
   slippageBps: number;
-  /** Human-readable slippage as a string (e.g. "0.5") for the Terminal's defaultSlippage prop. */
-  slippagePctText: string;
   warnings: string[];
 }
 
@@ -33,6 +33,14 @@ function expandSui(t: string): string {
 
 function isValidAmount(amount: string): boolean {
   return /^\d+(\.\d+)?$/.test(amount.trim().replace(/_/g, ""));
+}
+
+function humanToRaw(human: string, decimals: number): string {
+  const cleaned = human.trim().replace(/_/g, "");
+  const [intPart, fracPart = ""] = cleaned.split(".");
+  const fracPadded = (fracPart + "0".repeat(decimals)).slice(0, decimals);
+  const combined = (intPart + fracPadded).replace(/^0+(?=\d)/, "");
+  return combined === "" ? "0" : combined;
 }
 
 export async function runPrepareSwap(input: PrepareSwapInput): Promise<PrepareSwapResult> {
@@ -45,8 +53,9 @@ export async function runPrepareSwap(input: PrepareSwapInput): Promise<PrepareSw
   ]);
 
   const warnings: string[] = [];
-  if (!isValidAmount(input.amountIn)) {
-    warnings.push(`Couldn't parse '${input.amountIn}' as a number — please enter the amount manually in the widget.`);
+  const amountValid = isValidAmount(input.amountIn);
+  if (!amountValid) {
+    warnings.push(`Couldn't parse '${input.amountIn}' as a number — please restate the amount.`);
   }
   if (inMeta.scamFlag) {
     warnings.push(`${inMeta.symbol} is flagged as suspicious; double-check before swapping.`);
@@ -55,14 +64,14 @@ export async function runPrepareSwap(input: PrepareSwapInput): Promise<PrepareSw
     warnings.push(`${outMeta.symbol} is flagged as suspicious; double-check before swapping.`);
   }
 
-  // Cetus Terminal expects defaultSlippage as a percentage string ("0.5" for 0.5%).
-  const slippagePctText = (input.slippageBps / 100).toString();
+  const inDecimals = inMeta.decimals ?? 9;
+  const amountInRaw = amountValid ? humanToRaw(input.amountIn, inDecimals) : "";
 
   return {
     tokenIn: {
       coinType: tokenInType,
       symbol: inMeta.symbol ?? "?",
-      decimals: inMeta.decimals ?? 9,
+      decimals: inDecimals,
     },
     tokenOut: {
       coinType: tokenOutType,
@@ -70,15 +79,15 @@ export async function runPrepareSwap(input: PrepareSwapInput): Promise<PrepareSw
       decimals: outMeta.decimals ?? 9,
     },
     amountInHuman: input.amountIn,
+    amountInRaw,
     slippageBps: input.slippageBps,
-    slippagePctText,
     warnings,
   };
 }
 
 export const prepareSwapTool = tool({
   description:
-    "Open an embedded Cetus swap widget pre-filled with the user's tokens and slippage. The widget handles routing, wallet connection, and signing — never broadcast here. The user types the amount in the widget; the amount this tool receives is shown as a hint.",
+    "Open a swap card with the locked input amount, tokens, and slippage. The card fetches a live quote from the 7K meta-aggregator (Bluefin7K / Cetus / FlowX), shows the estimated output, and lets the user sign the transaction. The card will not let the user change the amount — to change it, ask the user to restate the request.",
   inputSchema: prepareSwapParams,
   execute: runPrepareSwap,
 });

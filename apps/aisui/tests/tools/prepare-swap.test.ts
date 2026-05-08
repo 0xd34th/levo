@@ -70,9 +70,29 @@ describe("prepare_swap", () => {
     expect(out.tokenOut.symbol).toBe("USDC");
     expect(out.tokenOut.decimals).toBe(6);
     expect(out.amountInHuman).toBe("1.0");
+    expect(out.amountInRaw).toBe("1000000000");
     expect(out.slippageBps).toBe(50);
-    expect(out.slippagePctText).toBe("0.5");
     expect(out.warnings).toEqual([]);
+  });
+
+  it("converts a fractional amount with token decimals (USDC, 6dp)", async () => {
+    installFetchScenario();
+    const ids = probe();
+    const out = await runPrepareSwap({
+      tokenIn: ids.tokenOut, // USDC, 6dp
+      tokenOut: ids.tokenIn, // SUI
+      amountIn: "0.123456",
+      slippageBps: 100,
+    });
+    expect(out.tokenIn.decimals).toBe(6);
+    expect(out.amountInRaw).toBe("123456");
+  });
+
+  it("returns empty amountInRaw when input is unparseable", async () => {
+    installFetchScenario();
+    const ids = probe();
+    const out = await runPrepareSwap({ ...ids, amountIn: "one", slippageBps: 50 });
+    expect(out.amountInRaw).toBe("");
   });
 
   it("warns on a scam-flagged input token", async () => {

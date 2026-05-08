@@ -2,7 +2,7 @@
 
 来源：`docs/PLAN.md`。一次性落地，覆盖 4 周 sprint 的 read + write 全链路。
 
-> 当前实现状态（2026-05-08）：此清单包含历史完成项；当前线上 runtime 已删除 OKX/bridge/7K 自建 swap 路径，`prepare_swap` 只打开 `CetusSwapCard` / Cetus Terminal，由 widget 负责实时报价、路由和签名。早期 `SwapCard`、`swap-build`、`src/lib/sui/aggregators/*` 条目仅保留为历史记录。
+> 当前实现状态（2026-05-08）：此清单包含历史完成项；当前线上 runtime 由 `prepare_swap` 打开自建 `SwapCard`（`@7kprotocol/sdk-ts` MetaAg，过滤 OKX provider），卡内做实时报价、滑点 UI 和签名。之前短暂使用过 Cetus Terminal widget（已下线），`swap-build`、`src/lib/sui/aggregators/*` 等更早版本条目仅保留为历史记录。
 
 ## 0. 项目骨架
 - [x] 任务清单

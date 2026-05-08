@@ -11,7 +11,7 @@ import { TrendingCard } from "@/components/cards/TrendingCard";
 import { NFTCollectionCard } from "@/components/cards/NFTCollectionCard";
 import { ObjectCard } from "@/components/cards/ObjectCard";
 import { TxExplainCard } from "@/components/cards/TxExplainCard";
-import { CetusSwapCard } from "@/components/cards/CetusSwapCard";
+import { SwapCard } from "@/components/cards/SwapCard";
 import { TransferCard } from "@/components/cards/TransferCard";
 import type { TokenMetricsResult } from "@/lib/tools/get-token-metrics";
 import type { PortfolioResult } from "@/lib/tools/get-portfolio";
@@ -350,7 +350,13 @@ function renderToolPart(
     case "explain_tx":
       return <TxExplainCard key={key} data={part.output as ExplainedTx} />;
     case "prepare_swap":
-      return <CetusSwapCard key={key} data={part.output as PrepareSwapResult} />;
+      return (
+        <SwapCard
+          key={key}
+          data={part.output as PrepareSwapResult}
+          onReceipt={onReceipt}
+        />
+      );
     case "prepare_transfer":
       return (
         <TransferCard

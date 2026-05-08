@@ -1,8 +1,8 @@
 /**
  * On-demand tx receipt endpoint.
  * Used by TransferCard after the wallet returns a digest, to render a chat-side
- * receipt without consuming an LLM credit. (The Cetus swap widget surfaces its
- * own confirmation, so swaps no longer route through this path.)
+ * receipt without consuming an LLM credit. SwapCard can also call this after
+ * wallet signing so the chat can show the final transaction receipt.
  *
  * Retries briefly because the fullnode may lag a beat behind the wallet.
  */
