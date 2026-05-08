@@ -1,45 +1,54 @@
-/** SuiNS resolver — best-effort; falls back to raw address. */
-import { SuiGraphQLClient } from "@mysten/sui/graphql";
-import { graphql } from "@mysten/sui/graphql/schema";
-import { normaliseAddress } from "./rpc";
+/**
+ * SuiNS resolver — uses Sui JSON-RPC's suix_resolveNameService* with primary
+ * → public-fullnode fallback. The previous GraphQL endpoint
+ * (sui-mainnet.mystenlabs.com) is no longer reachable; JSON-RPC is the
+ * canonical path supported by every Sui fullnode.
+ */
+import { getPublicSuiClient, getSuiClient, normaliseAddress } from "./rpc";
 
-const RESOLVE_QUERY = graphql(`
-  query ResolveSuiNS($name: String!) {
-    resolveSuinsAddress(domain: $name)
-  }
-`);
-
-const REVERSE_QUERY = graphql(`
-  query ReverseSuiNS($address: SuiAddress!) {
-    address(address: $address) {
-      defaultSuinsName
+async function tryResolve(name: string): Promise<string | null> {
+  const attempts = [getSuiClient(), getPublicSuiClient()];
+  let lastErr: unknown;
+  for (const client of attempts) {
+    try {
+      const addr = await client.resolveNameServiceAddress({ name });
+      if (typeof addr === "string" && addr.length > 0) return normaliseAddress(addr);
+      // Null is authoritative ("name not registered") — don't escalate to the
+      // next client. Only network errors fall through.
+      return null;
+    } catch (err) {
+      lastErr = err;
     }
   }
-`);
-
-let gqlClient: SuiGraphQLClient | null = null;
-
-function gql(): SuiGraphQLClient {
-  if (!gqlClient) {
-    gqlClient = new SuiGraphQLClient({
-      url: "https://sui-mainnet.mystenlabs.com/graphql",
-      network: "mainnet",
-    });
-  }
-  return gqlClient;
+  if (lastErr) throw lastErr;
+  return null;
 }
 
-/** Accept "0x…" (returned as-is) or "name.sui" (resolved via GraphQL). */
+async function tryReverse(address: string): Promise<string | null> {
+  const normalised = normaliseAddress(address);
+  const attempts = [getSuiClient(), getPublicSuiClient()];
+  let lastErr: unknown;
+  for (const client of attempts) {
+    try {
+      const res = await client.resolveNameServiceNames({ address: normalised });
+      const name = res?.data?.[0];
+      return typeof name === "string" && name.length > 0 ? name : null;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr;
+  return null;
+}
+
+/** Accept "0x…" (returned as-is) or "name.sui" (resolved via JSON-RPC). */
 export async function resolveAddressOrName(input: string): Promise<string | null> {
   const trimmed = input.trim();
   if (!trimmed) return null;
   if (trimmed.startsWith("0x") && trimmed.length >= 3) return normaliseAddress(trimmed);
   if (!trimmed.includes(".")) return null;
   try {
-    const res = await gql().query({ query: RESOLVE_QUERY, variables: { name: trimmed } });
-    const addr = res.data?.resolveSuinsAddress;
-    if (typeof addr !== "string" || addr.length === 0) return null;
-    return normaliseAddress(addr);
+    return await tryResolve(trimmed);
   } catch {
     return null;
   }
@@ -47,12 +56,7 @@ export async function resolveAddressOrName(input: string): Promise<string | null
 
 export async function reverseLookup(address: string): Promise<string | null> {
   try {
-    const res = await gql().query({
-      query: REVERSE_QUERY,
-      variables: { address: normaliseAddress(address) },
-    });
-    const name = res.data?.address?.defaultSuinsName;
-    return typeof name === "string" && name.length > 0 ? name : null;
+    return await tryReverse(address);
   } catch {
     return null;
   }
