@@ -1,5 +1,7 @@
 # aisui — Sui 版 Lana.ai 开发计划
 
+> 当前实现状态（2026-05-08）：本文件保留早期 MVP 计划和历史阶段记录；线上 runtime 已收敛为单档 DeepSeek chat、钱包门禁、无 OKX/bridge、swap 由 `@cetusprotocol/terminal` 的 `CetusSwapCard` 处理。下文涉及 7K/OKX/`SwapCard`/`src/lib/sui/aggregators/*` 的内容均是历史计划或已下线实现，不再是当前运行契约。
+
 ## Context
 
 **问题/动机**：Lana.ai（Helius 团队的产品）证明了"Solana 上做 AI chat 探索器 + 生成式 UI 卡片 + 直接交易"是一个可行的 consumer 入口。Sui 生态目前缺少同等级别的产品：Suivision/Insidex 等只是传统 explorer，没有 chat 入口；钱包（Slush/Suiet）只能看不能"问"。

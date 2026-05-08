@@ -20,9 +20,9 @@ const WALLET: Chip[] = [
 ];
 
 const ONCHAIN: Chip[] = [
-  { emoji: "🧊", label: "Object 0x6 (clock)", prompt: "What is the Sui object 0x6 (clock)?" },
-  { emoji: "🔍", label: "Explain a digest", prompt: "Explain transaction 7Hd9PZ8M3rTQfNvL5Yk2WqJpRn4XbAjC1uVeF6Gx" },
-  { emoji: "🖼", label: "NFT collection", prompt: "Show me the Suipanda NFT collection" },
+  { emoji: "🧊", label: "Object lookup", prompt: "What is the Sui object " },
+  { emoji: "🔍", label: "Explain a digest", prompt: "Explain transaction " },
+  { emoji: "🖼", label: "NFT collection", prompt: "Show me the NFT collection " },
 ];
 
 const TRADE: Chip[] = [
@@ -58,7 +58,7 @@ export function Landing({ onPick }: LandingProps) {
       <div className="landing-foot rise" style={{ animationDelay: "320ms" }}>
         <FootStat icon={<Zap size={11} />} label="Sub-second streaming" />
         <FootStat icon={<Box size={11} />} label="Sui-native: PTB, Objects, SuiNS" />
-        <FootStat icon={<ArrowLeftRight size={11} />} label="7K Aggregator quotes" />
+        <FootStat icon={<ArrowLeftRight size={11} />} label="Cetus swap widget" />
         <FootStat icon={<Sparkles size={11} />} label="10 free messages / day" />
       </div>
 

@@ -7,7 +7,7 @@ Browser (Next.js 15)
   → /api/chat → Vercel AI SDK 5 + DeepSeek
        ├── BlockVision 索引（主，缓存 + per-fingerprint 配额）
        ├── Sui JSON-RPC（object / tx / coin metadata 兜底）
-       ├── 7K Aggregator（swap 报价 + 构建）
+       ├── Cetus Terminal（swap widget + live routing）
        └── MCP 客户端（任意第三方 MCP server，env 驱动）
   → @mysten/dapp-kit + Slush wallet（用户签名 + 广播）
 ```
@@ -24,7 +24,7 @@ Browser (Next.js 15)
   - `get_nft_collection` / `NFTCollectionCard`
   - `get_object` / `ObjectCard`（**Sui 差异化** — 动态字段、Display）
   - `explain_tx` / `TxExplainCard`（**Sui 差异化** — PTB 反编译）
-  - `prepare_swap` / `SwapCard`（7K Aggregator 报价 + tx 构建）
+  - `prepare_swap` / `CetusSwapCard`（内嵌 Cetus Terminal，用户在 widget 内输入金额、看报价并签名）
   - `prepare_transfer` / `TransferCard`（SUI / 任意 coin + SuiNS 解析）
 - 远程 MCP 工具：通过 `MCP_SERVERS` env 接任意 MCP server（stdio / SSE / streamable HTTP）
 - 单档模型路由（DeepSeek `deepseek-chat`，可由 `DEFAULT_PROVIDER` 覆盖）
@@ -75,7 +75,7 @@ pnpm dlx vercel
 - `src/lib/cache/quota.ts` — 按 fingerprint + 当天计数，超限返回 402
 - `src/lib/blockvision/client.ts` — BlockVision 客户端，重试 + 兜底返回 stale 缓存
 - `src/lib/sui/ptb-explainer.ts` — PTB → 自然语言反编译
-- `src/lib/sui/aggregators/` — 共享类型（`types.ts`）+ 7K aggregator + `index.ts` 入口
+- `src/components/cards/CetusSwapCard.tsx` — 动态加载 Cetus Terminal，避免首屏 chat bundle 被 swap widget 放大
 - `src/lib/mcp/` — MCP 客户端框架，`MCP_SERVERS` env 驱动；详见 `docs/MCP_INTEGRATION.md`
 - `src/lib/tools/index.ts` — 注册表 + 直接调用器（测试用）
 - `src/app/api/chat/route.ts` — `streamText` + 本地 tools + MCP tools 合并，UI 流式响应
@@ -99,5 +99,5 @@ pnpm dlx vercel
 
 - BlockVision Free trial 每天 30 次硬上限。主路径由 BV 服务；BV 失败时 portfolio / activity 直接抛错（无 fallback 数据源），coin metadata 会回落到 Sui RPC。
 - 服务端不构建 transfer 的 PTB（需要钱包 coin 上下文），由 `TransferCard` 在客户端用真实 coin 对象重建。
-- 7K Aggregator 报价/构建端点 URL 与字段以最新文档为准；如 schema 变化，调整 `src/lib/sui/aggregators/7k.ts` 即可。
+- swap 不再走服务端报价/构建；`prepare_swap` 只解析 token metadata 并打开 Cetus Terminal，实时报价、路由、slippage 和签名都由 widget 处理。
 - 跨链 bridge 已下线；用户若询问，引导其在自有钱包内完成。

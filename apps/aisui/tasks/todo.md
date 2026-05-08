@@ -2,6 +2,8 @@
 
 来源：`docs/PLAN.md`。一次性落地，覆盖 4 周 sprint 的 read + write 全链路。
 
+> 当前实现状态（2026-05-08）：此清单包含历史完成项；当前线上 runtime 已删除 OKX/bridge/7K 自建 swap 路径，`prepare_swap` 只打开 `CetusSwapCard` / Cetus Terminal，由 widget 负责实时报价、路由和签名。早期 `SwapCard`、`swap-build`、`src/lib/sui/aggregators/*` 条目仅保留为历史记录。
+
 ## 0. 项目骨架
 - [x] 任务清单
 - [x] `package.json`（Next.js 15 + TS + Tailwind v4 + AI SDK 5 + Sui + dapp-kit + Upstash + Recharts + Vitest）
