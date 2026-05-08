@@ -3,7 +3,7 @@
  *
  * - Anonymous users get DAILY_FREE_MESSAGES per day, identified by fingerprint.
  * - Paid credits live under `credits:user:{fingerprint}` and never expire.
- * - Model modes consume different credit amounts: Fast=0, Thinking=2, PRO=5.
+ * - Fast mode is free; paid tiers will reuse this tracker when added back.
  */
 import { getStore } from "@/lib/cache/store";
 import { checkAndConsume, peek } from "@/lib/cache/quota";
@@ -11,8 +11,6 @@ import type { ModelMode } from "@/lib/llm/model-router";
 
 export const MODE_COST: Record<ModelMode, number> = {
   fast: 0,
-  thinking: 2,
-  pro: 5,
 };
 
 export type ConsumeResult =

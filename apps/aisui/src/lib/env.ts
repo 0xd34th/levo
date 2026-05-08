@@ -23,8 +23,6 @@ export const env = {
   deepseekKey: () => maybe("DEEPSEEK_API_KEY"),
   deepseekBaseUrl: () => maybe("DEEPSEEK_BASE_URL"),
   defaultProvider: () => maybe("DEFAULT_PROVIDER", "deepseek-chat")!,
-  thinkingProvider: () => maybe("THINKING_PROVIDER", "deepseek-reasoner")!,
-  proProvider: () => maybe("PRO_PROVIDER", "deepseek-reasoner")!,
 
   upstashUrl: () => maybe("UPSTASH_REDIS_REST_URL"),
   upstashToken: () => maybe("UPSTASH_REDIS_REST_TOKEN"),

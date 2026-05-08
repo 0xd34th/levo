@@ -14,15 +14,11 @@ describe("credits", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("thinking mode requires paid credits", async () => {
+  it("paid grants persist on the user balance", async () => {
     const fp = uniqueFp();
-    const r1 = await consumeCredits(fp, "thinking");
-    expect(r1.ok).toBe(false);
-    if (!r1.ok) expect(r1.reason).toBe("insufficient_credits");
-
-    await grantCredits(fp, 10);
-    const r2 = await consumeCredits(fp, "thinking");
-    expect(r2.ok).toBe(true);
-    if (r2.ok) expect(r2.paidRemaining).toBe(8); // 10 - 2
+    const next = await grantCredits(fp, 10);
+    expect(next).toBe(10);
+    const usage = await getUsage(fp);
+    expect(usage.paidRemaining).toBe(10);
   });
 });
