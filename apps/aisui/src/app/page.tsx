@@ -157,6 +157,22 @@ export default function Home() {
 
   const empty = messages.length === 0;
 
+  const followups = useMemo<string[]>(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== "assistant") continue;
+      const parts = (m as { parts?: Array<Record<string, unknown>> }).parts ?? [];
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const p = parts[j] as { type?: string; state?: string; output?: { questions?: string[] } };
+        if (p.type === "tool-suggest_followups" && p.state === "output-available") {
+          const qs = p.output?.questions ?? [];
+          if (qs.length) return qs;
+        }
+      }
+    }
+    return [];
+  }, [messages]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -220,6 +236,7 @@ export default function Home() {
                   "linear-gradient(to top, var(--bg) 60%, color-mix(in oklch, var(--bg) 0%, transparent))",
               }}
             >
+              <FollowupBar questions={followups} onPick={onChipFromCard} />
               <Composer
                 onSubmit={submit}
                 status={status}
@@ -232,6 +249,65 @@ export default function Home() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function FollowupBar({
+  questions,
+  onPick,
+}: {
+  questions: string[];
+  onPick: (q: string) => void;
+}) {
+  if (!questions.length) return null;
+  return (
+    <div className="fu-bar">
+      <span className="fu-label">Try next</span>
+      <div className="fu-row">
+        {questions.map((q) => (
+          <button key={q} type="button" onClick={() => onPick(q)} className="fu-chip">
+            {q}
+          </button>
+        ))}
+      </div>
+      <style>{`
+        .fu-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding-bottom: 8px;
+          flex-wrap: wrap;
+        }
+        .fu-label {
+          font-size: 10.5px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--fg-muted);
+        }
+        .fu-row {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          flex: 1;
+        }
+        .fu-chip {
+          padding: 5px 10px;
+          background: var(--bg-soft);
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          color: var(--fg-mid);
+          font-size: 12px;
+          line-height: 1.2;
+          cursor: pointer;
+          transition: background 120ms, color 120ms, border-color 120ms;
+        }
+        .fu-chip:hover {
+          background: var(--bg-elev);
+          color: var(--fg);
+          border-color: var(--accent-soft);
+        }
+      `}</style>
     </div>
   );
 }

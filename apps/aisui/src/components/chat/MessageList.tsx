@@ -361,38 +361,10 @@ function renderToolPart(
           onReceipt={onReceipt}
         />
       );
-    case "suggest_followups": {
-      const out = part.output as { questions?: string[] } | undefined;
-      const questions = out?.questions ?? [];
-      if (!questions.length) return null;
-      return (
-        <div key={key} className="fu-chips">
-          {questions.map((q) => (
-            <button key={q} type="button" onClick={() => onChip(q)} className="fu-chip">
-              {q}
-            </button>
-          ))}
-          <style>{`
-            .fu-chips { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
-            .fu-chip {
-              padding: 6px 11px;
-              background: transparent;
-              border: 1px dashed var(--border-hi);
-              border-radius: 999px;
-              color: var(--fg-mid);
-              font-size: 12px;
-              cursor: pointer;
-            }
-            .fu-chip:hover {
-              background: var(--bg-soft);
-              color: var(--fg);
-              border-style: solid;
-              border-color: var(--accent-soft);
-            }
-          `}</style>
-        </div>
-      );
-    }
+    case "suggest_followups":
+      // Rendered above the composer — see FollowupBar in page.tsx so the
+      // chips stay reachable as the conversation scrolls.
+      return null;
     default:
       return (
         <details
