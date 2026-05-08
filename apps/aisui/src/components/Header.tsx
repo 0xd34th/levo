@@ -76,7 +76,9 @@ export function Header() {
         .aisui-header-l { display: flex; align-items: center; gap: 14px; }
         .aisui-header-r { display: flex; align-items: center; gap: 10px; }
 
-        /* Subtle restyle of dapp-kit's ConnectButton to match the design's wallet pill. */
+        /* Subtle restyle of dapp-kit's ConnectButton to match the design's wallet pill.
+           Use --fg for the label so the truncated address stays high-contrast in
+           dark mode (--accent at 78% lightness over a dark bg failed WCAG). */
         .aisui-wallet-slot :where(button) {
           font-size: 12px !important;
           font-weight: 500 !important;
@@ -84,11 +86,14 @@ export function Header() {
           border-radius: 999px !important;
           border: 1px solid var(--accent-soft) !important;
           background: color-mix(in oklch, var(--accent) 12%, transparent) !important;
-          color: var(--accent) !important;
+          color: var(--fg) !important;
           line-height: 1.2 !important;
           height: auto !important;
           min-height: 0 !important;
           box-shadow: none !important;
+        }
+        .aisui-wallet-slot :where(button) :where(*) {
+          color: inherit !important;
         }
         .aisui-wallet-slot :where(button):hover {
           background: color-mix(in oklch, var(--accent) 18%, transparent) !important;
