@@ -7,4 +7,5 @@ onlyBuiltDependencies:
   - prisma
 
 patchedDependencies:
+  '@cetusprotocol/terminal@2.0.5': patches/@cetusprotocol__terminal@2.0.5.patch
   '@lifi/widget@4.0.0-beta.17': patches/@lifi__widget@4.0.0-beta.17.patch

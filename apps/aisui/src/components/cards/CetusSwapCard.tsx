@@ -14,6 +14,9 @@ import { Card, TokenLogo } from "./Card";
 // its `module` field points at an ESM file with import/export syntax, which
 // Turbopack rejects. Routing through the explicit .cjs.js file dodges the
 // conflict without patching the package.
+//
+// React 19 incompatibility (Cetus 2.0.5 reads removed `__SECRET_INTERNALS_*`
+// internals at module load) is fixed via patches/@cetusprotocol__terminal@2.0.5.patch.
 const CetusSwap = dynamic(
   async () => {
     const mod = (await import(
