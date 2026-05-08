@@ -11,7 +11,6 @@ const MARKETS: Chip[] = [
   { emoji: "📈", label: "SUI price", prompt: "How is SUI performing today?" },
   { emoji: "🔥", label: "Trending coins", prompt: "What coins are trending on Sui in the last 24 hours?" },
   { emoji: "🏊", label: "Top DEX pools", prompt: "Show me the top DEX pools on Sui by volume." },
-  { emoji: "🎁", label: "New listings", prompt: "What new tokens were listed on Sui this week?" },
 ];
 
 const WALLET: Chip[] = [
