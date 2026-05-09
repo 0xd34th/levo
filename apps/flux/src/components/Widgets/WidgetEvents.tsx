@@ -13,7 +13,7 @@ import type {
   RouteExecutionUpdate,
 } from '@lifi/widget';
 import { useWidgetEvents } from '@lifi/widget';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useContributionStore } from 'src/stores/contribution/ContributionStore';
 import { useRouteStore } from 'src/stores/route/RouteStore';
 import { getRouteStatus } from 'src/utils/routes';
@@ -22,6 +22,10 @@ import { setupWidgetEvents, teardownWidgetEvents } from './WidgetEventsManager';
 import { useWidgetCacheStore } from 'src/stores/widgetCache/WidgetCacheStore';
 import { useContactSupportEvent } from './events/hooks/useContactSupportEvent';
 import dynamic from 'next/dynamic';
+import {
+  applyChainTokenFormFieldChange,
+  createChainTokenFormDraft,
+} from './chainTokenFormSync';
 
 const GoldenRouteModal = dynamic(() =>
   import('src/components/GoldenRouteModal/GoldenRouteModal').then(
@@ -31,8 +35,12 @@ const GoldenRouteModal = dynamic(() =>
 
 export function WidgetEvents() {
   useContactSupportEvent();
-  const { setDestinationChainToken, setSourceChainToken } =
-    useChainTokenSelectionStore();
+  const {
+    destinationChainToken,
+    setDestinationChainToken,
+    setSourceChainToken,
+    sourceChainToken,
+  } = useChainTokenSelectionStore();
   const { setFromChainId, setFromToken, setToChainId, setToToken } =
     useWidgetCacheStore((state) => state);
   const widgetEvents = useWidgetEvents();
@@ -57,6 +65,24 @@ export function WidgetEvents() {
   const { setContributed, setContributionDisplayed } = useContributionStore(
     (state) => state,
   );
+  const chainTokenFormDraftRef = useRef(
+    createChainTokenFormDraft({
+      source: sourceChainToken,
+      destination: destinationChainToken,
+    }),
+  );
+
+  useEffect(() => {
+    chainTokenFormDraftRef.current = createChainTokenFormDraft({
+      source: sourceChainToken,
+      destination: destinationChainToken,
+    });
+  }, [
+    destinationChainToken.chainId,
+    destinationChainToken.tokenAddress,
+    sourceChainToken.chainId,
+    sourceChainToken.tokenAddress,
+  ]);
 
   useEffect(() => {
     const routeExecutionUpdated = async (update: RouteExecutionUpdate) => {
@@ -151,6 +177,17 @@ export function WidgetEvents() {
     };
 
     const formFieldChanged = (formFieldData: FormFieldChanged) => {
+      const syncedSelection = applyChainTokenFormFieldChange(
+        chainTokenFormDraftRef.current,
+        formFieldData,
+      );
+      if (syncedSelection.source) {
+        setSourceChainToken(syncedSelection.source);
+      }
+      if (syncedSelection.destination) {
+        setDestinationChain(syncedSelection.destination.chainId);
+        setDestinationChainToken(syncedSelection.destination);
+      }
       if (formFieldData?.fieldName === 'fromChain') {
         setFromChainId(formFieldData.newValue);
         return;

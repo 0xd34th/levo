@@ -15,21 +15,30 @@ const normalizeChainId = (
 };
 
 export const isSuiRoute = (formData?: FormData): boolean => {
-  const sourceChainId = normalizeChainId(formData?.sourceChain?.chainId);
-  const destinationChainId = normalizeChainId(
+  return isSuiRouteForChainIds(
+    formData?.sourceChain?.chainId,
     formData?.destinationChain?.chainId,
-  );
-
-  return (
-    sourceChainId === ChainId.SUI || destinationChainId === ChainId.SUI
   );
 };
 
-export const applySuiExchangeGuards = (
+export const isSuiRouteForChainIds = (
+  sourceChainId?: string | number,
+  destinationChainId?: string | number,
+): boolean => {
+  const normalizedSourceChainId = normalizeChainId(sourceChainId);
+  const normalizedDestinationChainId = normalizeChainId(destinationChainId);
+  return (
+    normalizedSourceChainId === ChainId.SUI ||
+    normalizedDestinationChainId === ChainId.SUI
+  );
+};
+
+export const applySuiExchangeGuardsForChainIds = (
   exchanges: WidgetConfig['exchanges'],
-  formData?: FormData,
+  sourceChainId?: string | number,
+  destinationChainId?: string | number,
 ): WidgetConfig['exchanges'] => {
-  if (!isSuiRoute(formData)) {
+  if (!isSuiRouteForChainIds(sourceChainId, destinationChainId)) {
     return exchanges;
   }
 
@@ -45,3 +54,13 @@ export const applySuiExchangeGuards = (
     ...(deny.length ? { deny } : {}),
   };
 };
+
+export const applySuiExchangeGuards = (
+  exchanges: WidgetConfig['exchanges'],
+  formData?: FormData,
+): WidgetConfig['exchanges'] =>
+  applySuiExchangeGuardsForChainIds(
+    exchanges,
+    formData?.sourceChain?.chainId,
+    formData?.destinationChain?.chainId,
+  );

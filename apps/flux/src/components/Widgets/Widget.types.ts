@@ -12,6 +12,14 @@ export const defaultMainWidgetHiddenUI = [
   HiddenUI.Language,
   HiddenUI.PoweredBy,
   HiddenUI.WalletMenu,
+  // Chain-abstracted UX: hide the widget's chain+token selector and the
+  // reverse-tokens button. Asset/chain selection is driven by AssetPicker
+  // + ChainChip rendered above the widget; the LI.FI widget receives
+  // fromChain/fromToken/toChain/toToken via formRef.setFieldValue.
+  HiddenUI.FromToken,
+  HiddenUI.ToToken,
+  HiddenUI.ReverseTokensButton,
+  HiddenUI.ChainSelect,
 ];
 
 export const ExtendedChainId = {
