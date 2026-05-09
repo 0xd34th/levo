@@ -9,6 +9,7 @@ import {
   type WalletFleetResponse,
 } from "@/lib/privy/wallet-fleet";
 import { useSuiPreferenceStore } from "@/stores/wallet";
+import { useExternalWalletCompanions } from "./useExternalWalletCompanions";
 
 const walletFleetQueryKey = ["privy-wallet-fleet"];
 
@@ -74,6 +75,7 @@ export function useWalletFleetAddress(chainType?: ChainType) {
   const preferredSuiSource = useSuiPreferenceStore(
     (state) => state.preferredSuiSource,
   );
+  const companions = useExternalWalletCompanions();
   const fleetChain = mapLifiChainTypeToFleetChain(chainType);
 
   // For Sui the user has up to two simultaneous addresses (external dapp-kit
@@ -86,6 +88,23 @@ export function useWalletFleetAddress(chainType?: ChainType) {
       return privy ?? external;
     }
     return external ?? privy;
+  }
+
+  // For non-Sui chains, when the user has connected an external multi-chain
+  // wallet via dApp-Kit (e.g. Phantom / OKX / Backpack), reuse its companion
+  // address for that ecosystem before falling back to the Privy embedded
+  // fleet. This avoids forcing a Privy login when the connected wallet
+  // already has a usable address for the destination chain.
+  let companionAddress: string | undefined;
+  if (chainType === ChainType.EVM) {
+    companionAddress = companions.addresses.evm;
+  } else if (chainType === ChainType.SVM) {
+    companionAddress = companions.addresses.solana;
+  } else if (chainType === ChainType.UTXO) {
+    companionAddress = companions.addresses.bitcoin;
+  }
+  if (companionAddress) {
+    return companionAddress;
   }
 
   return fleetChain
