@@ -15,6 +15,24 @@ import {
 
 const PRIVATE_SWAP_TOOL_KEYS = ['houdini'];
 
+const toNumberOrUndefined = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const toStringOrUndefined = (value: unknown): string | undefined => {
+  if (typeof value === 'string' && value !== '') {
+    return value;
+  }
+  return undefined;
+};
+
 interface UseWidgetSelectionProps {
   formRef?: RefObject<FormState | null>;
   allowToChains?: number[];
@@ -44,24 +62,51 @@ export const useBridgeConditions = ({
     toAddress: toAddressUrlParams,
   } = useUrlParams();
 
+  // Live form state mirrored from widget formFieldChanged events. URL alone
+  // is unreliable: LiFi widget updates the URL via history.replaceState,
+  // which doesn't fire popstate, so useUrlParams stays stale relative to the
+  // widget's actual selection. We bootstrap from the URL once it stabilizes
+  // and then track widget events as the source of truth.
+  const [currentFromChainId, setCurrentFromChainId] = useState<
+    number | undefined
+  >();
+  const [currentToChainId, setCurrentToChainId] = useState<number | undefined>();
+  const [currentFromToken, setCurrentFromToken] = useState<string | undefined>();
+  const [currentToToken, setCurrentToToken] = useState<string | undefined>();
+
+  useEffect(() => {
+    setCurrentFromChainId(
+      (prev) => prev ?? sourceChainTokenParam.chainId,
+    );
+    setCurrentToChainId(
+      (prev) => prev ?? destinationChainTokenParam.chainId,
+    );
+    setCurrentFromToken((prev) => prev ?? sourceChainTokenParam.token);
+    setCurrentToToken((prev) => prev ?? destinationChainTokenParam.token);
+  }, [
+    sourceChainTokenParam.chainId,
+    sourceChainTokenParam.token,
+    destinationChainTokenParam.chainId,
+    destinationChainTokenParam.token,
+  ]);
+
   useEffect(() => {
     setToAddress(toAddressUrlParams);
   }, [toAddressUrlParams]);
 
   const sourceChainType = useMemo(() => {
-    if (!sourceChainTokenParam?.chainId) {
+    if (!currentFromChainId) {
       return undefined;
     }
-    return getChainById(sourceChainTokenParam.chainId)?.chainType;
-  }, [sourceChainTokenParam?.chainId, getChainById]);
+    return getChainById(currentFromChainId)?.chainType;
+  }, [currentFromChainId, getChainById]);
 
   const destinationChainType = useMemo(() => {
-    if (!destinationChainTokenParam?.chainId) {
+    if (!currentToChainId) {
       return undefined;
     }
-
-    return getChainById(destinationChainTokenParam.chainId)?.chainType;
-  }, [destinationChainTokenParam?.chainId, getChainById]);
+    return getChainById(currentToChainId)?.chainType;
+  }, [currentToChainId, getChainById]);
 
   const destinationWalletAddress = useWalletFleetAddress(destinationChainType);
 
@@ -80,16 +125,37 @@ export const useBridgeConditions = ({
         setIsPrivateSwapSelected(false);
       }
     };
-    const handleToAddressChange = (params: FormFieldChanged) => {
-      if (params?.fieldName === 'toAddress' && params.newValue !== undefined) {
-        setToAddress(params.newValue);
+    const handleFormFieldChange = (params: FormFieldChanged) => {
+      if (!params) {
+        return;
+      }
+      switch (params.fieldName) {
+        case 'toAddress':
+          if (params.newValue !== undefined) {
+            setToAddress(params.newValue);
+          }
+          break;
+        case 'fromChain':
+          setCurrentFromChainId(toNumberOrUndefined(params.newValue));
+          break;
+        case 'toChain':
+          setCurrentToChainId(toNumberOrUndefined(params.newValue));
+          break;
+        case 'fromToken':
+          setCurrentFromToken(toStringOrUndefined(params.newValue));
+          break;
+        case 'toToken':
+          setCurrentToToken(toStringOrUndefined(params.newValue));
+          break;
+        default:
+          break;
       }
     };
     const widgetEventsConfig = {
       routeSelected: handleSelectedRoute,
       routeExecutionStarted: handleResetPrivateSwapSelected,
       pageEntered: handleResetPrivateSwapSelectedForPageEntered,
-      formFieldChanged: handleToAddressChange,
+      formFieldChanged: handleFormFieldChange,
     };
 
     setupWidgetEvents(widgetEventsConfig, widgetEvents);
@@ -123,17 +189,16 @@ export const useBridgeConditions = ({
   // Bridge condition checks
   const bridgeConditions = useMemo(() => {
     const isBridgeFromHypeToArbNativeUSDC =
-      sourceChainTokenParam?.chainId === ExtendedChainId.HYPE &&
-      destinationChainTokenParam?.chainId === ChainId.ARB &&
-      destinationChainTokenParam?.token?.toLowerCase() ===
-        ARB_NATIVE_USDC.toLowerCase();
+      currentFromChainId === ExtendedChainId.HYPE &&
+      currentToChainId === ChainId.ARB &&
+      currentToToken?.toLowerCase() === ARB_NATIVE_USDC.toLowerCase();
 
     const isBridgeFromEvmToHype =
       sourceChainType === ChainType.EVM &&
-      destinationChainTokenParam?.chainId === ExtendedChainId.HYPE;
+      currentToChainId === ExtendedChainId.HYPE;
 
     const isAGWToNonABSChain =
-      isConnectedAGW && destinationChainTokenParam?.chainId !== ChainId.ABS;
+      isConnectedAGW && currentToChainId !== ChainId.ABS;
 
     return {
       isBridgeFromHypeToArbNativeUSDC,
@@ -143,10 +208,10 @@ export const useBridgeConditions = ({
       toAddress,
     };
   }, [
-    sourceChainTokenParam.chainId,
+    currentFromChainId,
     sourceChainType,
-    destinationChainTokenParam.chainId,
-    destinationChainTokenParam.token,
+    currentToChainId,
+    currentToToken,
     isConnectedAGW,
     isPrivateSwapSelected,
     toAddress,

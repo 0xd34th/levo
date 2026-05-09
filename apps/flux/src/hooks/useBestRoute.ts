@@ -63,6 +63,13 @@ export interface UseBestRouteParams extends BestRouteConstraints {
   /** Debounce window for amount/asset changes (ms). */
   debounceMs?: number;
   enabled?: boolean;
+  /**
+   * Optional whitelist of destination chain IDs. When provided, candidate
+   * pairs whose `toToken.chainId` is not in the set are dropped before
+   * fanout, so we never auto-select a chain the user can't receive on.
+   * `undefined` means no constraint.
+   */
+  allowedToChainIds?: Set<number>;
 }
 
 export const shouldEnableBestRouteFanout = ({
@@ -222,6 +229,13 @@ export const useBestRoute = (
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const allowedToChainIdsKey = useMemo(() => {
+    if (!params.allowedToChainIds) {
+      return undefined;
+    }
+    return [...params.allowedToChainIds].sort((a, b) => a - b).join(',');
+  }, [params.allowedToChainIds]);
+
   const requestKey = useMemo(() => {
     if (!canQuote(params)) {
       return null;
@@ -238,6 +252,7 @@ export const useBestRoute = (
       slippage: params.slippage,
       routePriority: params.routePriority,
       useRelayerRoutes: params.useRelayerRoutes,
+      allowedToChainIds: allowedToChainIdsKey ?? null,
     });
     // Tracking individual fields keeps the key stable when params object identity
     // changes but its values don't (avoids re-firing the fanout on every render).
@@ -255,6 +270,7 @@ export const useBestRoute = (
     params.slippage,
     params.routePriority,
     params.useRelayerRoutes,
+    allowedToChainIdsKey,
   ]);
 
   useEffect(() => {
@@ -277,10 +293,13 @@ export const useBestRoute = (
     const fromAmount = params.fromAmount!;
     const fromAddress = params.fromAddress;
 
-    const pairs = buildCandidatePairs(fromAsset, toAsset).slice(
-      0,
-      maxPairsToFanout,
-    );
+    const allPairs = buildCandidatePairs(fromAsset, toAsset);
+    const filteredPairs = params.allowedToChainIds
+      ? allPairs.filter((pair) =>
+          params.allowedToChainIds!.has(pair.toToken.chainId),
+        )
+      : allPairs;
+    const pairs = filteredPairs.slice(0, maxPairsToFanout);
     setAttempted(pairs.length);
 
     if (pairs.length === 0) {

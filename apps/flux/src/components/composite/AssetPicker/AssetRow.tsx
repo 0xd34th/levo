@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { AssetGroup } from '@/types/assets';
@@ -74,13 +75,28 @@ export const AssetRow: FC<AssetRowProps> = ({
         spacing={-0.75}
         sx={{ ml: 'auto', alignItems: 'center' }}
       >
-        {orderedChains.map((t) => (
-          <ChainAvatar
-            key={t.chainId}
-            chainId={t.chainId}
-            size={AvatarSize.XS}
-          />
-        ))}
+        {orderedChains.map((t) => {
+          const isSelected = selectedChainId === t.chainId;
+          return (
+            <Box
+              key={t.chainId}
+              sx={(theme) => ({
+                display: 'inline-flex',
+                borderRadius: '50%',
+                position: 'relative',
+                // Lift selected above neighbours so outline renders un-clipped
+                // despite the negative spacing on the Stack.
+                zIndex: isSelected ? 1 : 0,
+                outline: isSelected
+                  ? `2px solid ${theme.palette.primary.main}`
+                  : 'none',
+                outlineOffset: isSelected ? 1 : 0,
+              })}
+            >
+              <ChainAvatar chainId={t.chainId} size={AvatarSize.XS} />
+            </Box>
+          );
+        })}
         {hiddenCount > 0 ? (
           <Typography
             variant="caption"

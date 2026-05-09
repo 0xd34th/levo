@@ -23,6 +23,8 @@ import type { AssetGroup } from '@/types/assets';
 import { findInstance } from '@/types/assets';
 import { useChainTokenSelectionStore } from '@/stores/chainTokenSelection/ChainTokenSelectionStore';
 import { useAccount } from '@lifi/wallet-management';
+import { useAvailableToChainTypes } from '@/hooks/useAvailableToChainTypes';
+import { useChains } from '@/hooks/useChains';
 import { resolveInitialAssetSelection } from './selection';
 
 interface ChainAbstractionControllerProps extends BestRouteConstraints {
@@ -72,6 +74,8 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
     tokens,
   });
   const { account } = useAccount();
+  const { getChainById, isSuccess: chainsLoaded } = useChains();
+  const availableToChainTypes = useAvailableToChainTypes();
   const sourceSelection = useChainTokenSelectionStore(
     (s) => s.sourceChainToken,
   );
@@ -86,9 +90,9 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
   // Selected asset groups (logical assets)
   const [fromAsset, setFromAsset] = useState<AssetGroup | undefined>();
   const [toAsset, setToAsset] = useState<AssetGroup | undefined>();
-  // User-overridden chains (undefined = auto, follow useBestRoute)
+  // User-overridden source chain (undefined = auto, follow useBestRoute).
+  // Destination chain is always auto-selected by useBestRoute (no override).
   const [fromChainOverride, setFromChainOverride] = useState<number | undefined>();
-  const [toChainOverride, setToChainOverride] = useState<number | undefined>();
   // Live fromAmount mirrored from the widget's AmountInput
   const [fromAmount, setFromAmount] = useState<string | undefined>();
 
@@ -119,7 +123,6 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
       );
       if (candidate) {
         setToAsset(candidate.asset);
-        setToChainOverride(candidate.chainId);
       }
     }
   }, [
@@ -161,16 +164,12 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
     const constrainedAsset = toGroups.find((group) => group.id === toAsset.id);
     if (!constrainedAsset) {
       setToAsset(undefined);
-      setToChainOverride(undefined);
       return;
-    }
-    if (toChainOverride && !findInstance(constrainedAsset, toChainOverride)) {
-      setToChainOverride(undefined);
     }
     if (constrainedAsset !== toAsset) {
       setToAsset(constrainedAsset);
     }
-  }, [toAsset, toChainOverride, toGroups]);
+  }, [toAsset, toGroups]);
 
   // Listen to widget formFieldChanged events to mirror fromAmount.
   useEffect(() => {
@@ -189,6 +188,24 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
 
   const fromAddress = account?.address;
 
+  // Constrain destination auto-pick to chain types the user can actually
+  // receive on. Avoids the bug where we auto-pick a chain in an ecosystem
+  // the user has no wallet for, then writing a wrong-ecosystem toAddress
+  // makes LiFi return zero routes. `undefined` = pre-auth, no constraint.
+  const allowedToChainIds = useMemo(() => {
+    if (!availableToChainTypes || !toAsset || !chainsLoaded) {
+      return undefined;
+    }
+    const allowed = new Set<number>();
+    for (const instance of toAsset.instances) {
+      const chainType = getChainById(instance.chainId)?.chainType;
+      if (chainType && availableToChainTypes.has(chainType)) {
+        allowed.add(instance.chainId);
+      }
+    }
+    return allowed;
+  }, [availableToChainTypes, toAsset, getChainById, chainsLoaded]);
+
   const bestRoute = useBestRoute({
     fromAsset,
     toAsset,
@@ -201,16 +218,22 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
     routePriority,
     slippage,
     useRelayerRoutes,
+    allowedToChainIds,
   });
 
-  // Auto-selected chain (best-rate) — overridden by user choice if set.
+  // Auto-selected chains (best-rate). Source can be user-overridden;
+  // destination is always auto.
   const autoFromChainId = bestRoute.best?.fromToken.chainId;
   const autoToChainId = bestRoute.best?.toToken.chainId;
 
   const effectiveFromChainId =
     fromChainOverride ?? autoFromChainId ?? fromAsset?.instances[0]?.chainId;
   const effectiveToChainId =
-    toChainOverride ?? autoToChainId ?? toAsset?.instances[0]?.chainId;
+    autoToChainId ?? toAsset?.instances[0]?.chainId;
+
+  const autoSelectedToChainName = effectiveToChainId
+    ? getChainById(effectiveToChainId)?.name
+    : undefined;
 
   // Push selection back to the LI.FI widget via formRef.
   useEffect(() => {
@@ -245,22 +268,6 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
     });
   }, [fromAsset, bestRoute.best, bestRoute.alternatives]);
 
-  const toChainOptions = useMemo<ChainChipOption[]>(() => {
-    if (!toAsset) {return [];}
-    const bestChainId = bestRoute.best?.toToken.chainId;
-    return toAsset.instances.map((t) => {
-      const candidate =
-        bestRoute.best?.toToken.chainId === t.chainId
-          ? bestRoute.best
-          : bestRoute.alternatives.find((c) => c.toToken.chainId === t.chainId);
-      return {
-        chainId: t.chainId,
-        netUSD: candidate?.netUSD,
-        isBest: bestChainId === t.chainId,
-      };
-    });
-  }, [toAsset, bestRoute.best, bestRoute.alternatives]);
-
   const handleSelectFromAsset = useCallback((group: AssetGroup) => {
     setFromAsset(group);
     setFromChainOverride(undefined); // reset to auto-pick
@@ -268,15 +275,15 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
 
   const handleSelectToAsset = useCallback((group: AssetGroup) => {
     setToAsset(group);
-    setToChainOverride(undefined);
   }, []);
 
   const handleReverse = useCallback(() => {
     setFromAsset(toAsset);
     setToAsset(fromAsset);
-    setFromChainOverride(toChainOverride);
-    setToChainOverride(fromChainOverride);
-  }, [fromAsset, toAsset, fromChainOverride, toChainOverride]);
+    // Both sides re-evaluate after reverse: source goes back to auto
+    // (user can re-pick); destination is always auto.
+    setFromChainOverride(undefined);
+  }, [fromAsset, toAsset]);
 
   const isCrossChain =
     bestRoute.best && bestRoute.best.isBridge ? true : false;
@@ -344,15 +351,17 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
           </Box>
         </Stack>
 
-        {toAsset && toChainOptions.length > 1 ? (
-          <Box sx={{ pl: 0.5 }}>
-            <ChainChip
-              label="Destination chain"
-              selectedChainId={effectiveToChainId}
-              options={toChainOptions}
-              onChange={setToChainOverride}
-            />
-          </Box>
+        {toAsset && autoSelectedToChainName ? (
+          <Typography
+            variant="caption"
+            sx={{ color: 'text.secondary', pl: 0.5 }}
+          >
+            {bestRoute.isLoading
+              ? 'Finding best chain…'
+              : `Auto-selected: ${autoSelectedToChainName}${
+                  bestRoute.best ? ' (best rate)' : ''
+                }`}
+          </Typography>
         ) : null}
 
         {isCrossChain ? (
