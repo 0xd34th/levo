@@ -4,6 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(scriptDir, '..');
+const appName = path.basename(appDir);
+const standaloneAppsDir = path.join(appDir, '.next/standalone/apps');
+const standaloneAppDirs = [
+  path.join(standaloneAppsDir, appName),
+  path.join(standaloneAppsDir, 'jumper'),
+];
 
 const ensureCopy = async (source, destination) => {
   try {
@@ -19,12 +25,14 @@ const ensureCopy = async (source, destination) => {
   await cp(source, destination, { force: true, recursive: true });
 };
 
-await ensureCopy(
-  path.join(appDir, '.next/static'),
-  path.join(appDir, '.next/standalone/apps/jumper/.next/static'),
-);
+for (const standaloneAppDir of standaloneAppDirs) {
+  await ensureCopy(
+    path.join(appDir, '.next/static'),
+    path.join(standaloneAppDir, '.next/static'),
+  );
 
-await ensureCopy(
-  path.join(appDir, 'public'),
-  path.join(appDir, '.next/standalone/apps/jumper/public'),
-);
+  await ensureCopy(
+    path.join(appDir, 'public'),
+    path.join(standaloneAppDir, 'public'),
+  );
+}
