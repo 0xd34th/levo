@@ -147,6 +147,40 @@ export const buildAssetGroups = (
     addToken(token);
   }
 
+  // Post-pass: when a coinKey-less group (`symbol:X`) shares its symbol with
+  // exactly one coinKey-anchored group (`coin:Y` whose `.symbol === X`),
+  // merge the symbol-group's instances into that coin-group. This collapses
+  // the SUI / SOL / HYPE-style split where LiFi only assigns a coinKey to
+  // the canonical chain's variant and leaves bridged variants without one.
+  // Conservative: skip when zero or multiple coin candidates match, so
+  // symbol-collisions like USDT vs USDT.e never get force-merged.
+  const coinGroupsBySymbol = new Map<string, AssetGroup[]>();
+  for (const group of map.values()) {
+    if (!group.id.startsWith('coin:')) {
+      continue;
+    }
+    const sym = group.symbol.toUpperCase();
+    const list = coinGroupsBySymbol.get(sym) ?? [];
+    list.push(group);
+    coinGroupsBySymbol.set(sym, list);
+  }
+  for (const [id, group] of Array.from(map.entries())) {
+    if (!id.startsWith('symbol:')) {
+      continue;
+    }
+    const candidates = coinGroupsBySymbol.get(group.symbol.toUpperCase());
+    if (!candidates || candidates.length !== 1) {
+      continue;
+    }
+    const target = candidates[0];
+    for (const inst of group.instances) {
+      if (!target.instances.some((t) => t.chainId === inst.chainId)) {
+        target.instances.push(inst);
+      }
+    }
+    map.delete(id);
+  }
+
   return Array.from(map.values()).sort(
     (a, b) => b.instances.length - a.instances.length,
   );

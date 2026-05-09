@@ -92,4 +92,61 @@ describe('buildAssetGroups', () => {
     expect(groups[0]?.instances).toHaveLength(1);
     expect(groups[0]?.instances[0]?.address).toBe('0xeth-usdc');
   });
+
+  it('merges a coinKey-less symbol group into a uniquely-matching coin group', () => {
+    const nativeSui = token(ChainId.SUI, '0x2::sui::SUI', 'SUI', CoinKey.SUI);
+    const bridgedSuiOnSolana = {
+      ...token(ChainId.SOL, 'solana-sui-mint', 'SUI'),
+      coinKey: undefined,
+    };
+
+    const groups = buildAssetGroups({
+      [ChainId.SUI]: [nativeSui],
+      [ChainId.SOL]: [bridgedSuiOnSolana],
+    });
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.id).toBe(`coin:${CoinKey.SUI}`);
+    const chainIds = groups[0]?.instances.map((i) => i.chainId).sort();
+    expect(chainIds).toEqual([ChainId.SUI, ChainId.SOL].sort());
+  });
+
+  it('does not merge when multiple coin groups share the same symbol', () => {
+    const coinA = token(ChainId.ETH, '0xeth-usdc', 'USDC', CoinKey.USDC);
+    // Hypothetical second coin group also reporting symbol "USDC" but with a
+    // different coinKey — ambiguous, must NOT collapse the orphan into either.
+    const coinB = token(ChainId.ARB, '0xarb-usdc', 'USDC', CoinKey.USDCe);
+    const orphan = {
+      ...token(ChainId.SOL, 'solana-usdc', 'USDC'),
+      coinKey: undefined,
+    };
+
+    const groups = buildAssetGroups({
+      [ChainId.ETH]: [coinA],
+      [ChainId.ARB]: [coinB],
+      [ChainId.SOL]: [orphan],
+    });
+
+    expect(groups).toHaveLength(3);
+    const ids = groups.map((g) => g.id).sort();
+    expect(ids).toEqual(
+      [`coin:${CoinKey.USDC}`, `coin:${CoinKey.USDCe}`, 'symbol:USDC'].sort(),
+    );
+  });
+
+  it('keeps wrapped vs native variants separate when symbols differ', () => {
+    const usdt = token(ChainId.ETH, '0xeth-usdt', 'USDT', CoinKey.USDT);
+    const usdtE = token(ChainId.ARB, '0xarb-usdt-e', 'USDT.e', CoinKey.USDCe);
+
+    const groups = buildAssetGroups({
+      [ChainId.ETH]: [usdt],
+      [ChainId.ARB]: [usdtE],
+    });
+
+    expect(groups).toHaveLength(2);
+    const ids = groups.map((g) => g.id).sort();
+    expect(ids).toEqual(
+      [`coin:${CoinKey.USDT}`, `coin:${CoinKey.USDCe}`].sort(),
+    );
+  });
 });
