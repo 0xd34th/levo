@@ -16,7 +16,7 @@ model XUser {
   derivationVersion Int           @default(1) @map("derivation_version")
 
   // Privy embedded Sui wallet
-  privyUserId  String? @unique @map("privy_user_id")
+  privyUserId   String? @unique @map("privy_user_id")
   privyWalletId String? @unique @map("privy_wallet_id")
   suiAddress    String? @unique @map("sui_address")
   suiPublicKey  String? @map("sui_public_key")
@@ -24,10 +24,13 @@ model XUser {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  quotes PaymentQuote[]
-  ledger PaymentLedger[]
-  earnAccounting EarnAccounting?
+  quotes                 PaymentQuote[]
+  ledger                 PaymentLedger[]
+  earnAccounting         EarnAccounting?
   pendingEarnSettlements PendingEarnSettlement[]
+  agentMandates          AgentMandate[]
+  agentActions           AgentAction[]
+  agentSession           AgentSession?
 
   @@map("x_user")
 }
@@ -103,16 +106,16 @@ enum RecipientType {
 }
 
 model EarnAccounting {
-  xUserId                 String   @id @map("x_user_id")
-  retainedAccountId       String?  @unique @map("retained_account_id")
-  lastSettledTxDigest     String?  @map("last_settled_tx_digest")
-  rewardDebtPayoutUsdc    String   @default("0") @map("reward_debt_payout_usdc")
-  rewardDebtRetainedUsdb  String   @default("0") @map("reward_debt_retained_usdb")
-  claimedUsdcTotal        BigInt   @default(0) @map("claimed_usdc_total")
-  retainedUsdbTotal       BigInt   @default(0) @map("retained_usdb_total")
-  lastKnownDepositedUsdc  BigInt   @default(0) @map("last_known_deposited_usdc")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  xUserId                String   @id @map("x_user_id")
+  retainedAccountId      String?  @unique @map("retained_account_id")
+  lastSettledTxDigest    String?  @map("last_settled_tx_digest")
+  rewardDebtPayoutUsdc   String   @default("0") @map("reward_debt_payout_usdc")
+  rewardDebtRetainedUsdb String   @default("0") @map("reward_debt_retained_usdb")
+  claimedUsdcTotal       BigInt   @default(0) @map("claimed_usdc_total")
+  retainedUsdbTotal      BigInt   @default(0) @map("retained_usdb_total")
+  lastKnownDepositedUsdc BigInt   @default(0) @map("last_known_deposited_usdc")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
 
@@ -147,28 +150,156 @@ model PendingEarn {
 }
 
 model PendingEarnSettlement {
-  id                    String   @id @default(cuid())
-  xUserId               String   @map("x_user_id")
-  action                String
-  stableCoinType        String   @map("stable_coin_type")
-  previewToken          String?  @map("preview_token")
-  status                String
-  expectedYieldUsdc     BigInt   @default(0) @map("expected_yield_usdc")
-  expectedPrincipalUsdc BigInt   @default(0) @map("expected_principal_usdc")
-  yieldTxDigest         String?  @unique @map("yield_tx_digest")
-  yieldTxBytesBase64    String?  @map("yield_tx_bytes_base64")
-  yieldSignatures       String[] @default([]) @map("yield_signatures")
-  principalTxDigest     String?  @unique @map("principal_tx_digest")
-  principalTxBytesBase64 String? @map("principal_tx_bytes_base64")
-  principalSignatures   String[] @default([]) @map("principal_signatures")
-  settlementSnapshot    Json?    @map("settlement_snapshot")
-  lastErrorMessage      String?  @map("last_error_message")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                     String   @id @default(cuid())
+  xUserId                String   @map("x_user_id")
+  action                 String
+  stableCoinType         String   @map("stable_coin_type")
+  previewToken           String?  @map("preview_token")
+  status                 String
+  expectedYieldUsdc      BigInt   @default(0) @map("expected_yield_usdc")
+  expectedPrincipalUsdc  BigInt   @default(0) @map("expected_principal_usdc")
+  yieldTxDigest          String?  @unique @map("yield_tx_digest")
+  yieldTxBytesBase64     String?  @map("yield_tx_bytes_base64")
+  yieldSignatures        String[] @default([]) @map("yield_signatures")
+  principalTxDigest      String?  @unique @map("principal_tx_digest")
+  principalTxBytesBase64 String?  @map("principal_tx_bytes_base64")
+  principalSignatures    String[] @default([]) @map("principal_signatures")
+  settlementSnapshot     Json?    @map("settlement_snapshot")
+  lastErrorMessage       String?  @map("last_error_message")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   xUser XUser @relation(fields: [xUserId], references: [xUserId])
 
   @@index([xUserId])
   @@index([status])
   @@map("pending_earn_settlement")
+}
+
+// ---------- Levo Agent (agentic wallet) ----------
+// Mirrors `levo-agent` Move package v2 (packages/levo-agent/Published.toml).
+// AgentMandate caches the on-chain Mandate object spec for fast UI rendering and
+// audit log joins; the source of truth remains the Sui object itself.
+
+model AgentMandate {
+  id                String        @id @default(cuid())
+  xUserId           String        @map("x_user_id")
+  mandateObjectId   String        @unique @map("mandate_object_id")
+  name              String
+  actions           Int // u32 bitfield mirror
+  coinLimits        Json          @map("coin_limits") // [{coinType, perTxCap, periodCap, periodSpent, periodStartMs}]
+  periodMs          BigInt        @map("period_ms")
+  allowedTargets    Json          @map("allowed_targets") // string[]
+  expiryMs          BigInt        @map("expiry_ms")
+  metadata          Json          @default("{}") // VecMap<String, String> mirror
+  status            MandateStatus @default(ACTIVE)
+  nonce             BigInt        @default(0) // last observed mandate.nonce
+  witnessCommit     String?       @map("witness_commit") // hex; null until owner inits
+  createdTxDigest   String        @map("created_tx_digest")
+  initTxDigest      String?       @map("init_tx_digest") // owner's set_initial_witness tx
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  revokedTxDigest   String?       @map("revoked_tx_digest")
+  revokedAt         DateTime?     @map("revoked_at")
+  destroyedTxDigest String?       @map("destroyed_tx_digest")
+  destroyedAt       DateTime?     @map("destroyed_at")
+
+  xUser          XUser          @relation(fields: [xUserId], references: [xUserId])
+  agentActions   AgentAction[]
+  agentWitnesses AgentWitness[]
+
+  @@index([xUserId, status])
+  @@index([status, expiryMs])
+  @@map("agent_mandate")
+}
+
+// One row per pre-generated witness chain step. Witness preimage is NOT stored
+// (only the Seal ciphertext + the action context bound to it). At execution time
+// the agent fetches `encrypted_object`, asks Seal to decrypt it (which dry-runs
+// `seal_approve` against the live mandate), and submits the resulting witness
+// preimage through `consume_witness`.
+model AgentWitness {
+  id               String   @id @default(cuid())
+  mandateId        String   @map("mandate_id")
+  chainIndex       Int      @map("chain_index")                         // 0 = first consumed step
+  actionType       Int      @map("action_type")                         // u32 single-bit
+  coinType         String   @map("coin_type")                           // fully qualified Move type
+  amount           String                                               // u64 decimal string
+  target           String
+  currentCommit    String   @map("current_commit")                      // hex; on-chain witness_commit when this step is consumed
+  nextCommit       String   @map("next_commit")                         // hex; what consume rotates to
+  approvalIdentity String   @map("approval_identity")                   // hex; Seal blob id (derive_approval_id)
+  encryptedObject  Bytes    @map("encrypted_object")                    // Seal ciphertext
+  consumed         Boolean  @default(false)
+  consumedAt       DateTime? @map("consumed_at")
+  consumedTxDigest String?  @map("consumed_tx_digest")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  mandate AgentMandate @relation(fields: [mandateId], references: [id])
+
+  @@unique([mandateId, chainIndex])
+  @@index([mandateId, consumed, chainIndex])
+  @@map("agent_witness")
+}
+
+enum MandateStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  PAUSED_BY_USER
+  DESTROYED
+}
+
+model AgentAction {
+  id           String        @id @default(cuid())
+  mandateId    String        @map("mandate_id")
+  xUserId      String        @map("x_user_id")
+  actionType   Int           @map("action_type") // u32 single-bit
+  coinType     String        @map("coin_type")
+  amount       String // u64 as decimal string
+  target       String
+  status       ActionStatus
+  txDigest     String?       @map("tx_digest")
+  trigger      ActionTrigger
+  sealApproved Boolean       @map("seal_approved")
+  errorReason  String?       @map("error_reason")
+  // Witness chain fields (from WitnessConsumed event after on-chain confirmation).
+  nonceAfter   BigInt?       @map("nonce_after")
+  commitBefore String?       @map("commit_before")
+  commitAfter  String?       @map("commit_after")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  confirmedAt  DateTime?     @map("confirmed_at")
+
+  mandate AgentMandate @relation(fields: [mandateId], references: [id])
+  xUser   XUser        @relation(fields: [xUserId], references: [xUserId])
+
+  @@index([xUserId, createdAt(sort: Desc)])
+  @@index([mandateId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("agent_action")
+}
+
+enum ActionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  BLOCKED_BY_SEAL
+}
+
+enum ActionTrigger {
+  CHAT
+  SCHEDULED
+  EVENT
+}
+
+model AgentSession {
+  xUserId   String   @id @map("x_user_id")
+  messages  Json     @default("[]")
+  paused    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  xUser XUser @relation(fields: [xUserId], references: [xUserId])
+
+  @@map("agent_session")
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { BadgeCheck, Search, ShieldCheck, Wallet } from 'lucide-react';
+import { LevoWebShell } from '@/components/levo-web-shell';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { PaymentTable } from '@/components/payment-table';
 import { Button } from '@/components/ui/button';
@@ -89,10 +90,15 @@ export default function LookupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <MobileTopBar title="Recipient lookup" backHref="/tools" />
+    <LevoWebShell
+      showMobileTopBar={false}
+      contentClassName="max-w-none px-0 pb-0 pt-0 md:max-w-none lg:px-8 lg:py-8"
+    >
+      <div className="lg:hidden">
+        <MobileTopBar title="Recipient lookup" backHref="/tools" />
+      </div>
 
-      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3 md:max-w-3xl">
+      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3 md:max-w-3xl lg:max-w-5xl lg:px-0 lg:pb-0 lg:pt-0">
         <section className="rounded-[20px] bg-surface px-4 py-4">
           <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
             <div className="relative flex-1">
@@ -236,6 +242,6 @@ export default function LookupPage() {
           </>
         ) : null}
       </main>
-    </div>
+    </LevoWebShell>
   );
 }

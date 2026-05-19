@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { getExpectedOrigin, parseSuiAddress } from './api';
+import { getExpectedOrigin, parseSuiAddress, verifySameOrigin } from './api';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -39,6 +39,32 @@ describe('getExpectedOrigin', () => {
 
     const req = new NextRequest('http://localhost:3000/api/v1/payments/history');
     expect(getExpectedOrigin(req)).toBe('https://app.example.com');
+  });
+
+  it('allows same-origin browser GET requests without an Origin header', () => {
+    vi.stubEnv('APP_ORIGIN', 'https://levo.krilly.ai');
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const req = new NextRequest('https://levo.krilly.ai/api/v1/agent/config', {
+      method: 'GET',
+    });
+
+    expect(verifySameOrigin(req)).toEqual({ ok: true });
+  });
+
+  it('allows proxied same-origin browser GET requests without an Origin header', () => {
+    vi.stubEnv('APP_ORIGIN', 'https://levo.krilly.ai');
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const req = new NextRequest('http://127.0.0.1:10101/api/v1/agent/config', {
+      method: 'GET',
+      headers: {
+        'x-forwarded-host': 'levo.krilly.ai',
+        'x-forwarded-proto': 'https',
+      },
+    });
+
+    expect(verifySameOrigin(req)).toEqual({ ok: true });
   });
 });
 

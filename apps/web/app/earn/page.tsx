@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, ArrowUp, LoaderCircle } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, ArrowUp, Bot, LoaderCircle, Sparkles } from 'lucide-react';
 import {
   useAuthorizationSignature,
   useIdentityToken,
@@ -470,7 +471,7 @@ export default function EarnPage() {
     <div className="min-h-screen bg-background">
       <MobileTopBar title="Earn" backHref="/" />
 
-      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3">
+      <main className="mx-auto grid w-full max-w-lg gap-6 px-5 pb-16 pt-3 lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-3">
           {/* Hero card */}
           <section className="rounded-[20px] bg-surface px-5 py-5">
@@ -756,7 +757,64 @@ export default function EarnPage() {
             </section>
           ) : null}
         </div>
+        <div className="hidden lg:block">
+          <EarnAgentRail
+            summary={summary}
+            loading={loadingSummary}
+            claimableYield={metricSummary.claimableYieldUsdc}
+          />
+        </div>
       </main>
     </div>
+  );
+}
+
+function EarnAgentRail({
+  summary,
+  loading,
+  claimableYield,
+}: {
+  summary: EarnSummaryResponse | null;
+  loading: boolean;
+  claimableYield: string;
+}) {
+  const hasClaimable = summary ? BigInt(summary.claimableYieldUsdc) > 0n : false;
+  const intent = hasClaimable
+    ? 'auto-harvest claimable yield daily with conservative caps'
+    : 'auto-harvest future yield daily with conservative caps';
+
+  return (
+    <aside className="sticky top-8 rounded-[16px] bg-[color:var(--surface)] p-4">
+      <div className="flex items-center gap-2">
+        <Bot className="size-5" />
+        <h2 className="text-[16px] font-semibold">Agent recommendation</h2>
+      </div>
+      <section className="mt-4 rounded-[12px] bg-background p-4 ring-1 ring-[color:var(--border)]">
+        <div className="flex items-center gap-2 text-[13px] font-medium">
+          <Sparkles className="size-4" />
+          Auto-harvest
+        </div>
+        <p className="mt-2 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+          {loading
+            ? 'Reading your Earn summary...'
+            : hasClaimable
+              ? `You have about ${claimableYield} USDC claimable. Draft a capped mandate to harvest on schedule.`
+              : 'No claimable yield is ready yet. Draft a capped mandate so future yield can be harvested automatically.'}
+        </p>
+        <Button
+          className="mt-4 w-full"
+          render={<Link href={`/agent/new?intent=${encodeURIComponent(intent)}`} />}
+        >
+          Draft mandate
+          <ArrowRight className="ml-1.5 size-4" />
+        </Button>
+      </section>
+      <section className="mt-3 rounded-[12px] bg-background p-4 text-[13px] ring-1 ring-[color:var(--border)]">
+        <p className="font-medium">Before signing</p>
+        <p className="mt-1" style={{ color: 'var(--text-soft)' }}>
+          The Agent composer will only prefill a proposal. It will not create or execute a mandate until you review caps, expiry, and sign.
+        </p>
+      </section>
+    </aside>
   );
 }

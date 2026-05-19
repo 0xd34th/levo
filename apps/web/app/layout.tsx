@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { GlobalCommandMenu } from '@/components/global-command-menu';
 
 const sans = IBM_Plex_Sans({
   subsets: ['latin'],
@@ -34,7 +35,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <GlobalCommandMenu />
+          {children}
+        </Providers>
       </body>
     </html>
   );

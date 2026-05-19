@@ -85,6 +85,22 @@ function normalizeOrigin(origin: string): string | null {
   }
 }
 
+function getForwardedOrigin(req: NextRequest): string | null {
+  const forwardedHost =
+    req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (!forwardedHost) {
+    return null;
+  }
+  const forwardedProto =
+    req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ||
+    req.nextUrl.protocol.replace(/:$/, '');
+  const host = forwardedHost.split(',')[0]?.trim();
+  if (!host || !forwardedProto) {
+    return null;
+  }
+  return normalizeOrigin(`${forwardedProto}://${host}`);
+}
+
 export function getExpectedOrigin(req: NextRequest): string | null {
   const requestOriginHeader = normalizeOrigin(req.headers.get('origin') ?? '');
   const requestOrigin = normalizeOrigin(req.nextUrl.origin);
@@ -122,6 +138,14 @@ export function verifySameOrigin(
   }
 
   const requestOrigin = normalizeOrigin(req.headers.get('origin') ?? '');
+  if (!requestOrigin && (req.method === 'GET' || req.method === 'HEAD')) {
+    const urlOrigin = normalizeOrigin(req.nextUrl.origin);
+    const forwardedOrigin = getForwardedOrigin(req);
+    if (urlOrigin === expectedOrigin || forwardedOrigin === expectedOrigin) {
+      return { ok: true };
+    }
+  }
+
   if (requestOrigin !== expectedOrigin) {
     return {
       ok: false,

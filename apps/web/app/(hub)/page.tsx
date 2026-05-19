@@ -12,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { ActionButtonRow } from '@/components/action-button-row';
+import { HomeAgentRail } from '@/components/agent/HomeAgentRail';
 import { BalanceDisplay } from '@/components/balance-display';
 import { FeatureGrid } from '@/components/feature-grid';
 import { PaymentTable } from '@/components/payment-table';
@@ -171,10 +172,11 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <BalanceDisplay address={embeddedWalletAddress} />
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="flex flex-col gap-4">
+        <BalanceDisplay address={embeddedWalletAddress} />
 
-      <ActionButtonRow depositHref={embeddedWalletAddress ? '/deposit' : undefined} />
+        <ActionButtonRow depositHref={embeddedWalletAddress ? '/deposit' : undefined} />
 
       {embeddedWalletAddress ? (
         <PromoCard
@@ -289,7 +291,11 @@ export default function AccountPage() {
             />
           )}
         </>
-      ) : null}
+        ) : null}
+      </div>
+      <div className="hidden lg:block">
+        <HomeAgentRail />
+      </div>
     </div>
   );
 }

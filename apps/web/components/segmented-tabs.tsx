@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const tabs = [
   { href: '/', label: 'Account', match: (p: string) => p === '/' },
   { href: '/activity', label: 'Activity', match: (p: string) => p.startsWith('/activity') },
+  { href: '/agent', label: 'Agent', match: (p: string) => p.startsWith('/ai') || p.startsWith('/agent') },
   { href: '/tools', label: 'Tools', match: (p: string) => p.startsWith('/tools') },
 ];
 

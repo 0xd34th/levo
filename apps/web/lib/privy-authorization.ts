@@ -16,6 +16,7 @@ export type PrivyAuthorizationRequest = z.infer<typeof PrivyAuthorizationRequest
 export const PrivyAuthorizationRequiredResponseSchema = z.object({
   status: z.literal('authorization_required'),
   authorizationRequest: PrivyAuthorizationRequestSchema,
+  txIntent: z.string().min(1).optional(),
 });
 
 export type PrivyAuthorizationRequiredResponse = z.infer<

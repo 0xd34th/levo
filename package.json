@@ -7,6 +7,12 @@
     "onboard:levo-usd:mainnet": "tsx packages/levo-usd/scripts/onboard-mainnet.ts",
     "add-entity:levo-usd:mainnet": "tsx packages/levo-usd/scripts/add-entity-mainnet.ts"
   },
+  "pnpm": {
+    "overrides": {
+      "@hono/node-server": "1.19.13",
+      "ws": "8.20.1"
+    }
+  },
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
