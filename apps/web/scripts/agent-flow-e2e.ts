@@ -12,7 +12,7 @@
 import 'dotenv/config';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
-import { toBase64 } from '@mysten/sui/utils';
+import { normalizeSuiAddress, toBase64 } from '@mysten/sui/utils';
 
 import {
   __submitOwnerTxWithSignature,
@@ -40,7 +40,7 @@ import { ActionTrigger, MandateStatus } from '../lib/generated/prisma/client';
 
 const ONE_DAY_MS = 86_400_000n;
 const TEST_COIN_TYPE = '0x2::sui::SUI';
-const DUMMY_TARGET = '0x' + 'be11'.repeat(16);
+const E2E_TARGET = getRequiredE2ETargetAddress();
 
 async function main() {
   console.log('== Phase 3b Mandate Flow E2E ==\n');
@@ -97,7 +97,7 @@ async function main() {
       { coinType: TEST_COIN_TYPE, perTxCap: '1000', periodCap: '10000' },
     ],
     periodMs: ONE_DAY_MS.toString(),
-    allowedTargets: [DUMMY_TARGET],
+    allowedTargets: [E2E_TARGET],
     expiryMs: expiryMs.toString(),
   };
   const spec: MandateSpec = MandateSpecSchema.parse(specInput);
@@ -105,7 +105,7 @@ async function main() {
     {
       actionType: AGENT_ACTION.EARN_DEPOSIT,
       coinType: TEST_COIN_TYPE,
-      target: DUMMY_TARGET,
+      target: E2E_TARGET,
       amount: 100n,
     },
   ];
@@ -260,6 +260,16 @@ async function transferSuiFromAgent(
   if (res.effects?.status.status !== 'success') {
     throw new Error(`agent → owner transfer failed: ${res.effects?.status.error}`);
   }
+}
+
+function getRequiredE2ETargetAddress(): string {
+  const target = process.env.LEVO_AGENT_E2E_TARGET_ADDRESS?.trim();
+  if (!target) {
+    throw new Error(
+      'LEVO_AGENT_E2E_TARGET_ADDRESS must be set to a real StableLayer Earn account target before running agent-flow-e2e.ts',
+    );
+  }
+  return normalizeSuiAddress(target);
 }
 
 main()

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
+import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
 import { MAINNET_USDC_TYPE, SUI_COIN_TYPE } from '@/lib/coins';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import {
@@ -23,6 +24,7 @@ import {
   type AgentMandateDraftState,
 } from '@/lib/agent/mandate-draft';
 import type { CreateMandatePayload } from '@/lib/agent/client';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,6 +74,8 @@ export function MandateCreateForm({
   initialConfig,
   onDraftChange,
 }: MandateCreateFormProps) {
+  const { ready, authenticated, getAccessToken } = usePrivy();
+  const { identityToken } = useIdentityToken();
   const [activeIntent, setActiveIntent] = useState(initialIntent?.trim() ?? '');
   const [intentInput, setIntentInput] = useState(initialIntent?.trim() ?? '');
   const [config, setConfig] = useState<AgentMandateConfig>(initialConfig ?? FALLBACK_CONFIG);
@@ -84,18 +88,41 @@ export function MandateCreateForm({
 
   useEffect(() => {
     if (initialConfig) return;
+    if (!ready) return;
+    if (!authenticated) {
+      setConfig({
+        agentAddress: '',
+        templates: [],
+        error: 'Sign in with X to load your Earn account target.',
+      });
+      setConfigError(null);
+      return;
+    }
 
     let cancelled = false;
-    fetch('/api/v1/agent/config')
+    privyAuthenticatedFetch(
+      getAccessToken,
+      '/api/v1/agent/config',
+      { cache: 'no-store' },
+      { identityToken },
+    )
       .then(async (res) => {
         if (!res.ok) {
-          throw new Error(`Agent config failed with HTTP ${res.status}`);
+          const payload = await res.json().catch(() => null);
+          const message =
+            typeof payload === 'object' &&
+            payload !== null &&
+            typeof (payload as { error?: unknown }).error === 'string'
+              ? (payload as { error: string }).error
+              : `Agent config failed with HTTP ${res.status}`;
+          throw new Error(message);
         }
         return res.json() as Promise<AgentMandateConfig>;
       })
       .then((nextConfig) => {
         if (cancelled) return;
         setConfig(nextConfig);
+        setConfigError(null);
         setState((current) => ({
           ...current,
           templateId: nextConfig.templates[0]?.id ?? current.templateId,
@@ -110,7 +137,7 @@ export function MandateCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [initialConfig]);
+  }, [authenticated, getAccessToken, identityToken, initialConfig, ready]);
 
   const build = useMemo(() => buildCreateMandatePayload(state, effectiveConfig), [effectiveConfig, state]);
   const proposal = useMemo<ProposalPayload | null>(() => {
@@ -340,7 +367,7 @@ export function MandateCreateForm({
                 inputMode="numeric"
               />
               <ReadOnlyValue
-                label="Configured target address"
+                label="Earn account target"
                 value={effectiveConfig.templates.find((t) => t.id === state.templateId)?.targetAddress ?? 'Not configured'}
               />
             </div>

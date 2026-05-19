@@ -13,7 +13,7 @@
 import 'dotenv/config';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { fromBase64, normalizeSuiAddress, toBase64 } from '@mysten/sui/utils';
 
 import { AGENT_ACTION, getEventType, getLevoAgentPackageId } from '../lib/agent/package';
 import { getAgentSuiClient } from '../lib/agent/sui-client';
@@ -28,7 +28,7 @@ import { decryptWitnessForAction } from '../lib/agent/seal-client';
 import { bytesToHex, hexToBytes } from '../lib/agent/witness';
 
 const ONE_DAY_MS = 86_400_000n;
-const DUMMY_TARGET = '0x000000000000000000000000000000000000000000000000000000000000be11';
+const E2E_TARGET = getRequiredE2ETargetAddress();
 const TEST_COIN_TYPE = '0x2::sui::SUI'; // any TypeName works — mandate is audit-only per N-1.
 
 async function main() {
@@ -72,7 +72,7 @@ async function main() {
         },
       ],
       periodMs: ONE_DAY_MS,
-      allowedTargets: [DUMMY_TARGET],
+      allowedTargets: [E2E_TARGET],
       expiryMs,
     },
     packageId,
@@ -100,7 +100,7 @@ async function main() {
       {
         actionType: AGENT_ACTION.EARN_DEPOSIT,
         coinType: TEST_COIN_TYPE,
-        target: DUMMY_TARGET,
+        target: E2E_TARGET,
         amount: 100n,
       },
     ],
@@ -136,7 +136,7 @@ async function main() {
     mandateId: mandateObjectId,
     coinType: TEST_COIN_TYPE,
     actionType: AGENT_ACTION.EARN_DEPOSIT,
-    target: DUMMY_TARGET,
+    target: E2E_TARGET,
     amount: 100n,
     nextCommit: step.nextCommit,
   });
@@ -168,7 +168,7 @@ async function main() {
     mandateId: mandateObjectId,
     coinType: TEST_COIN_TYPE,
     actionType: AGENT_ACTION.EARN_DEPOSIT,
-    target: DUMMY_TARGET,
+    target: E2E_TARGET,
     amount: 100n,
     approvalIdentity: step.approvalIdentity,
     nextCommit: step.nextCommit,
@@ -184,7 +184,7 @@ async function main() {
       mandateId: mandateObjectId,
       coinType: TEST_COIN_TYPE,
       action: AGENT_ACTION.EARN_DEPOSIT,
-      target: DUMMY_TARGET,
+      target: E2E_TARGET,
       amount: 100n,
       witness: witnessPreimage,
       nextCommit: step.nextCommit,
@@ -277,6 +277,16 @@ function extractMandateObjectId(
   ) as { objectId?: string } | undefined;
   if (mandate?.objectId) return mandate.objectId;
   throw new Error('mandate object id not found in tx response');
+}
+
+function getRequiredE2ETargetAddress(): string {
+  const target = process.env.LEVO_AGENT_E2E_TARGET_ADDRESS?.trim();
+  if (!target) {
+    throw new Error(
+      'LEVO_AGENT_E2E_TARGET_ADDRESS must be set to a real StableLayer Earn account target before running agent-e2e.ts',
+    );
+  }
+  return normalizeSuiAddress(target);
 }
 
 // Silence "unused var" if a dev tweaks the script and stops using fromBase64.

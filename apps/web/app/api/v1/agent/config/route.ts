@@ -1,10 +1,16 @@
 import { NextRequest } from 'next/server';
-import { getAgentMandateConfig } from '@/lib/agent/config';
+import {
+  getAgentMandateConfig,
+  getDisabledAgentMandateConfig,
+  resolveEarnRetainedAccountTarget,
+} from '@/lib/agent/config';
+import { loadOwnerWallet } from '@/lib/agent/mandate-flow';
 import {
   getClientIp,
   noStoreJson,
   verifySameOrigin,
 } from '@/lib/api';
+import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
@@ -19,5 +25,29 @@ export async function GET(req: NextRequest) {
     return sameOrigin.response;
   }
 
-  return noStoreJson(getAgentMandateConfig());
+  const auth = await verifyPrivyXAuth(req);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  let owner;
+  try {
+    owner = await loadOwnerWallet(auth.identity.xUserId);
+  } catch (error) {
+    return noStoreJson(
+      getDisabledAgentMandateConfig(
+        error instanceof Error ? error.message : 'Wallet is not set up for this session.',
+      ),
+    );
+  }
+
+  const target = await resolveEarnRetainedAccountTarget({
+    xUserId: auth.identity.xUserId,
+    senderAddress: owner.suiAddress,
+  });
+  if (!target.ok) {
+    return noStoreJson(getDisabledAgentMandateConfig(target.error));
+  }
+
+  return noStoreJson(getAgentMandateConfig(target.targetAddress));
 }

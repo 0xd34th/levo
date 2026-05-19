@@ -466,6 +466,40 @@ export function findEarnRetainedAccountId(accounts: BucketUserAccount[]): string
   return retainedAccount ? normalizeSuiAddress(retainedAccount.id.id) : null;
 }
 
+export async function discoverEarnRetainedAccountId(params: {
+  xUserId: string;
+  senderAddress: string;
+}): Promise<string | null> {
+  const accounting = await prisma.earnAccounting.findUnique({
+    where: { xUserId: params.xUserId },
+    select: { retainedAccountId: true },
+  });
+
+  const stableLayerClient = await getStableLayerClient(params.senderAddress);
+  const internals = stableLayerClient as unknown as StableLayerEarnInternals;
+  if (typeof internals.bucketClient?.getUserAccounts !== 'function') {
+    throw new Error(
+      'stable-layer-sdk internals changed; Earn retained account resolution is unavailable',
+    );
+  }
+
+  const accounts = await internals.bucketClient.getUserAccounts({
+    address: params.senderAddress,
+  });
+  const normalizedStoredAccountId = accounting?.retainedAccountId
+    ? normalizeSuiAddress(accounting.retainedAccountId)
+    : null;
+
+  if (
+    normalizedStoredAccountId &&
+    accounts.some((account) => normalizeSuiAddress(account.id.id) === normalizedStoredAccountId)
+  ) {
+    return normalizedStoredAccountId;
+  }
+
+  return findEarnRetainedAccountId(accounts);
+}
+
 export function extractCreatedEarnRetainedAccountId(
   objectChanges: unknown[] | null | undefined,
   frameworkPackageId: string,

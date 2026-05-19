@@ -5,12 +5,14 @@ const {
   createMandateMock,
   loadOwnerWalletMock,
   rateLimitMock,
+  resolveEarnRetainedAccountTargetMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   createMandateMock: vi.fn(),
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
+  resolveEarnRetainedAccountTargetMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -30,6 +32,11 @@ vi.mock('@/lib/agent/mandate-flow', () => ({
   loadOwnerWallet: loadOwnerWalletMock,
 }));
 
+vi.mock('@/lib/agent/config', () => ({
+  getPublicAgentAddress: () => process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS?.trim() ?? '',
+  resolveEarnRetainedAccountTarget: resolveEarnRetainedAccountTargetMock,
+}));
+
 vi.mock('@/lib/privy-auth', () => ({
   verifyPrivyXAuth: verifyPrivyXAuthMock,
 }));
@@ -44,6 +51,7 @@ const TARGET = '0x000000000000000000000000000000000000000000000000000000000000be
 const OTHER_TARGET = '0x000000000000000000000000000000000000000000000000000000000000bad1';
 const AGENT = '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b';
 const OTHER_AGENT = '0x000000000000000000000000000000000000000000000000000000000000dead';
+const OWNER_ADDRESS = '0x0000000000000000000000000000000000000000000000000000000000000123';
 
 function makeBody(overrides: {
   target?: string;
@@ -86,7 +94,6 @@ function makeBody(overrides: {
 describe('POST /api/v1/agent/mandate/create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.LEVO_AGENT_EARN_TARGET_ADDRESS = TARGET;
     process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS = AGENT;
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
@@ -99,7 +106,11 @@ describe('POST /api/v1/agent/mandate/create', () => {
         profilePictureUrl: null,
       },
     });
-    loadOwnerWalletMock.mockResolvedValue({ xUserId: '12345', suiAddress: '0xowner' });
+    loadOwnerWalletMock.mockResolvedValue({ xUserId: '12345', suiAddress: OWNER_ADDRESS });
+    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+      ok: true,
+      targetAddress: TARGET,
+    });
     createMandateMock.mockResolvedValue({
       status: 'authorization_required',
       authorizationRequest: { version: 1 },
@@ -107,7 +118,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
     });
   });
 
-  it('accepts the configured StableLayer Earn target', async () => {
+  it('accepts the wallet StableLayer Earn account target', async () => {
     const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
@@ -118,6 +129,10 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     expect(res.status).toBe(200);
     expect(loadOwnerWalletMock).toHaveBeenCalledWith('12345');
+    expect(resolveEarnRetainedAccountTargetMock).toHaveBeenCalledWith({
+      xUserId: '12345',
+      senderAddress: OWNER_ADDRESS,
+    });
     expect(createMandateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         metadataName: 'Earn harvest - StableLayer Earn',
@@ -136,13 +151,17 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: 'Mandate target is not an enabled StableLayer Earn target',
+      error: "Mandate target is not this wallet's StableLayer Earn account target",
     });
     expect(createMandateMock).not.toHaveBeenCalled();
   });
 
-  it('rejects creation when no Earn target is configured', async () => {
-    delete process.env.LEVO_AGENT_EARN_TARGET_ADDRESS;
+  it('rejects creation when no Earn account target is found for the wallet', async () => {
+    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+      ok: false,
+      status: 404,
+      error: 'No StableLayer Earn account target found for this wallet.',
+    });
     const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
@@ -151,9 +170,9 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     const res = await POST(req);
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({
-      error: 'LEVO_AGENT_EARN_TARGET_ADDRESS is not configured',
+      error: 'No StableLayer Earn account target found for this wallet.',
     });
     expect(createMandateMock).not.toHaveBeenCalled();
   });

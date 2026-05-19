@@ -21,7 +21,7 @@ interface Proposal {
 export function AgentComposerWorkbench({
   initialConfig,
 }: {
-  initialConfig: AgentMandateConfig;
+  initialConfig?: AgentMandateConfig;
 }) {
   const searchParams = useSearchParams();
   const intent = searchParams.get('intent');
@@ -57,8 +57,9 @@ export function AgentComposerWorkbench({
   );
 }
 
-function initialProposal(config: AgentMandateConfig, intent: string | null): Proposal | null {
+function initialProposal(config: AgentMandateConfig | undefined, intent: string | null): Proposal | null {
   if (!intent?.trim()) return null;
+  if (!config) return null;
   const state = createInitialAgentMandateDraftState(intent, config.templates[0]);
   const build = buildCreateMandatePayload(state, config);
   if (build.payload) return build.payload;

@@ -127,6 +127,7 @@ export function buildCreateMandatePayload(
   const errors: string[] = [];
   const template = config.templates.find((t) => t.id === state.templateId);
   if (config.error) errors.push(config.error);
+  if (!config.agentAddress) errors.push('Levo agent address is not configured.');
   if (!template) errors.push('StableLayer Earn target is not configured.');
 
   const amount = parseDisplayAmountToBaseUnitsWithOverride(

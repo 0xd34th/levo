@@ -12,9 +12,8 @@ import {
   loadOwnerWallet,
 } from '@/lib/agent/mandate-flow';
 import {
-  getConfiguredEarnTargetAddress,
   getPublicAgentAddress,
-  isConfiguredEarnTargetAddress,
+  resolveEarnRetainedAccountTarget,
 } from '@/lib/agent/config';
 import { MandateSpecSchema } from '@/lib/agent/mandate-spec';
 import type { MandateSpec } from '@/lib/agent/types';
@@ -73,26 +72,45 @@ export async function POST(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  const configuredTarget = getConfiguredEarnTargetAddress();
-  if (!configuredTarget) {
+  let owner;
+  try {
+    owner = await loadOwnerWallet(auth.identity.xUserId);
+  } catch (error) {
     return noStoreJson(
-      { error: 'LEVO_AGENT_EARN_TARGET_ADDRESS is not configured' },
-      { status: 503 },
-    );
-  }
-
-  const allTargets = [
-    ...parsed.data.spec.allowedTargets,
-    ...parsed.data.plan.map((step) => step.target),
-  ];
-  if (!allTargets.every(isConfiguredEarnTargetAddress)) {
-    return noStoreJson(
-      { error: 'Mandate target is not an enabled StableLayer Earn target' },
+      { error: error instanceof Error ? error.message : 'Wallet is not set up for this session.' },
       { status: 400 },
     );
   }
 
-  if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(getPublicAgentAddress())) {
+  const resolvedTarget = await resolveEarnRetainedAccountTarget({
+    xUserId: auth.identity.xUserId,
+    senderAddress: owner.suiAddress,
+  });
+  if (!resolvedTarget.ok) {
+    return noStoreJson({ error: resolvedTarget.error }, { status: resolvedTarget.status });
+  }
+
+  const targetAddress = resolvedTarget.targetAddress;
+  const allTargets = [
+    ...parsed.data.spec.allowedTargets,
+    ...parsed.data.plan.map((step) => step.target),
+  ];
+  if (!allTargets.every((target) => normalizeSuiAddress(target) === targetAddress)) {
+    return noStoreJson(
+      { error: "Mandate target is not this wallet's StableLayer Earn account target" },
+      { status: 400 },
+    );
+  }
+
+  const agentAddress = getPublicAgentAddress();
+  if (!agentAddress) {
+    return noStoreJson(
+      { error: 'Levo agent address is not configured' },
+      { status: 503 },
+    );
+  }
+
+  if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(agentAddress)) {
     return noStoreJson(
       { error: 'Mandate agent is not the configured Levo agent' },
       { status: 400 },
@@ -108,7 +126,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const owner = await loadOwnerWallet(auth.identity.xUserId);
     const result = await createMandate({
       owner,
       spec: parsed.data.spec,

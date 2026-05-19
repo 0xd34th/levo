@@ -1,8 +1,6 @@
 import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { discoverEarnRetainedAccountId } from '@/lib/stable-layer-earn';
 import { getAgentAddress, isAgentSignerConfigured } from './kms';
-
-export const FALLBACK_TESTNET_AGENT_ADDRESS =
-  '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b';
 
 export interface AgentMandateTemplate {
   id: 'stablelayer-earn';
@@ -17,23 +15,34 @@ export interface AgentMandateConfig {
   error?: string;
 }
 
+export type ResolveEarnRetainedAccountTargetResult =
+  | { ok: true; targetAddress: string }
+  | { ok: false; error: string; status: number };
+
 export function getPublicAgentAddress(): string {
   const explicit = process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS?.trim();
-  if (explicit) return explicit;
+  if (explicit) return normalizeSuiAddress(explicit);
   if (isAgentSignerConfigured()) return getAgentAddress();
-  return FALLBACK_TESTNET_AGENT_ADDRESS;
+  return '';
 }
 
-export function getAgentMandateConfig(): AgentMandateConfig {
-  const target = process.env.LEVO_AGENT_EARN_TARGET_ADDRESS?.trim();
+export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig {
   const agentAddress = getPublicAgentAddress();
 
-  if (!target) {
+  return {
+    agentAddress,
+    templates: [],
+    error,
+  };
+}
+
+export function getAgentMandateConfig(targetAddress: string): AgentMandateConfig {
+  const agentAddress = getPublicAgentAddress();
+  if (!agentAddress) {
     return {
       agentAddress,
       templates: [],
-      error:
-        'LEVO_AGENT_EARN_TARGET_ADDRESS is not configured. StableLayer Earn mandates are disabled.',
+      error: 'Levo agent address is not configured.',
     };
   }
 
@@ -43,24 +52,57 @@ export function getAgentMandateConfig(): AgentMandateConfig {
       {
         id: 'stablelayer-earn',
         label: 'StableLayer Earn',
-        description: 'Deposit, withdraw, or harvest yield for the configured Earn target.',
-        targetAddress: normalizeSuiAddress(target),
+        description: 'Deposit, withdraw, or harvest yield for your Earn account target.',
+        targetAddress: normalizeSuiAddress(targetAddress),
       },
     ],
   };
 }
 
-export function getConfiguredEarnTargetAddress(): string | null {
-  const target = process.env.LEVO_AGENT_EARN_TARGET_ADDRESS?.trim();
-  return target ? normalizeSuiAddress(target) : null;
-}
-
-export function isConfiguredEarnTargetAddress(target: string): boolean {
-  const configured = getConfiguredEarnTargetAddress();
-  if (!configured) return false;
+export async function resolveEarnRetainedAccountTarget(params: {
+  xUserId: string;
+  senderAddress: string;
+}): Promise<ResolveEarnRetainedAccountTargetResult> {
+  let normalizedSenderAddress: string;
   try {
-    return normalizeSuiAddress(target) === configured;
+    normalizedSenderAddress = normalizeSuiAddress(params.senderAddress);
   } catch {
-    return false;
+    return {
+      ok: false,
+      status: 400,
+      error: 'Wallet binding has an invalid Sui address.',
+    };
+  }
+
+  try {
+    const targetAddress = await discoverEarnRetainedAccountId({
+      xUserId: params.xUserId,
+      senderAddress: normalizedSenderAddress,
+    });
+
+    if (!targetAddress) {
+      return {
+        ok: false,
+        status: 404,
+        error:
+          'No StableLayer Earn account target found for this wallet. Open Earn and create a retained account before creating a mandate.',
+      };
+    }
+
+    return {
+      ok: true,
+      targetAddress,
+    };
+  } catch (error) {
+    console.warn('Failed to resolve StableLayer Earn account target', {
+      xUserId: params.xUserId,
+      senderAddress: normalizedSenderAddress,
+      error,
+    });
+    return {
+      ok: false,
+      status: 503,
+      error: 'StableLayer Earn account lookup is temporarily unavailable.',
+    };
   }
 }

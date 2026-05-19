@@ -93,19 +93,19 @@ describe('mandate draft builder', () => {
     expect(result.errors).toContain('Per-run cap must be less than or equal to the period cap.');
   });
 
-  it('disables payload generation when the configured target is missing', () => {
+  it('disables payload generation when the wallet Earn account target is missing', () => {
     const state = createInitialAgentMandateDraftState(null);
     const result = buildCreateMandatePayload(
       state,
       {
         agentAddress: CONFIG.agentAddress,
         templates: [],
-        error: 'LEVO_AGENT_EARN_TARGET_ADDRESS is not configured.',
+        error: 'No StableLayer Earn account target found for this wallet.',
       },
       NOW,
     );
 
     expect(result.payload).toBeNull();
-    expect(result.errors[0]).toBe('LEVO_AGENT_EARN_TARGET_ADDRESS is not configured.');
+    expect(result.errors[0]).toBe('No StableLayer Earn account target found for this wallet.');
   });
 });
