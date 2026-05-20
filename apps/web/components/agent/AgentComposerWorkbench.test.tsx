@@ -49,6 +49,9 @@ describe('Agent mandate creation UI', () => {
     const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
 
     expect(markup).toContain('What should the agent do?');
+    expect(markup).toContain('Auto-harvest yield');
+    expect(markup).toContain('Deposit into Earn');
+    expect(markup).toContain('Withdraw from Earn');
     expect(markup).toContain('Mandate preview');
     expect(markup).not.toContain('Action');
     expect(markup).not.toContain('Cadence');

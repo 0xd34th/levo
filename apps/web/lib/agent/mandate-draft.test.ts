@@ -24,6 +24,17 @@ const CONFIG: AgentMandateConfig = {
 };
 
 describe('mandate draft builder', () => {
+  it.each([
+    ['Deposit into Earn preset', 'deposit into Earn manually with conservative caps', 'deposit', 'manual'],
+    ['Withdraw from Earn preset', 'withdraw from Earn manually with conservative caps', 'withdraw', 'manual'],
+    ['Auto-harvest yield preset', 'auto-harvest claimable yield daily with conservative caps', 'harvest', 'daily'],
+  ] as const)('infers %s intent as %s + %s', (_name, intent, action, cadence) => {
+    const state = createInitialAgentMandateDraftState(intent, CONFIG.templates[0]);
+
+    expect(state.action).toBe(action);
+    expect(state.cadence).toBe(cadence);
+  });
+
   it('prefills intent and builds a daily harvest payload with default caps and expiry', () => {
     const state = createInitialAgentMandateDraftState(
       'auto-harvest claimable yield daily with conservative caps',

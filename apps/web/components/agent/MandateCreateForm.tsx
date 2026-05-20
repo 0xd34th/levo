@@ -61,6 +61,21 @@ const CADENCES: Array<{ value: AgentMandateCadence; label: string }> = [
 
 const EXPIRIES: Array<AgentMandateDraftState['expiryDays']> = ['30', '90', '365'];
 
+const EARN_INTENT_PRESETS: Array<{ label: string; intent: string }> = [
+  {
+    label: 'Auto-harvest yield',
+    intent: 'auto-harvest claimable yield daily with conservative caps',
+  },
+  {
+    label: 'Deposit into Earn',
+    intent: 'deposit into Earn manually with conservative caps',
+  },
+  {
+    label: 'Withdraw from Earn',
+    intent: 'withdraw from Earn manually with conservative caps',
+  },
+];
+
 const FALLBACK_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   templates: [],
@@ -158,13 +173,18 @@ export function MandateCreateForm({
 
   const disabled = Boolean(effectiveConfig.error || configError);
 
-  const submitIntent = (e: FormEvent) => {
-    e.preventDefault();
-    const nextIntent = intentInput.trim();
+  const commitIntent = (intent: string) => {
+    const nextIntent = intent.trim();
     if (!nextIntent) return;
+    setIntentInput(nextIntent);
     setActiveIntent(nextIntent);
     setState(createInitialAgentMandateDraftState(nextIntent, effectiveConfig.templates[0]));
     setAdvancedOpen(false);
+  };
+
+  const submitIntent = (e: FormEvent) => {
+    e.preventDefault();
+    commitIntent(intentInput);
   };
 
   if (!activeIntent) {
@@ -178,6 +198,18 @@ export function MandateCreateForm({
           <p className="mt-2 text-[13px] leading-[1.45]" style={{ color: 'var(--text-soft)' }}>
             Describe the Earn task in your own words. The next screen will show only the choices needed for that request.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {EARN_INTENT_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => commitIntent(preset.intent)}
+                className="rounded-[999px] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-background"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <div className="mt-4 flex gap-2">
             <Input
               value={intentInput}
