@@ -25,7 +25,7 @@ import {
 } from '../lib/agent/tx';
 import { generateChainSteps } from '../lib/agent/chain';
 import { decryptWitnessForAction } from '../lib/agent/seal-client';
-import { bytesToHex, hexToBytes } from '../lib/agent/witness';
+import { bytesToHex } from '../lib/agent/witness';
 
 const ONE_DAY_MS = 86_400_000n;
 const E2E_TARGET = getRequiredE2ETargetAddress();

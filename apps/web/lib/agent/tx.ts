@@ -8,7 +8,6 @@ import {
   AGENT_ACTION,
   LEVO_AGENT_MODULES,
   getLevoAgentPackageId,
-  toMoveTypeName,
 } from './package';
 import type { MandateSpec } from './types';
 

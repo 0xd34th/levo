@@ -15,7 +15,8 @@
     "gas-station:merge": "tsx scripts/gas-station-maintenance.ts merge",
     "worker:agent": "tsx workers/agent-scheduler.ts",
     "agent:e2e": "tsx scripts/agent-e2e.ts",
-    "agent:flow-e2e": "tsx scripts/agent-flow-e2e.ts"
+    "agent:flow-e2e": "tsx scripts/agent-flow-e2e.ts",
+    "agent:live-dry-run": "tsx scripts/agent-live-dry-run.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "1.0.39",

@@ -82,6 +82,12 @@ const FALLBACK_CONFIG: AgentMandateConfig = {
   error: 'Loading agent configuration...',
 };
 
+const SIGN_IN_REQUIRED_CONFIG: AgentMandateConfig = {
+  agentAddress: '',
+  templates: [],
+  error: 'Sign in with X to load your Earn account target.',
+};
+
 export function MandateCreateForm({
   onCancel,
   onCreated,
@@ -99,18 +105,13 @@ export function MandateCreateForm({
   );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
-  const effectiveConfig = initialConfig ?? config;
+  const effectiveConfig = initialConfig ?? (ready && !authenticated ? SIGN_IN_REQUIRED_CONFIG : config);
+  const activeConfigError = authenticated ? configError : null;
 
   useEffect(() => {
     if (initialConfig) return;
     if (!ready) return;
     if (!authenticated) {
-      setConfig({
-        agentAddress: '',
-        templates: [],
-        error: 'Sign in with X to load your Earn account target.',
-      });
-      setConfigError(null);
       return;
     }
 
@@ -171,7 +172,7 @@ export function MandateCreateForm({
     value: AgentMandateDraftState[K],
   ) => setState((s) => ({ ...s, [key]: value }));
 
-  const disabled = Boolean(effectiveConfig.error || configError);
+  const disabled = Boolean(effectiveConfig.error || activeConfigError);
 
   const commitIntent = (intent: string) => {
     const nextIntent = intent.trim();
@@ -223,12 +224,12 @@ export function MandateCreateForm({
             </Button>
           </div>
         </section>
-        {(effectiveConfig.error || configError) && (
+        {(effectiveConfig.error || activeConfigError) && (
           <p
             className="rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]"
             style={{ color: 'var(--down)' }}
           >
-            {effectiveConfig.error ?? configError}
+            {effectiveConfig.error ?? activeConfigError}
           </p>
         )}
       </form>
@@ -407,12 +408,12 @@ export function MandateCreateForm({
         )}
       </section>
 
-      {(effectiveConfig.error || configError || build.errors.length > 0) && (
+      {(effectiveConfig.error || activeConfigError || build.errors.length > 0) && (
         <p
           className="rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]"
           style={{ color: 'var(--down)' }}
         >
-          {effectiveConfig.error ?? configError ?? build.errors[0]}
+          {effectiveConfig.error ?? activeConfigError ?? build.errors[0]}
         </p>
       )}
 
