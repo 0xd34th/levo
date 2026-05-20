@@ -42,6 +42,15 @@ const CONFIG: AgentMandateConfig = {
   ],
 };
 
+const NO_AGENT_CONFIG: AgentMandateConfig = {
+  agentAddress: '',
+  userAgentId: null,
+  agentLabel: null,
+  executionMode: 'external_runner',
+  templates: [],
+  error: 'No active external agent is configured. Bind an agent before creating mandates.',
+};
+
 import { AgentWorkspace } from './AgentDashboard';
 import { AgentComposerWorkbench } from './AgentComposerWorkbench';
 import { MandateCard } from './MandateCard';
@@ -61,6 +70,14 @@ describe('Agent mandate creation UI', () => {
     expect(markup).not.toContain('Expiry');
     expect(markup).not.toContain('Ask about existing mandates');
     expect(markup).not.toContain('Ask me to manage your yield');
+  });
+
+  it('/agent/new shows a bind agent action when no external runner is configured', () => {
+    searchParams = '';
+    const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={NO_AGENT_CONFIG} />);
+
+    expect(markup).toContain('No active external agent is configured. Bind an agent before creating mandates.');
+    expect(markup).toContain('Bind agent');
   });
 
   it('/agent/new with intent renders contextual options and preview', () => {

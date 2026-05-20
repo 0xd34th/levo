@@ -25,7 +25,11 @@ interface ChallengeState {
   expiresAt: string;
 }
 
-export function AgentSettings() {
+interface AgentSettingsProps {
+  onAgentsChanged?: () => void;
+}
+
+export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
   const [agents, setAgents] = useState<UserAgentRow[]>([]);
@@ -93,6 +97,7 @@ export function AgentSettings() {
       setChallenge(null);
       setSignature('');
       await reload();
+      onAgentsChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to register agent');
     } finally {
@@ -108,6 +113,7 @@ export function AgentSettings() {
       const data = (await readJson(res)) as { runnerToken: string };
       setRunnerToken(data.runnerToken);
       await reload();
+      onAgentsChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rotate token');
     } finally {
@@ -123,6 +129,7 @@ export function AgentSettings() {
       const res = await authedFetch(`/api/v1/agent/user-agents/${id}/revoke`, { method: 'POST' });
       await readJson(res);
       await reload();
+      onAgentsChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to revoke agent');
     } finally {

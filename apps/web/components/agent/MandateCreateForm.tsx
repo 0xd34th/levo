@@ -44,6 +44,8 @@ interface MandateCreateFormProps {
   initialIntent?: string | null;
   initialConfig?: AgentMandateConfig;
   onDraftChange?: (proposal: ProposalPayload | null) => void;
+  onOpenAgentSettings?: () => void;
+  configReloadSignal?: number;
 }
 
 const ACTIONS: Array<{ value: AgentMandateAction; label: string }> = [
@@ -100,6 +102,8 @@ export function MandateCreateForm({
   initialIntent,
   initialConfig,
   onDraftChange,
+  onOpenAgentSettings,
+  configReloadSignal = 0,
 }: MandateCreateFormProps) {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
@@ -159,7 +163,7 @@ export function MandateCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [authenticated, getAccessToken, identityToken, initialConfig, ready]);
+  }, [authenticated, configReloadSignal, getAccessToken, identityToken, initialConfig, ready]);
 
   const build = useMemo(() => buildCreateMandatePayload(state, effectiveConfig), [effectiveConfig, state]);
   const proposal = useMemo<ProposalPayload | null>(() => {
@@ -231,12 +235,10 @@ export function MandateCreateForm({
           </div>
         </section>
         {(effectiveConfig.error || activeConfigError) && (
-          <p
-            className="rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]"
-            style={{ color: 'var(--down)' }}
-          >
-            {effectiveConfig.error ?? activeConfigError}
-          </p>
+          <AgentConfigNotice
+            message={effectiveConfig.error ?? activeConfigError ?? ''}
+            onOpenAgentSettings={onOpenAgentSettings}
+          />
         )}
       </form>
     );
@@ -418,12 +420,10 @@ export function MandateCreateForm({
       </section>
 
       {(effectiveConfig.error || activeConfigError || build.errors.length > 0) && (
-        <p
-          className="rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]"
-          style={{ color: 'var(--down)' }}
-        >
-          {effectiveConfig.error ?? activeConfigError ?? build.errors[0]}
-        </p>
+        <AgentConfigNotice
+          message={effectiveConfig.error ?? activeConfigError ?? build.errors[0]}
+          onOpenAgentSettings={onOpenAgentSettings}
+        />
       )}
 
       <div className="flex items-center justify-between gap-2">
@@ -459,6 +459,36 @@ export function MandateCreateForm({
 
 function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function AgentConfigNotice({
+  message,
+  onOpenAgentSettings,
+}: {
+  message: string;
+  onOpenAgentSettings?: () => void;
+}) {
+  const shouldOfferAgentSettings = message.includes('No active external agent');
+
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)] sm:flex-row sm:items-center sm:justify-between"
+      style={{ color: 'var(--down)' }}
+    >
+      <p>{message}</p>
+      {shouldOfferAgentSettings && onOpenAgentSettings && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="self-start whitespace-nowrap sm:self-auto"
+          onClick={onOpenAgentSettings}
+        >
+          Bind agent
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function SegmentedGroup<T extends string>({

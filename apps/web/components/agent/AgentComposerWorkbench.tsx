@@ -8,6 +8,7 @@ import {
   buildCreateMandatePayload,
   createInitialAgentMandateDraftState,
 } from '@/lib/agent/mandate-draft';
+import { AgentSettings } from './AgentSettings';
 import { MandateCreateForm } from './MandateCreateForm';
 import { MandateDraftPreview } from './MandateDraftPreview';
 
@@ -28,6 +29,8 @@ export function AgentComposerWorkbench({
   const [proposal, setProposal] = useState<Proposal | null>(() =>
     initialProposal(initialConfig, intent),
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [configReloadSignal, setConfigReloadSignal] = useState(0);
 
   const helperText = useMemo(() => {
     if (!intent) return 'Describe the Earn task first. Options appear only after there is a request to shape.';
@@ -49,10 +52,37 @@ export function AgentComposerWorkbench({
             initialConfig={initialConfig}
             onDraftChange={setProposal}
             onCreated={() => {}}
+            onOpenAgentSettings={() => setSettingsOpen(true)}
+            configReloadSignal={configReloadSignal}
           />
         </div>
       </section>
-      <MandateDraftPreview proposal={proposal} />
+      {settingsOpen ? (
+        <aside className="min-h-[620px] rounded-[16px] bg-[color:var(--surface)] p-4">
+          <div className="mb-4 flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
+            <div>
+              <h2 className="text-[18px] font-semibold">Agent settings</h2>
+              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+                Bind an external runner before creating mandates.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(false)}
+              className="rounded-full border border-[color:var(--border)] px-3 py-1 text-[12px] font-medium transition hover:border-[color:var(--border-strong)]"
+            >
+              Preview
+            </button>
+          </div>
+          <AgentSettings
+            onAgentsChanged={() => {
+              setConfigReloadSignal((value) => value + 1);
+            }}
+          />
+        </aside>
+      ) : (
+        <MandateDraftPreview proposal={proposal} />
+      )}
     </div>
   );
 }
