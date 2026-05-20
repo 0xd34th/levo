@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { parseXUserId, resolveXUser, TwitterApiError } from './twitter';
+import { parseXUserId, resolveXUser } from './twitter';
 
 // Mock global fetch
 const mockFetch = vi.fn();

@@ -3,10 +3,17 @@
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "generate:test-vectors": "tsx packages/contracts/scripts/generate-test-vectors.ts"
+    "publish:levo-usd:mainnet": "tsx packages/levo-usd/scripts/publish-mainnet.ts",
+    "onboard:levo-usd:mainnet": "tsx packages/levo-usd/scripts/onboard-mainnet.ts",
+    "add-entity:levo-usd:mainnet": "tsx packages/levo-usd/scripts/add-entity-mainnet.ts"
+  },
+  "pnpm": {
+    "overrides": {
+      "@hono/node-server": "1.19.13",
+      "ws": "8.20.1"
+    }
   },
   "devDependencies": {
-    "@noble/curves": "^2.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

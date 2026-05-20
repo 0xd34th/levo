@@ -2,27 +2,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const {
+  acquireRedisLockMock,
   countMock,
   createMock,
-  deriveVaultAddressMock,
   findUniqueMock,
+  getPrivyClientMock,
   rateLimitMock,
+  ensureRecipientWalletMock,
   resolveFreshXUserMock,
   signQuoteTokenMock,
   updateManyMock,
-  upsertMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
+  acquireRedisLockMock: vi.fn(),
   countMock: vi.fn(),
   createMock: vi.fn(),
-  deriveVaultAddressMock: vi.fn(),
   findUniqueMock: vi.fn(),
+  getPrivyClientMock: vi.fn(),
   rateLimitMock: vi.fn(),
+  ensureRecipientWalletMock: vi.fn(),
   resolveFreshXUserMock: vi.fn(),
   signQuoteTokenMock: vi.fn(),
   updateManyMock: vi.fn(),
-  upsertMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -45,10 +47,6 @@ vi.mock('@/lib/api', async () => {
   };
 });
 
-vi.mock('@/lib/sui', () => ({
-  deriveVaultAddress: deriveVaultAddressMock,
-}));
-
 vi.mock('@/lib/hmac', () => ({
   signQuoteToken: signQuoteTokenMock,
 }));
@@ -62,7 +60,6 @@ vi.mock('@/lib/prisma', () => ({
     },
     xUser: {
       findUnique: findUniqueMock,
-      upsert: upsertMock,
     },
   },
 }));
@@ -71,8 +68,17 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimit: rateLimitMock,
 }));
 
+vi.mock('@/lib/redis-lock', () => ({
+  acquireRedisLock: acquireRedisLockMock,
+}));
+
 vi.mock('@/lib/privy-auth', () => ({
+  getPrivyClient: getPrivyClientMock,
   verifyPrivyXAuth: verifyPrivyXAuthMock,
+}));
+
+vi.mock('@/lib/recipient-wallet', () => ({
+  ensureRecipientWallet: ensureRecipientWalletMock,
 }));
 
 vi.mock('@/lib/x-user-lookup', () => ({
@@ -92,18 +98,22 @@ describe('POST /api/v1/payments/quote', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    findUniqueMock.mockReset();
     vi.stubEnv('TWITTER_API_KEY', 'test-api-key');
-    vi.stubEnv('NEXT_PUBLIC_VAULT_REGISTRY_ID', 'test-registry-id');
     vi.stubEnv('HMAC_SECRET', 'x'.repeat(32));
 
     rateLimitMock.mockResolvedValue({ allowed: true });
+    acquireRedisLockMock.mockResolvedValue({
+      status: 'acquired',
+      release: vi.fn().mockResolvedValue(undefined),
+    });
+    getPrivyClientMock.mockReturnValue({});
     verifySameOriginMock.mockReturnValue({ ok: true });
     updateManyMock.mockResolvedValue({ count: 0 });
     countMock.mockResolvedValue(0);
     findUniqueMock.mockResolvedValue({
       privyUserId: 'privy-user',
       suiAddress: `0x${'0'.repeat(63)}2`,
-      accountStatus: null,
     });
     resolveFreshXUserMock.mockResolvedValue({
       xUserId: '12345',
@@ -120,9 +130,17 @@ describe('POST /api/v1/payments/quote', () => {
         profilePictureUrl: null,
       },
     });
-    deriveVaultAddressMock.mockReturnValue('0xvault');
+    ensureRecipientWalletMock.mockResolvedValue({
+      xUserId: '12345',
+      username: 'alice',
+      profilePicture: 'https://pbs.twimg.com/profile_images/avatar.jpg',
+      isBlueVerified: false,
+      privyUserId: 'recipient-privy-user',
+      privyWalletId: 'recipient-wallet-id',
+      suiAddress: `0x${'0'.repeat(63)}4`,
+      suiPublicKey: 'recipient-public-key',
+    });
     signQuoteTokenMock.mockReturnValue('signed-quote-token');
-    upsertMock.mockResolvedValue({});
     createMock.mockResolvedValue({});
   });
 
@@ -201,12 +219,16 @@ describe('POST /api/v1/payments/quote', () => {
       },
     });
     expect(signQuoteTokenMock).toHaveBeenCalledWith(
-      expect.objectContaining({ senderAddress: normalizedAddress }),
+      expect.objectContaining({
+        senderAddress: normalizedAddress,
+        vaultAddress: `0x${'0'.repeat(63)}4`,
+      }),
       'x'.repeat(32),
     );
     expect(createMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
         senderAddress: normalizedAddress,
+        vaultAddress: `0x${'0'.repeat(63)}4`,
       }),
     });
   });
@@ -250,6 +272,7 @@ describe('POST /api/v1/payments/quote', () => {
   });
 
   it('rejects Privy sessions that do not own the stored embedded wallet', async () => {
+    findUniqueMock.mockReset();
     findUniqueMock.mockResolvedValueOnce({
       privyUserId: 'different-privy-user',
       suiAddress: `0x${'0'.repeat(63)}2`,
@@ -273,6 +296,42 @@ describe('POST /api/v1/payments/quote', () => {
     expect(resolveFreshXUserMock).not.toHaveBeenCalled();
     await expect(res.json()).resolves.toEqual({
       error: 'Wallet ownership could not be verified. Please set up your wallet first.',
+    });
+  });
+
+  it('returns the canonical recipient wallet address for X handle quotes', async () => {
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'alice',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(ensureRecipientWalletMock).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        xUserId: '12345',
+        username: 'alice',
+        profilePicture: 'https://pbs.twimg.com/profile_images/avatar.jpg',
+        isBlueVerified: false,
+      },
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      recipientType: 'X_HANDLE',
+      xUserId: '12345',
+      username: 'alice',
+      profilePicture: 'https://pbs.twimg.com/profile_images/avatar.jpg',
+      isBlueVerified: false,
+      recipientAddress: `0x${'0'.repeat(63)}4`,
+      quoteToken: 'signed-quote-token',
+      expiresAt: expect.any(String),
     });
   });
 

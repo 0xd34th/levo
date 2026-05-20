@@ -1,0 +1,156 @@
+import { useMemo } from 'react';
+import type { WidgetConfig } from '@lifi/widget';
+import { HiddenUI, RequiredUI, ChainId } from '@lifi/widget';
+import { ThemesMap } from 'src/const/themesMap';
+import type { MainWidgetContext, HookDependencies } from './types';
+import { useMemelist } from 'src/hooks/useMemelist';
+import { tokens } from 'src/config/tokens';
+import { generateRouteLabel } from './utils';
+import {
+  defaultMainWidgetHiddenUI,
+  themeAllowChains,
+} from '../../Widget.types';
+import { filterAllowedWidgetChainIds } from 'src/config/chains';
+
+/**
+ * Configuration hook for the main widget variant
+ */
+export function useMainWidgetConfig(
+  context: MainWidgetContext,
+  deps: HookDependencies,
+): Partial<WidgetConfig> {
+  const { tokens: memeListTokens } = useMemelist({
+    enabled: context.partnerName === ThemesMap.Memecoins,
+  });
+
+  const allowedChainsByVariant = useMemo(
+    () => (context.partnerName === ThemesMap.Memecoins ? themeAllowChains : []),
+    [context.partnerName],
+  );
+
+  return useMemo(() => {
+    const isMemecoins = context.partnerName === ThemesMap.Memecoins;
+    const isBuyVariant = context.starterVariant === 'buy';
+
+    const _tokens = (tokens ? { ...tokens } : {}) as NonNullable<
+      WidgetConfig['tokens']
+    >;
+    if (memeListTokens) {
+      const currentAllowList = _tokens?.allow ?? [];
+      const newAllowList = currentAllowList.concat(memeListTokens);
+      _tokens.allow = newAllowList;
+    }
+    const configThemeChains = deps.theme.configTheme?.chains;
+    const contextAllowFromChains = context.isConnectedAGW
+      ? [ChainId.ABS]
+      : context.allowFromChains || allowedChainsByVariant;
+
+    const config: Partial<WidgetConfig> = {
+      keyPrefix: `jumper-${context.starterVariant}`,
+      variant: 'wide',
+      buildUrl: true,
+      useRelayerRoutes: true,
+      subvariant:
+        isBuyVariant || isMemecoins || context.starterVariant === 'buy'
+          ? 'default'
+          : context.starterVariant,
+      subvariantOptions: {},
+
+      // UI configuration
+      hiddenUI: [
+        ...(deps.theme.configTheme?.hiddenUI ?? []),
+        ...defaultMainWidgetHiddenUI,
+      ],
+
+      // Theme configuration
+      theme: {
+        ...deps.theme.widgetTheme.config.theme,
+      },
+
+      // Chain configuration
+      chains: {
+        ...(configThemeChains ?? {}),
+        allow: filterAllowedWidgetChainIds(
+          context.allowChains ?? configThemeChains?.allow,
+        ),
+        from: {
+          ...(configThemeChains?.from ?? {}),
+          allow: filterAllowedWidgetChainIds(
+            contextAllowFromChains.length
+              ? contextAllowFromChains
+              : configThemeChains?.from?.allow,
+          ),
+        },
+        to: context.allowToChains
+          ? { allow: filterAllowedWidgetChainIds(context.allowToChains) }
+          : {
+              ...(configThemeChains?.to ?? {}),
+              allow: filterAllowedWidgetChainIds(configThemeChains?.to?.allow),
+            },
+      },
+
+      // Token configuration
+      tokens: _tokens,
+
+      // Bridge and exchange configuration
+      bridges: deps.theme.configTheme?.allowedBridges
+        ? { allow: deps.theme.configTheme.allowedBridges }
+        : undefined,
+      exchanges: deps.theme.configTheme?.allowedExchanges
+        ? { allow: deps.theme.configTheme?.allowedExchanges }
+        : undefined,
+
+      routeLabels: [
+        generateRouteLabel(
+          '1.5x points',
+          'hyperbloom',
+          deps.theme.muiTheme,
+          'https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/hyperbloom.svg',
+        ),
+        generateRouteLabel(
+          '1.5x points',
+          'hyperflow',
+          deps.theme.muiTheme,
+          'https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/hyperflow.svg',
+        ),
+      ],
+    };
+
+    if (
+      context.bridgeConditions?.isAGWToNonABSChain ||
+      context.bridgeConditions?.isPrivateSwapSelected
+    ) {
+      config.requiredUI = [...(config.requiredUI || []), RequiredUI.ToAddress];
+    }
+
+    if (
+      context.bridgeConditions?.isBridgeFromHypeToArbNativeUSDC ||
+      context.bridgeConditions?.isBridgeFromEvmToHype
+    ) {
+      config.hiddenUI = [...(config.hiddenUI || []), HiddenUI.ToAddress];
+    }
+
+    if (!context.isConnectedAGW) {
+      config.sdkConfig = {
+        ...config.sdkConfig,
+        routeOptions: {
+          ...config.sdkConfig?.routeOptions,
+          allowSwitchChain: true,
+        },
+      };
+    }
+
+    return config;
+  }, [
+    context.starterVariant,
+    context.partnerName,
+    context.allowChains,
+    context.allowFromChains,
+    context.allowToChains,
+    context.isConnectedAGW,
+    context.bridgeConditions,
+    deps.theme,
+    memeListTokens,
+    allowedChainsByVariant,
+  ]);
+}

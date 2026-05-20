@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const apiKey = process.env.TWITTER_API_KEY;
-  const registryId = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
-  if (!apiKey || !registryId) {
+  if (!apiKey) {
     return noStoreJson(
       { error: 'Server configuration error' },
       { status: 500 },
@@ -69,7 +68,6 @@ export async function GET(req: NextRequest) {
     const derivationVersion = await persistReceivedDashboardXUser(userInfo);
     const responseBody = await buildPublicLookupResponse(
       userInfo,
-      registryId,
       derivationVersion,
     );
 

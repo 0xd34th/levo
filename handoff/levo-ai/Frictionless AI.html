@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Levo · Frictionless AI UX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: #f0eee9; font-family: "Geist", system-ui, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="browser-window.jsx"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="levo-ui.jsx"></script>
+  <script type="text/babel" src="scenes.jsx"></script>
+  <script type="text/babel" src="scenes-web.jsx"></script>
+
+  <script type="text/babel">
+    const PHONE_W = 402;
+    const PHONE_H = 874;
+
+    // Each artboard: an iOS device frame containing a scene.
+    const SCENES = [
+      { id: 'ambient-home',    label: '01 · Ambient AI on Home',          comp: Scene_AmbientHome,
+        note: 'No floating ✨. AI surfaces a context card on Home — “your $1,242 is idle, auto-compound?” One-tap commit.' },
+      { id: 'composer',        label: '02 · NL Composer w/ chips',        comp: Scene_Composer,
+        note: 'Empty state ≠ blank box. 4 high-intent chips + mic + send. Replaces the cramped 1-line “describe a yield goal”.' },
+      { id: 'proposal',        label: '03 · Plain-English proposal',      comp: Scene_Proposal,
+        note: 'Drops every raw u64, cron string, vault address. Shows dollars + “Daily 9:00 AM”. Tweak ↔ Approve.' },
+      { id: 'nl-send',         label: '04 · Send detects recurring',      comp: Scene_NLSend,
+        note: 'NL parser highlights “@jack / 50 / every Friday” inline. One-toggle recurring rule baked into Send.' },
+      { id: 'ticker',          label: '05 · Mandates as a quiet ticker',  comp: Scene_MandatesTicker,
+        note: 'Replaces dense MandateCard. Countdown + cap progress + pause/play. Revoke is a long-press, not a primary verb.' },
+      { id: 'receipt',         label: '06 · Post-run receipt banner',     comp: Scene_Receipt,
+        note: 'After agent acts, a soft green banner rides on Home. Timeline shows what happened, with on-chain proofs.' },
+      { id: 'permission',      label: '07 · Permission preview sheet',    comp: Scene_Permission,
+        note: 'Before signing, a sheet states the scope in English — Can / Cannot, expiry, hard caps. No JSON, no spec.' },
+      { id: 'spotlight',       label: '08 · Spotlight / ⌘K everywhere',   comp: Scene_Spotlight,
+        note: 'Universal NL command. Top result is a one-tap action. Secondary results expose alternates (recurring, lookup, repeat last).' },
+    ];
+
+    // Web scenes — desktop browser frames
+    const WEB_W = 1320;
+    const WEB_H = 820;
+    const WEB_SCENES = [
+      { id: 'w-dashboard', label: '01 · Dashboard with persistent Agent rail', comp: WebScene_Dashboard,
+        url: 'app.levo.xyz', tab: 'Home · Levo',
+        note: 'Persistent right-rail Agent surface — no modal, no detour. Suggestions, running rules, and just-happened events live next to the wallet at all times.' },
+      { id: 'w-split', label: '02 · Split composer · chat ⇄ live preview', comp: WebScene_SplitComposer,
+        url: 'app.levo.xyz/agent/new', tab: 'New rule · Levo',
+        note: 'Replaces the 3-tab Chat/Mandates/Create flow. The chat builds a mandate that you watch take shape on the right — every clarification highlights what changed.' },
+      { id: 'w-cmdk', label: '03 · ⌘K spotlight on web', comp: WebScene_CmdK,
+        url: 'app.levo.xyz', tab: 'Home · Levo',
+        note: 'Universal NL command from any page. Top result is a direct action; secondary results expose recurring/lookup/repeat-last alternates without leaving the keyboard.' },
+      { id: 'w-drill', label: '04 · Mandate drill-down · table + timeline', comp: WebScene_Drilldown,
+        url: 'app.levo.xyz/agent', tab: 'Mandates · Levo',
+        note: 'Replaces the dense MandateCard. Left: scannable list. Right: plain-English summary, today/weekly cap bars, and a real run-by-run timeline with on-chain links.' },
+      { id: 'w-earn', label: '05 · Earn page with inline AI rec', comp: WebScene_Earn,
+        url: 'app.levo.xyz/earn/usdc', tab: 'USDC vault · Levo',
+        note: 'AI lives where the action is. From the vault page itself, “Auto-harvest every 24h” offers a 2-click activation with the agent recommendation phrased in dollars/year, not raw u64.' },
+      { id: 'w-approval', label: '06 · Approval modal with chain viz', comp: WebScene_ApprovalModal,
+        url: 'app.levo.xyz/agent/new', tab: 'Confirm mandate · Levo',
+        note: 'The final sign step. Can/Cannot lists in plain English, plus a 4-step diagram of how the mandate actually fires on-chain — bridges trust without surfacing JSON.' },
+    ];
+
+    function App() {
+      return (
+        <DesignCanvas>
+          <DCSection
+            id="frictionless"
+            title="Levo · Frictionless AI — Mobile"
+            subtitle="Eight scenarios — each removes a specific friction in the current AI flow"
+          >
+            {SCENES.map((s) => (
+              <DCArtboard
+                key={s.id}
+                id={s.id}
+                label={s.label}
+                width={PHONE_W}
+                height={PHONE_H + 100}
+              >
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  background: 'transparent', width: '100%', height: '100%',
+                }}>
+                  <IOSDevice width={PHONE_W} height={PHONE_H}>
+                    <s.comp/>
+                  </IOSDevice>
+                  <div style={{
+                    marginTop: 14, width: PHONE_W - 16, fontSize: 12, lineHeight: 1.45,
+                    color: 'rgba(60,50,40,0.78)', fontFamily: '"Geist", system-ui, sans-serif',
+                  }}>{s.note}</div>
+                </div>
+              </DCArtboard>
+            ))}
+          </DCSection>
+
+          <DCSection
+            id="frictionless-web"
+            title="Levo · Frictionless AI — Web"
+            subtitle="Desktop counterparts — denser, keyboard-driven, the agent as a persistent surface"
+          >
+            {WEB_SCENES.map((s) => (
+              <DCArtboard
+                key={s.id}
+                id={s.id}
+                label={s.label}
+                width={WEB_W}
+                height={WEB_H + 120}
+              >
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  background: 'transparent', width: '100%', height: '100%',
+                }}>
+                  <ChromeWindow
+                    width={WEB_W}
+                    height={WEB_H}
+                    url={s.url}
+                    tabs={[
+                      { title: s.tab },
+                      { title: 'StableLayer · APY tracker' },
+                      { title: 'Sui Explorer' },
+                    ]}
+                    activeIndex={0}
+                  >
+                    <s.comp/>
+                  </ChromeWindow>
+                  <div style={{
+                    marginTop: 14, width: Math.min(WEB_W - 40, 900),
+                    fontSize: 13, lineHeight: 1.5,
+                    color: 'rgba(60,50,40,0.78)', fontFamily: '"Geist", system-ui, sans-serif',
+                  }}>{s.note}</div>
+                </div>
+              </DCArtboard>
+            ))}
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

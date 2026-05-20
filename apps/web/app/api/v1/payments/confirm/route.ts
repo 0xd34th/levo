@@ -10,6 +10,7 @@ import { verifyQuoteToken, type QuotePayload } from '@/lib/hmac';
 import { getSuiClient } from '@/lib/sui';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
+import { annotateNoValidGasCoinsError } from '@/lib/sui-transaction-errors';
 
 const RequestSchema = z.object({
   txDigest: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/, 'Invalid transaction digest format'),
@@ -19,12 +20,12 @@ const RequestSchema = z.object({
 type QuoteVerificationData = Pick<
   QuotePayload,
   'senderAddress' | 'xUserId' | 'vaultAddress' | 'coinType' | 'amount'
->;
+> & { recipientType?: 'X_HANDLE' | 'SUI_ADDRESS' };
 
-class QuoteClaimError extends Error {
+class QuoteUpdateConflictError extends Error {
   constructor() {
-    super('Quote is no longer claimable');
-    this.name = 'QuoteClaimError';
+    super('Quote is no longer updateable');
+    this.name = 'QuoteUpdateConflictError';
   }
 }
 
@@ -84,10 +85,12 @@ async function findMatchingConfirmedLedgerEntry(
     },
   });
 
+  // Normalize xUserId: empty string in HMAC payload maps to null in DB
+  const normalizedQuoteXUserId = quoteData.xUserId || null;
   if (
     !existingLedger ||
     existingLedger.senderAddress !== quoteData.senderAddress ||
-    existingLedger.xUserId !== quoteData.xUserId ||
+    (existingLedger.xUserId ?? null) !== normalizedQuoteXUserId ||
     existingLedger.vaultAddress !== quoteData.vaultAddress ||
     existingLedger.coinType !== quoteData.coinType ||
     existingLedger.amount !== BigInt(quoteData.amount)
@@ -112,7 +115,7 @@ async function syncPendingQuoteWithConfirmedLedger(
       hmacToken: quoteToken,
       status: 'PENDING',
       senderAddress: quoteData.senderAddress,
-      xUserId: quoteData.xUserId,
+      xUserId: quoteData.xUserId || null,
       vaultAddress: quoteData.vaultAddress,
       coinType: quoteData.coinType,
       amount: BigInt(quoteData.amount),
@@ -166,6 +169,7 @@ export async function POST(req: NextRequest) {
       expiresAt: true,
       amount: true,
       senderAddress: true,
+      recipientType: true,
       xUserId: true,
       vaultAddress: true,
       coinType: true,
@@ -175,8 +179,9 @@ export async function POST(req: NextRequest) {
 
   const storedQuoteData: QuoteVerificationData | null = storedQuote
     ? {
+        recipientType: storedQuote.recipientType,
         senderAddress: storedQuote.senderAddress,
-        xUserId: storedQuote.xUserId,
+        xUserId: storedQuote.xUserId ?? '',
         vaultAddress: storedQuote.vaultAddress,
         coinType: storedQuote.coinType,
         amount: storedQuote.amount.toString(),
@@ -267,6 +272,7 @@ export async function POST(req: NextRequest) {
   }
 
   const quotedAmount = BigInt(quoteData.amount);
+  const settlementCoinType = quoteData.coinType;
 
   // 6. Fetch transaction from Sui RPC
   const client = getSuiClient();
@@ -299,6 +305,8 @@ export async function POST(req: NextRequest) {
 
   // 6b. If tx failed on-chain, mark quote FAILED and return 409
   if (tx.effects?.status.status !== 'success') {
+    const rawOnChainError = tx.effects?.status.error || 'Transaction failed on-chain';
+    const onChainError = annotateNoValidGasCoinsError(rawOnChainError);
     await prisma.paymentQuote.updateMany({
       where: {
         hmacToken: quoteToken,
@@ -308,7 +316,10 @@ export async function POST(req: NextRequest) {
       data: { status: 'FAILED' },
     });
     return NextResponse.json(
-      { error: 'Transaction failed on-chain', txDigest },
+      {
+        error: onChainError === rawOnChainError ? 'Transaction failed on-chain' : onChainError,
+        txDigest,
+      },
       { status: 409 },
     );
   }
@@ -335,7 +346,7 @@ export async function POST(req: NextRequest) {
     if (!('AddressOwner' in ownerField)) return false;
     if (ownerField.AddressOwner !== quoteData.vaultAddress) return false;
 
-    return extractTransferredCoinType(change.objectType) === quoteData.coinType;
+    return extractTransferredCoinType(change.objectType) === settlementCoinType;
   });
 
   if (!transferChange) {
@@ -352,7 +363,7 @@ export async function POST(req: NextRequest) {
     if (typeof owner !== 'object' || owner === null) return false;
     if (!('AddressOwner' in owner)) return false;
     if (owner.AddressOwner !== quoteData.vaultAddress) return false;
-    if (bc.coinType !== quoteData.coinType) return false;
+    if (bc.coinType !== settlementCoinType) return false;
     return true;
   });
 
@@ -379,6 +390,8 @@ export async function POST(req: NextRequest) {
   // 11. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
   try {
     const confirmedAt = new Date();
+    const normalizedXUserId = quoteData.xUserId || null;
+    const recipientType = quoteData.recipientType ?? 'X_HANDLE';
     await prisma.$transaction(async (txClient) => {
       const claim = await txClient.paymentQuote.updateMany({
         where: {
@@ -388,7 +401,7 @@ export async function POST(req: NextRequest) {
             ? { confirmedTxDigest: txDigest }
             : { expiresAt: { gte: confirmedAt } }),
           senderAddress: quoteData.senderAddress,
-          xUserId: quoteData.xUserId,
+          xUserId: normalizedXUserId,
           vaultAddress: quoteData.vaultAddress,
           coinType: quoteData.coinType,
           amount: onChainAmount,
@@ -400,7 +413,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (claim.count !== 1) {
-        throw new QuoteClaimError();
+        throw new QuoteUpdateConflictError();
       }
 
       await txClient.paymentLedger.create({
@@ -409,7 +422,8 @@ export async function POST(req: NextRequest) {
           txDigest,
           sourceIndex: 0,
           senderAddress: quoteData.senderAddress,
-          xUserId: quoteData.xUserId,
+          recipientType,
+          xUserId: normalizedXUserId,
           vaultAddress: quoteData.vaultAddress,
           coinType: quoteData.coinType,
           amount: onChainAmount,
@@ -417,7 +431,7 @@ export async function POST(req: NextRequest) {
       });
     });
   } catch (err: unknown) {
-    if (err instanceof QuoteClaimError) {
+    if (err instanceof QuoteUpdateConflictError) {
       const currentQuote = await prisma.paymentQuote.findFirst({
         where: { hmacToken: quoteToken },
         select: {

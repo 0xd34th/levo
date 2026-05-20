@@ -11,17 +11,26 @@ export async function register() {
       throw new Error('HMAC_SECRET must be at least 32 characters');
     }
 
-    if (!process.env.NAUTILUS_ENCLAVE_URL?.trim()) {
-      console.warn(
-        '[nautilus] Enclave not configured (NAUTILUS_ENCLAVE_URL missing)',
-      );
-    }
-
     const { getGasStationAddress } = await import('@/lib/gas-station');
     try {
       const address = getGasStationAddress();
       if (address) {
         console.log(`[gas-station] Sui address: ${address}`);
+        // Fire-and-forget: health probe must not block startup
+        void import('@/lib/gas-station-maintenance').then(
+          ({ getGasStationHealthSummary, formatGasStationHealthSummary }) =>
+            getGasStationHealthSummary(address).then((summary) => {
+              for (const line of formatGasStationHealthSummary(summary)) {
+                if (line.startsWith('Warning:')) {
+                  console.warn(`[gas-station] ${line}`);
+                } else {
+                  console.log(`[gas-station] ${line}`);
+                }
+              }
+            }),
+        ).catch((error) => {
+          console.warn('[gas-station] Failed to load health summary', error);
+        });
       } else {
         console.log('[gas-station] Not configured (GAS_STATION_SECRET_KEY missing)');
       }

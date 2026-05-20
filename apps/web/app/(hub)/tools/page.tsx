@@ -21,24 +21,28 @@ export default function ToolsPage() {
 
   const copyAddress = useCallback(() => {
     if (!embeddedWalletAddress) return;
-    navigator.clipboard.writeText(embeddedWalletAddress).then(() => {
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-      setCopied(true);
-      copyTimeoutRef.current = window.setTimeout(() => {
-        copyTimeoutRef.current = null;
-        setCopied(false);
-      }, 2000);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(embeddedWalletAddress)
+      .then(() => {
+        if (copyTimeoutRef.current !== null) {
+          window.clearTimeout(copyTimeoutRef.current);
+        }
+        setCopied(true);
+        copyTimeoutRef.current = window.setTimeout(() => {
+          copyTimeoutRef.current = null;
+          setCopied(false);
+        }, 2000);
+      })
+      .catch(() => {});
   }, [embeddedWalletAddress]);
 
   return (
-    <div className="flex flex-col gap-3 md:grid md:grid-cols-2">
+    <div className="flex flex-col gap-2.5">
       <PromoCard
         icon={Search}
-        title="Vault Lookup"
-        description="Check if an X handle has pending funds"
+        tile="ink"
+        title="Recipient lookup"
+        description="Check if an X handle has a canonical wallet ready."
         href="/lookup"
       />
 
@@ -46,21 +50,22 @@ export default function ToolsPage() {
         <>
           <PromoCard
             icon={Wallet}
-            title="Your Wallet"
+            tile="blue"
+            title="Your wallet"
             description={truncateAddress(embeddedWalletAddress)}
             action={
               <button
                 type="button"
-                className="flex size-8 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:text-foreground dark:border-white/10"
+                className="flex size-9 items-center justify-center rounded-full bg-raise text-foreground transition-colors hover:bg-[color:var(--border-strong)]/20"
                 onClick={(e) => {
                   e.stopPropagation();
                   copyAddress();
                 }}
               >
                 {copied ? (
-                  <Check className="size-3.5 text-accent" />
+                  <Check className="size-4" style={{ color: 'var(--up)' }} />
                 ) : (
-                  <Copy className="size-3.5" />
+                  <Copy className="size-4" />
                 )}
               </button>
             }
@@ -68,7 +73,8 @@ export default function ToolsPage() {
 
           <PromoCard
             icon={ExternalLink}
-            title="View on Explorer"
+            tile="ink"
+            title="View on explorer"
             description={`Suiscan ${NETWORK}`}
             externalHref={explorerAddressUrl(embeddedWalletAddress)}
           />

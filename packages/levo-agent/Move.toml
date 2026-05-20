@@ -1,0 +1,6 @@
+[package]
+name = "levo_agent"
+edition = "2024.beta"
+
+[addresses]
+levo_agent = "0x0"

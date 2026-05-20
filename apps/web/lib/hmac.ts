@@ -1,14 +1,15 @@
 import { createLegacyHmac, createScopedHmac, hasMatchingHmac } from './scoped-hmac';
 
 export interface QuotePayload {
-  xUserId: string;
-  derivationVersion: number;
-  vaultAddress: string;
+  recipientType?: 'X_HANDLE' | 'SUI_ADDRESS'; // absent = X_HANDLE (backward compat)
+  xUserId: string;           // empty string '' for SUI_ADDRESS sends
+  derivationVersion: number; // 0 for SUI_ADDRESS sends
+  vaultAddress: string;      // destination address (vault for X_HANDLE, recipient for SUI_ADDRESS)
   coinType: string;
-  amount: string;          // stringified BigInt
+  amount: string;            // stringified BigInt
   senderAddress: string;
   nonce: string;
-  expiresAt: number;       // unix timestamp (seconds)
+  expiresAt: number;         // unix timestamp (seconds)
 }
 
 const QUOTE_HMAC_SCOPE = 'quote';
@@ -19,6 +20,13 @@ function isQuotePayload(value: unknown): value is QuotePayload {
   }
 
   const payload = value as Partial<QuotePayload>;
+  if (
+    payload.recipientType !== undefined &&
+    payload.recipientType !== 'X_HANDLE' &&
+    payload.recipientType !== 'SUI_ADDRESS'
+  ) {
+    return false;
+  }
   return (
     typeof payload.xUserId === 'string' &&
     Number.isInteger(payload.derivationVersion) &&

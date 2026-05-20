@@ -1,0 +1,92 @@
+import {
+  TrackingCategory,
+  TrackingAction,
+  TrackingEventParameter,
+} from 'src/const/trackingKeys';
+import { useUserTracking } from 'src/hooks/userTracking';
+import WalletRoundedIcon from '@mui/icons-material/WalletRounded';
+import { useMenuStore } from 'src/stores/menu';
+import { useWalletDisplayData } from '../../hooks';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import AvatarBadge from 'src/components/AvatarBadge/AvatarBadge';
+import { LabelButton } from './LabelButton';
+import { useMemo } from 'react';
+import { useDominantColorFromImage } from '@/hooks/images/useGetColorsFromImage';
+
+export const WalletMenuToggle = () => {
+  const { avatarSrc, badgeSrc, label: walletLabel } = useWalletDisplayData();
+  const dominantColor = useDominantColorFromImage(avatarSrc ?? '', false, true);
+
+  const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'));
+
+  const { openWalletMenu: _openWalletMenu, setWalletMenuState } = useMenuStore(
+    (state) => state,
+  );
+  const { trackEvent } = useUserTracking();
+
+  const icon = useMemo(() => {
+    return avatarSrc && badgeSrc ? (
+      <AvatarBadge
+        avatarSrc={avatarSrc}
+        badgeSrc={badgeSrc}
+        avatarSize={32}
+        // We need to account for the border
+        badgeSize={14}
+        badgeGap={4}
+        badgeOffset={{ x: 2.5, y: 2.5 }}
+        alt={'wallet-avatar'}
+        badgeAlt={'chain-avatar'}
+        maskEnabled={false}
+        sxAvatar={(theme) => ({
+          padding: theme.spacing(0.1),
+        })}
+        sxBadge={(theme) => ({
+          border: '2px solid',
+          borderColor: (theme.vars || theme).palette.surface1.main,
+          background: 'transparent',
+          ...theme.applyStyles('light', {
+            backgroundColor: (theme.vars || theme).palette.alphaDark900.main,
+          }),
+        })}
+        sx={(theme) => ({
+          border: '2px solid',
+          borderColor: (theme.vars || theme).palette.surface1.main,
+          backgroundColor:
+            dominantColor ?? (theme.vars || theme).palette.black.main,
+          ...theme.applyStyles('light', {
+            backgroundColor:
+              dominantColor ?? (theme.vars || theme).palette.alphaDark900.main,
+          }),
+        })}
+      />
+    ) : (
+      <WalletRoundedIcon sx={{ fontSize: 28 }} />
+    );
+  }, [avatarSrc, badgeSrc, dominantColor]);
+
+  const handleWalletMenuClick = () => {
+    setWalletMenuState(!_openWalletMenu);
+    if (!_openWalletMenu) {
+      // Only track the event if the menu is not already open
+      trackEvent({
+        category: TrackingCategory.WalletMenu,
+        action: TrackingAction.OpenMenu,
+        label: 'open_portfolio_menu',
+        data: {
+          [TrackingEventParameter.Menu]: 'portfolio',
+          [TrackingEventParameter.Timestamp]: new Date().toUTCString(),
+        },
+      });
+    }
+  };
+
+  return (
+    <LabelButton
+      icon={icon}
+      label={walletLabel}
+      isLabelVisible={isDesktop}
+      onClick={handleWalletMenuClick}
+      id="wallet-digest-button"
+    />
+  );
+};

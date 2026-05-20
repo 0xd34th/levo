@@ -9,6 +9,7 @@ for (const envVar of ['NEXT_PUBLIC_PRIVY_APP_ID'] as const) {
 }
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   reactCompiler: true,
   turbopack: {
     root: path.join(__dirname, '../..'),

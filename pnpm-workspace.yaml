@@ -1,6 +1,12 @@
 packages:
-  - "apps/*"
+  - apps/*
+
 onlyBuiltDependencies:
   - '@prisma/engines'
   - esbuild
   - prisma
+
+patchedDependencies:
+  '@7kprotocol/sdk-ts@4.0.0': patches/@7kprotocol__sdk-ts@4.0.0.patch
+  '@bluefin-exchange/bluefin7k-aggregator-sdk@5.5.1': patches/@bluefin-exchange__bluefin7k-aggregator-sdk@5.5.1.patch
+  '@lifi/widget@4.0.0-beta.17': patches/@lifi__widget@4.0.0-beta.17.patch

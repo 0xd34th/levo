@@ -1,28 +1,28 @@
-import type { SuiObjectResponse } from '@mysten/sui/jsonRpc';
 import {
   getCoinDecimals,
   getCoinLabel,
   isDisplaySupportedCoinType,
+  normalizeCoinTypeForDisplay,
 } from '@/lib/coins';
 import { prisma } from '@/lib/prisma';
 import {
   IncomingPaymentItem,
   IncomingPaymentsResponse,
   PublicLookupResponse,
-  RECEIVED_CLAIM_STATUS_MODEL,
   ReceivedBalance,
   ReceivedDashboardUser,
-  ReceivedVaultSummary,
+  IncomingPaymentSender,
+  ReceivedRecipientSummary,
 } from '@/lib/received-dashboard-types';
-import { deriveVaultAddress, getSuiClient } from '@/lib/sui';
+import { getSuiClient } from '@/lib/sui';
 import { encodeTransactionHistoryCursor } from '@/lib/transaction-history-cursor';
 import { isTrustedProfilePictureUrl } from '@/lib/transaction-history';
 import { parseXUserId, type XUserInfo } from '@/lib/twitter';
 import { FRESH_X_USER_TTL_MS } from '@/lib/x-user-lookup';
 
 const DEFAULT_DERIVATION_VERSION = 1;
-const RECEIVED_VAULT_SUMMARY_CACHE_TTL_MS = 30_000;
-const RECEIVED_VAULT_SUMMARY_CACHE_MAX_ENTRIES = 500;
+const RECEIVED_SUMMARY_CACHE_TTL_MS = 30_000;
+const RECEIVED_SUMMARY_CACHE_MAX_ENTRIES = 500;
 const MAX_INCOMING_PAYMENT_SCAN_ITERATIONS = 10;
 
 export const PUBLIC_LOOKUP_RECENT_PAYMENTS_LIMIT = 5;
@@ -32,9 +32,9 @@ interface IncomingPaymentsCursor {
   id: string;
 }
 
-interface CachedReceivedVaultSummary {
+interface CachedReceivedRecipientSummary {
   expiresAt: number;
-  value: ReceivedVaultSummary;
+  value: ReceivedRecipientSummary;
 }
 
 interface IncomingPaymentRow {
@@ -46,7 +46,7 @@ interface IncomingPaymentRow {
   createdAt: Date;
 }
 
-const receivedVaultSummaryCache = new Map<string, CachedReceivedVaultSummary>();
+const receivedSummaryCache = new Map<string, CachedReceivedRecipientSummary>();
 
 async function getRecordedTotals(xUserId: string): Promise<ReceivedBalance[]> {
   const rows = await prisma.paymentLedger.groupBy({
@@ -55,15 +55,30 @@ async function getRecordedTotals(xUserId: string): Promise<ReceivedBalance[]> {
     _sum: { amount: true },
   });
 
-  return rows
-    .filter((row) => row._sum.amount != null && row._sum.amount > 0n)
-    .filter((row) => isDisplaySupportedCoinType(row.coinType))
-    .map((row) => ({
-      coinType: row.coinType,
-      symbol: getCoinLabel(row.coinType),
-      decimals: getCoinDecimals(row.coinType),
-      amount: row._sum.amount!.toString(),
-    }));
+  const totalsByDisplayCoinType = new Map<string, bigint>();
+
+  for (const row of rows) {
+    if (row._sum.amount == null || row._sum.amount <= 0n) {
+      continue;
+    }
+
+    const displayCoinType = normalizeCoinTypeForDisplay(row.coinType);
+    if (!isDisplaySupportedCoinType(displayCoinType)) {
+      continue;
+    }
+
+    totalsByDisplayCoinType.set(
+      displayCoinType,
+      (totalsByDisplayCoinType.get(displayCoinType) ?? 0n) + row._sum.amount,
+    );
+  }
+
+  return Array.from(totalsByDisplayCoinType.entries()).map(([coinType, amount]) => ({
+    coinType,
+    symbol: getCoinLabel(coinType),
+    decimals: getCoinDecimals(coinType),
+    amount: amount.toString(),
+  }));
 }
 
 function sanitizeProfilePictureUrl(url: string | null): string | null {
@@ -71,7 +86,9 @@ function sanitizeProfilePictureUrl(url: string | null): string | null {
 }
 
 function mapIncomingPayment(row: IncomingPaymentRow): IncomingPaymentItem | null {
-  if (!isDisplaySupportedCoinType(row.coinType)) {
+  const displayCoinType = normalizeCoinTypeForDisplay(row.coinType);
+
+  if (!isDisplaySupportedCoinType(displayCoinType)) {
     console.warn('Ignoring unsupported coin type in received dashboard payment', {
       coinType: row.coinType,
       paymentId: row.id,
@@ -84,12 +101,55 @@ function mapIncomingPayment(row: IncomingPaymentRow): IncomingPaymentItem | null
     id: row.id,
     txDigest: row.txDigest,
     senderAddress: row.senderAddress,
-    coinType: row.coinType,
-    symbol: getCoinLabel(row.coinType),
-    decimals: getCoinDecimals(row.coinType),
+    sender: null,
+    coinType: displayCoinType,
+    symbol: getCoinLabel(displayCoinType),
+    decimals: getCoinDecimals(displayCoinType),
     amount: row.amount.toString(),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+async function attachIncomingPaymentSenders(
+  items: IncomingPaymentItem[],
+): Promise<IncomingPaymentItem[]> {
+  const senderAddresses = Array.from(
+    new Set(items.map((item) => item.senderAddress)),
+  );
+
+  if (senderAddresses.length === 0) {
+    return items;
+  }
+
+  const senderRows = await prisma.xUser.findMany({
+    where: {
+      suiAddress: {
+        in: senderAddresses,
+      },
+    },
+    select: {
+      suiAddress: true,
+      username: true,
+      profilePicture: true,
+    },
+  });
+
+  const senderByAddress = new Map<string, IncomingPaymentSender>();
+  for (const row of senderRows) {
+    if (!row.suiAddress) {
+      continue;
+    }
+
+    senderByAddress.set(row.suiAddress, {
+      username: row.username,
+      profilePicture: sanitizeProfilePictureUrl(row.profilePicture),
+    });
+  }
+
+  return items.map((item) => ({
+    ...item,
+    sender: senderByAddress.get(item.senderAddress) ?? null,
+  }));
 }
 
 export function toReceivedDashboardUser(userInfo: XUserInfo): ReceivedDashboardUser {
@@ -101,19 +161,19 @@ export function toReceivedDashboardUser(userInfo: XUserInfo): ReceivedDashboardU
   };
 }
 
-function pruneReceivedVaultSummaryCache(now = Date.now()) {
-  for (const [cacheKey, entry] of receivedVaultSummaryCache) {
+function pruneReceivedSummaryCache(now = Date.now()) {
+  for (const [cacheKey, entry] of receivedSummaryCache) {
     if (entry.expiresAt <= now) {
-      receivedVaultSummaryCache.delete(cacheKey);
+      receivedSummaryCache.delete(cacheKey);
     }
   }
 
-  while (receivedVaultSummaryCache.size > RECEIVED_VAULT_SUMMARY_CACHE_MAX_ENTRIES) {
-    const oldestKey = receivedVaultSummaryCache.keys().next().value;
+  while (receivedSummaryCache.size > RECEIVED_SUMMARY_CACHE_MAX_ENTRIES) {
+    const oldestKey = receivedSummaryCache.keys().next().value;
     if (!oldestKey) {
       break;
     }
-    receivedVaultSummaryCache.delete(oldestKey);
+    receivedSummaryCache.delete(oldestKey);
   }
 }
 
@@ -169,43 +229,40 @@ export async function persistReceivedDashboardXUser(
   }
 }
 
-function cacheReceivedVaultSummary(
+function cacheReceivedRecipientSummary(
   xUserId: string,
-  registryId: string,
   derivationVersion: number,
-  value: ReceivedVaultSummary,
+  value: ReceivedRecipientSummary,
 ) {
-  const cacheKey = `${xUserId}:${registryId}:${derivationVersion}`;
+  const cacheKey = `${xUserId}:${derivationVersion}`;
   const now = Date.now();
-  pruneReceivedVaultSummaryCache(now);
-  receivedVaultSummaryCache.delete(cacheKey);
-  receivedVaultSummaryCache.set(cacheKey, {
-    expiresAt: now + RECEIVED_VAULT_SUMMARY_CACHE_TTL_MS,
+  pruneReceivedSummaryCache(now);
+  receivedSummaryCache.delete(cacheKey);
+  receivedSummaryCache.set(cacheKey, {
+    expiresAt: now + RECEIVED_SUMMARY_CACHE_TTL_MS,
     value,
   });
 }
 
-async function getCachedReceivedVaultSummary(
+async function getCachedReceivedRecipientSummary(
   xUserId: string,
-  registryId: string,
   derivationVersion: number,
-): Promise<ReceivedVaultSummary> {
-  const cacheKey = `${xUserId}:${registryId}:${derivationVersion}`;
-  const cached = receivedVaultSummaryCache.get(cacheKey);
+): Promise<ReceivedRecipientSummary> {
+  const cacheKey = `${xUserId}:${derivationVersion}`;
+  const cached = receivedSummaryCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    receivedVaultSummaryCache.delete(cacheKey);
-    receivedVaultSummaryCache.set(cacheKey, cached);
+    receivedSummaryCache.delete(cacheKey);
+    receivedSummaryCache.set(cacheKey, cached);
     return cached.value;
   }
 
-  receivedVaultSummaryCache.delete(cacheKey);
+  receivedSummaryCache.delete(cacheKey);
 
-  const value = await getReceivedVaultSummary(
+  const value = await getReceivedRecipientSummary(
     xUserId,
-    registryId,
     derivationVersion,
   );
-  cacheReceivedVaultSummary(xUserId, registryId, derivationVersion, value);
+  cacheReceivedRecipientSummary(xUserId, derivationVersion, value);
   return value;
 }
 
@@ -239,71 +296,67 @@ async function findIncomingPaymentRows(
   });
 }
 
-/**
- * There is no persisted claim record yet, so claim status is derived directly
- * from chain state: if the deterministic XVault object exists at the derived
- * vault address, the vault is treated as claimed; otherwise it is unclaimed.
- */
-export async function getReceivedVaultSummary(
+export async function getReceivedRecipientSummary(
   xUserId: string,
-  registryId: string,
   derivationVersion = DEFAULT_DERIVATION_VERSION,
-): Promise<ReceivedVaultSummary> {
+): Promise<ReceivedRecipientSummary> {
   const normalizedXUserId = parseXUserId(xUserId);
   if (!normalizedXUserId) {
     throw new Error('Invalid X user id');
   }
 
-  const vaultAddress = deriveVaultAddress(registryId, BigInt(normalizedXUserId));
-  const client = getSuiClient();
-
-  const [objectResponse, balances, recordedTotals] = await Promise.all([
-    client.getObject({
-      id: vaultAddress,
-      options: { showType: true },
+  const [xUser, recordedTotals] = await Promise.all([
+    prisma.xUser.findUnique({
+      where: { xUserId: normalizedXUserId },
+      select: {
+        suiAddress: true,
+      },
     }),
-    client.getAllBalances({ owner: vaultAddress }),
     getRecordedTotals(normalizedXUserId),
   ]);
 
-  const typedObjectResponse: SuiObjectResponse = objectResponse;
-  const vaultExists = typedObjectResponse.data != null;
-  const objectErrorCode = typedObjectResponse.error?.code ?? null;
-
-  if (!vaultExists && objectErrorCode && objectErrorCode !== 'notExists' && objectErrorCode !== 'deleted') {
-    throw new Error(`Unexpected vault lookup error: ${objectErrorCode}`);
+  const recipientAddress = xUser?.suiAddress ?? null;
+  if (!recipientAddress) {
+    return {
+      derivationVersion,
+      recipientAddress: null,
+      walletReady: false,
+      pendingBalances: [],
+      recordedTotals,
+    };
   }
+
+  const balances = await getSuiClient().getAllBalances({ owner: recipientAddress });
+  const pendingBalances = balances
+    .filter((balance) => BigInt(balance.totalBalance) > 0n)
+    .map((balance) => ({
+      ...balance,
+      displayCoinType: normalizeCoinTypeForDisplay(balance.coinType),
+    }))
+    .filter((balance) => {
+      if (isDisplaySupportedCoinType(balance.displayCoinType)) {
+        return true;
+      }
+
+      console.warn('Ignoring unsupported coin type in received dashboard balance', {
+        coinType: balance.coinType,
+        recipientAddress,
+      });
+      return false;
+    })
+    .sort((a, b) => a.displayCoinType.localeCompare(b.displayCoinType))
+    .map((balance) => ({
+      coinType: balance.displayCoinType,
+      symbol: getCoinLabel(balance.displayCoinType),
+      decimals: getCoinDecimals(balance.displayCoinType),
+      amount: balance.totalBalance,
+    }));
 
   return {
     derivationVersion,
-    vaultAddress,
-    vaultExists,
-    claimStatus: vaultExists
-      ? 'CLAIMED'
-      : objectErrorCode === 'deleted'
-        ? 'PREVIOUSLY_CLAIMED'
-        : 'UNCLAIMED',
-    claimStatusModel: RECEIVED_CLAIM_STATUS_MODEL,
-    pendingBalances: balances
-      .filter((balance) => BigInt(balance.totalBalance) > 0n)
-      .filter((balance) => {
-        if (isDisplaySupportedCoinType(balance.coinType)) {
-          return true;
-        }
-
-        console.warn('Ignoring unsupported coin type in received dashboard balance', {
-          coinType: balance.coinType,
-          vaultAddress,
-        });
-        return false;
-      })
-      .sort((a, b) => a.coinType.localeCompare(b.coinType))
-      .map((balance) => ({
-        coinType: balance.coinType,
-        symbol: getCoinLabel(balance.coinType),
-        decimals: getCoinDecimals(balance.coinType),
-        amount: balance.totalBalance,
-      })),
+    recipientAddress,
+    walletReady: true,
+    pendingBalances,
     recordedTotals,
   };
 }
@@ -312,6 +365,7 @@ export async function getIncomingPaymentsPage(
   xUserId: string,
   limit: number,
   cursor: IncomingPaymentsCursor | null = null,
+  includeSenders = true,
 ): Promise<{
   items: IncomingPaymentItem[];
   nextCursor: string | null;
@@ -369,7 +423,7 @@ export async function getIncomingPaymentsPage(
       : null;
 
   return {
-    items,
+    items: includeSenders ? await attachIncomingPaymentSenders(items) : items,
     nextCursor: nextCursorSource
       ? encodeTransactionHistoryCursor({
           createdAt: nextCursorSource.createdAt,
@@ -381,58 +435,56 @@ export async function getIncomingPaymentsPage(
 
 export async function buildPublicLookupResponse(
   userInfo: XUserInfo,
-  registryId: string,
   derivationVersion = DEFAULT_DERIVATION_VERSION,
 ): Promise<PublicLookupResponse> {
-  const [vault, payments] = await Promise.all([
-    getReceivedVaultSummary(userInfo.xUserId, registryId, derivationVersion),
+  const [recipient, payments] = await Promise.all([
+    getReceivedRecipientSummary(userInfo.xUserId, derivationVersion),
     getIncomingPaymentsPage(
       userInfo.xUserId,
       PUBLIC_LOOKUP_RECENT_PAYMENTS_LIMIT,
+      null,
+      false,
     ),
   ]);
 
   return {
     ...toReceivedDashboardUser(userInfo),
-    ...vault,
+    ...recipient,
     recentIncomingPayments: payments.items,
   };
 }
 
 export async function buildIncomingPaymentsResponse(
   userInfo: XUserInfo,
-  registryId: string,
   limit: number,
   cursor: IncomingPaymentsCursor | null = null,
   derivationVersion = DEFAULT_DERIVATION_VERSION,
 ): Promise<IncomingPaymentsResponse> {
-  const vaultPromise = cursor
-    ? getCachedReceivedVaultSummary(
+  const recipientPromise = cursor
+    ? getCachedReceivedRecipientSummary(
         userInfo.xUserId,
-        registryId,
         derivationVersion,
       )
-    : getReceivedVaultSummary(
+    : getReceivedRecipientSummary(
         userInfo.xUserId,
-        registryId,
         derivationVersion,
       ).then((value) => {
-        cacheReceivedVaultSummary(
+        cacheReceivedRecipientSummary(
           userInfo.xUserId,
-          registryId,
           derivationVersion,
           value,
         );
         return value;
       });
-  const [vault, payments] = await Promise.all([
-    vaultPromise,
+
+  const [recipient, payments] = await Promise.all([
+    recipientPromise,
     getIncomingPaymentsPage(userInfo.xUserId, limit, cursor),
   ]);
 
   return {
     ...toReceivedDashboardUser(userInfo),
-    ...vault,
+    ...recipient,
     items: payments.items,
     nextCursor: payments.nextCursor,
   };

@@ -1,0 +1,302 @@
+{
+  "navbar": {
+    "welcome": {
+      "title": "",
+      "subtitle": "",
+      "cta": ""
+    },
+    "links": {
+      "exchange": "",
+      "dashboard": "ড্যাশবোর্ড",
+      "buy": "",
+      "back": ""
+    },
+    "statsCards": {
+      "dexs": "",
+      "bridges": "",
+      "chains": ""
+    },
+    "connect": "",
+    "walletSelectMenu": {
+      "connectWallet": "",
+      "wallets": "",
+      "ecosystemSelectMenu": {
+        "selectEcosystem": "",
+        "noEcosystemAdapter": ""
+      }
+    },
+    "wallets": "",
+    "seeAllWallets": "",
+    "navbarMenu": {
+      "brandAssets": "",
+      "theme": "থিম",
+      "developers": "ডেভেলপারস",
+      "support": "সাপোর্ট",
+      "resources": "",
+      "profile": "",
+      "privacyPolicy": "",
+      "termsConditions": ""
+    },
+    "walletMenu": {
+      "disconnect": "সংযোগ বিচ্ছিন্ন করুন",
+      "chains": "চেইন",
+      "switchChain": "চেইন সুইচ করুন",
+      "copy": "কপি",
+      "explore": "অন্বেষণ করুন",
+      "copiedMsg": "ওয়ালেট ঠিকানা কপি করা হয়েছে ৷",
+      "walletNotInstalled": "",
+      "connectAnotherWallet": "",
+      "refreshBalances": "",
+      "totalBalance": "",
+      "walletBalance": "",
+      "totalBalanceTooltip": "",
+      "totalBalanceRefresh": "",
+      "numberOfChains": ""
+    },
+    "themes": {
+      "dark": "",
+      "light": "",
+      "system": "",
+      "switchToLight": "লাইট মোডে স্যুইচ করুন",
+      "switchToDark": "ডার্ক মোডে স্যুইচ করুন",
+      "switchToSystem": "",
+      "lightModeDisabled": "",
+      "darkModeDisabled": "",
+      "systemModeDisabled": "",
+      "default": ""
+    },
+    "developers": {
+      "github": "গিটহাব",
+      "documentation": "ডকুমেন্টেশন"
+    }
+  },
+  "discordBanner": {
+    "ctaHeadline": "",
+    "ctaButton": ""
+  },
+  "badge": {
+    "updated": ""
+  },
+  "solanaAlert": {
+    "title": "",
+    "subtitle": ""
+  },
+  "seiAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "abstractAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "featureCard": {
+    "learnMore": ""
+  },
+  "button": {
+    "okay": "",
+    "manageYourPosition": "",
+    "goBack": "",
+    "connectAnotherWallet": ""
+  },
+  "error": {
+    "message": ""
+  },
+  "multisig": {
+    "connected": {
+      "title": "",
+      "description": ""
+    },
+    "transactionInitiated": {
+      "title": "",
+      "description": ""
+    }
+  },
+  "promo": {
+    "new": ""
+  },
+  "completedMissionsInformation": {
+    "title": "",
+    "description": ""
+  },
+  "format": {
+    "currency": "",
+    "currencyCompact": "",
+    "decimal": "",
+    "decimalCompact": "",
+    "percent": "",
+    "decimal2Digit": "",
+    "date": "",
+    "shortDate": ""
+  },
+  "contribution": {
+    "title": "",
+    "custom": "",
+    "confirm": "",
+    "thankYou": "",
+    "description": "",
+    "error": {
+      "amountTooSmall": "",
+      "errorSending": "",
+      "invalidTokenPrice": "",
+      "noFeeAddress": ""
+    }
+  },
+  "tooltips": {
+    "tvl": "",
+    "apy": "",
+    "rewardsApy": "",
+    "deposit": "",
+    "deposited": "",
+    "boostedApy": "",
+    "lockupPeriod": "",
+    "manageYourPosition": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "noPositionsToManage": "",
+    "capInDollar": ""
+  },
+  "labels": {
+    "apy": "",
+    "rewardsApy": "",
+    "lockupPeriod": "",
+    "tvl": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "overview": "",
+    "capInDollar": ""
+  },
+  "widget": {
+    "depositCard": {
+      "apy": "",
+      "boostedApy": "",
+      "tvl": "",
+      "lockupPeriod": "",
+      "token": ""
+    },
+    "sweepTokensCard": {
+      "button": {
+        "claim": "",
+        "switchChain": "",
+        "waitingForTransaction": "",
+        "transactionInProgress": "",
+        "viewTransaction": ""
+      },
+      "error": {
+        "title": "",
+        "description": ""
+      },
+      "success": {
+        "title": "",
+        "description": ""
+      }
+    },
+    "zap": {
+      "sendToAddressName": "",
+      "sentToAddressName": "",
+      "depositSuccess": "",
+      "tabs": {
+        "deposit": "",
+        "withdraw": ""
+      },
+      "placeholder": {
+        "comingSoon": "",
+        "embedded-multisig": {
+          "title": "",
+          "description": ""
+        },
+        "non-evm": {
+          "title": "",
+          "description": ""
+        }
+      }
+    },
+    "earn": {
+      "depositSuccess": ""
+    },
+    "withdraw": {
+      "title": ""
+    }
+  },
+  "links": {
+    "discover": ""
+  },
+  "buttons": {
+    "depositButtonLabel": "",
+    "requestRedeemButtonLabel": "",
+    "withdrawButtonLabel": "",
+    "managePositionsButtonLabel": "",
+    "deposit": "",
+    "depositNow": ""
+  },
+  "modal": {
+    "perks": {
+      "unclaimedPerk": {
+        "title": ""
+      },
+      "claimedPerk": {
+        "title": "",
+        "description": "",
+        "nextSteps": "",
+        "howToUsePerk": "",
+        "howToUsePerkDescription": ""
+      },
+      "signatureFailed": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "validationFailed": {
+        "title": "",
+        "description": "",
+        "close": ""
+      },
+      "unsupportedWallet": {
+        "title": "",
+        "description": "",
+        "switchWallet": ""
+      },
+      "unknown": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "stepper": {
+        "steps": {
+          "username": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "email": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "wallet": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "position": {
+            "first": "",
+            "next": "",
+            "finally": ""
+          }
+        },
+        "continue": "",
+        "submit": "",
+        "submitting": ""
+      }
+    }
+  }
+}

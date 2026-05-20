@@ -1,0 +1,313 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   aisui design tokens — ported from design package (aisui design.html).
+   Single source of truth for colors, fonts, density, animations.
+   ============================================================================ */
+
+/* ===== DARK (default) =================================================== */
+:root,
+[data-theme="dark"] {
+  --bg: oklch(15% 0.018 245);
+  --bg-soft: oklch(19% 0.018 245);
+  --bg-elev: oklch(22% 0.018 245);
+  --card: oklch(23% 0.02 245);
+  --card-hi: oklch(27% 0.02 245);
+  --border: oklch(30% 0.018 245);
+  --border-hi: oklch(38% 0.02 245);
+
+  --fg: oklch(96% 0.008 245);
+  --fg-mid: oklch(78% 0.012 245);
+  --fg-muted: oklch(62% 0.014 245);
+  --fg-faint: oklch(46% 0.014 245);
+
+  --accent: oklch(78% 0.13 220);
+  --accent-2: oklch(68% 0.14 220);
+  --accent-soft: oklch(38% 0.10 220);
+  --accent-glow: oklch(78% 0.13 220 / 0.15);
+
+  --up: oklch(74% 0.16 152);
+  --down: oklch(70% 0.19 28);
+  --warn: oklch(82% 0.15 85);
+
+  --on-accent: oklch(15% 0.018 245);
+
+  --shadow-card: 0 1px 0 oklch(100% 0 0 / 0.03) inset, 0 8px 24px -12px oklch(0% 0 0 / 0.6);
+  --shadow-pop: 0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 24px 48px -16px oklch(0% 0 0 / 0.8);
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+}
+
+/* Dark accent variants */
+[data-accent="aqua"] {
+  --accent: oklch(78% 0.13 220);
+  --accent-2: oklch(68% 0.14 220);
+  --accent-soft: oklch(38% 0.10 220);
+  --accent-glow: oklch(78% 0.13 220 / 0.15);
+}
+[data-accent="violet"] {
+  --accent: oklch(74% 0.16 295);
+  --accent-2: oklch(64% 0.17 295);
+  --accent-soft: oklch(36% 0.12 295);
+  --accent-glow: oklch(74% 0.16 295 / 0.15);
+}
+[data-accent="lime"] {
+  --accent: oklch(82% 0.18 130);
+  --accent-2: oklch(72% 0.18 130);
+  --accent-soft: oklch(40% 0.13 130);
+  --accent-glow: oklch(82% 0.18 130 / 0.15);
+}
+[data-accent="amber"] {
+  --accent: oklch(82% 0.16 75);
+  --accent-2: oklch(72% 0.17 75);
+  --accent-soft: oklch(40% 0.13 75);
+  --accent-glow: oklch(82% 0.16 75 / 0.15);
+}
+
+/* ===== LIGHT ============================================================ */
+[data-theme="light"] {
+  --bg: oklch(99% 0.004 245);
+  --bg-soft: oklch(96.5% 0.006 245);
+  --bg-elev: oklch(94% 0.008 245);
+  --card: oklch(100% 0 0);
+  --card-hi: oklch(97% 0.006 245);
+  --border: oklch(90% 0.008 245);
+  --border-hi: oklch(82% 0.012 245);
+
+  --fg: oklch(20% 0.018 245);
+  --fg-mid: oklch(38% 0.014 245);
+  --fg-muted: oklch(54% 0.012 245);
+  --fg-faint: oklch(70% 0.010 245);
+
+  --accent: oklch(54% 0.15 235);
+  --accent-2: oklch(46% 0.17 235);
+  --accent-soft: oklch(90% 0.06 235);
+  --accent-glow: oklch(54% 0.15 235 / 0.16);
+
+  --up: oklch(54% 0.16 152);
+  --down: oklch(56% 0.20 28);
+  --warn: oklch(62% 0.16 75);
+
+  --on-accent: oklch(99% 0.004 245);
+
+  --shadow-card: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 4px 14px -6px oklch(40% 0.02 245 / 0.10);
+  --shadow-pop: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 18px 40px -14px oklch(40% 0.02 245 / 0.18);
+}
+
+/* Light accent variants */
+[data-theme="light"][data-accent="aqua"] {
+  --accent: oklch(54% 0.15 235);
+  --accent-2: oklch(46% 0.17 235);
+  --accent-soft: oklch(90% 0.06 235);
+  --accent-glow: oklch(54% 0.15 235 / 0.16);
+}
+[data-theme="light"][data-accent="violet"] {
+  --accent: oklch(50% 0.18 295);
+  --accent-2: oklch(42% 0.20 295);
+  --accent-soft: oklch(92% 0.05 295);
+  --accent-glow: oklch(50% 0.18 295 / 0.16);
+}
+[data-theme="light"][data-accent="lime"] {
+  --accent: oklch(52% 0.18 130);
+  --accent-2: oklch(46% 0.18 130);
+  --accent-soft: oklch(92% 0.07 130);
+  --accent-glow: oklch(52% 0.18 130 / 0.16);
+}
+[data-theme="light"][data-accent="amber"] {
+  --accent: oklch(58% 0.16 75);
+  --accent-2: oklch(50% 0.16 75);
+  --accent-soft: oklch(94% 0.07 75);
+  --accent-glow: oklch(58% 0.16 75 / 0.16);
+}
+
+/* ===== Density ========================================================== */
+[data-density="compact"] {
+  --pad-card: 14px;
+  --gap-card: 10px;
+  --row-h: 36px;
+}
+[data-density="comfortable"],
+:root {
+  --pad-card: 18px;
+  --gap-card: 14px;
+  --row-h: 44px;
+}
+
+/* ===== Tailwind v4 theme bridge ========================================= */
+/* Expose semantic tokens to Tailwind's color system so `bg-card`, `text-fg`,
+   `border-border` etc. work alongside the var() escape-hatch syntax we already
+   use throughout the app. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-bg-elev: var(--bg-elev);
+  --color-card: var(--card);
+  --color-card-hi: var(--card-hi);
+  --color-border: var(--border);
+  --color-border-hi: var(--border-hi);
+  --color-fg: var(--fg);
+  --color-fg-mid: var(--fg-mid);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warn: var(--warn);
+  --color-on-accent: var(--on-accent);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+}
+
+/* ===== Base ============================================================= */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+:root {
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  color-scheme: light;
+}
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans), "Helvetica Neue", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-feature-settings: "zero" 1;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+/* Scrollbars */
+.scrollbar::-webkit-scrollbar,
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar::-webkit-scrollbar-thumb,
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.scrollbar::-webkit-scrollbar-thumb:hover,
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hi);
+}
+.scrollbar::-webkit-scrollbar-track,
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Animations */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.pulse {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-soft) 0%, var(--card) 50%, var(--bg-soft) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  background: var(--accent);
+  vertical-align: -0.15em;
+  animation: caret-blink 1s steps(2) infinite;
+}
+
+/* Subtle staggered fade for hero — uses prefers-reduced-motion */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 540ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .pulse,
+  .shimmer,
+  .caret::after {
+    animation: none;
+  }
+}
+
+/* Fine grid bg for hero */
+.grid-bg {
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+  opacity: 0.35;
+}

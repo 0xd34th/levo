@@ -40,14 +40,6 @@ export async function GET(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  const registryId = process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID;
-  if (!registryId) {
-    return noStoreJson(
-      { error: 'Server configuration error' },
-      { status: 500 },
-    );
-  }
-
   const { identity } = auth;
   const xUserId = parseXUserId(identity.xUserId);
   if (!xUserId) {
@@ -72,7 +64,6 @@ export async function GET(req: NextRequest) {
     const derivationVersion = await persistReceivedDashboardXUser(userInfo);
     const responseBody = await buildIncomingPaymentsResponse(
       userInfo,
-      registryId,
       limit,
       paginationCursor,
       derivationVersion,

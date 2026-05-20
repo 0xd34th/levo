@@ -1,0 +1,301 @@
+{
+  "navbar": {
+    "welcome": {
+      "title": "Scopri la route migliore",
+      "subtitle": "<0>4x verificato</0> aggregatori di liquidità multi-chain powerade by <1>LI.FI</1>",
+      "cta": "Inizia adesso"
+    },
+    "links": {
+      "exchange": "",
+      "dashboard": "",
+      "buy": "Acquista",
+      "back": ""
+    },
+    "statsCards": {
+      "dexs": "DEX",
+      "bridges": "",
+      "chains": ""
+    },
+    "connect": "",
+    "walletSelectMenu": {
+      "connectWallet": "",
+      "wallets": "",
+      "ecosystemSelectMenu": {
+        "selectEcosystem": "",
+        "noEcosystemAdapter": ""
+      }
+    },
+    "wallets": "",
+    "seeAllWallets": "",
+    "navbarMenu": {
+      "brandAssets": "",
+      "theme": "Tema",
+      "developers": "Sviluppatori",
+      "support": "Assistenza",
+      "resources": "",
+      "profile": "",
+      "privacyPolicy": "",
+      "termsConditions": ""
+    },
+    "walletMenu": {
+      "disconnect": "Disconnetti",
+      "chains": "",
+      "switchChain": "Cambia Chain",
+      "copy": "Copia",
+      "explore": "Esplora",
+      "copiedMsg": "Indirizzo del portafogli copiato",
+      "walletNotInstalled": "",
+      "connectAnotherWallet": "",
+      "refreshBalances": "",
+      "totalBalance": "",
+      "walletBalance": "",
+      "totalBalanceTooltip": "",
+      "totalBalanceRefresh": "",
+      "numberOfChains": ""
+    },
+    "themes": {
+      "dark": "",
+      "light": "",
+      "system": "",
+      "switchToLight": "Passa al tema chiaro",
+      "switchToDark": "Passa al tema scuro",
+      "switchToSystem": "",
+      "lightModeDisabled": "",
+      "darkModeDisabled": "",
+      "systemModeDisabled": "",
+      "default": ""
+    },
+    "developers": {
+      "github": "",
+      "documentation": "Documentazione"
+    }
+  },
+  "discordBanner": {
+    "ctaHeadline": "",
+    "ctaButton": ""
+  },
+  "badge": {
+    "updated": ""
+  },
+  "solanaAlert": {
+    "title": "",
+    "subtitle": ""
+  },
+  "seiAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "abstractAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "featureCard": {
+    "learnMore": ""
+  },
+  "button": {
+    "okay": "Ok",
+    "manageYourPosition": "",
+    "goBack": "",
+    "connectAnotherWallet": ""
+  },
+  "error": {
+    "message": ""
+  },
+  "multisig": {
+    "connected": {
+      "title": "Portafoglio Multisig connesso",
+      "description": "Si prega di avvisare gli altri partecipanti del wallet di essere pronti per firmare."
+    },
+    "transactionInitiated": {
+      "title": "Sono necessarie firme multiple",
+      "description": "Si prega di avvisare gli altri partecipanti del wallet multisig di firmare prima della scadenza della transazione."
+    }
+  },
+  "promo": {
+    "new": ""
+  },
+  "completedMissionsInformation": {
+    "title": "",
+    "description": ""
+  },
+  "format": {
+    "currency": "",
+    "currencyCompact": "",
+    "decimal": "",
+    "decimalCompact": "",
+    "percent": "",
+    "decimal2Digit": "",
+    "date": "",
+    "shortDate": ""
+  },
+  "contribution": {
+    "title": "",
+    "custom": "",
+    "confirm": "",
+    "thankYou": "",
+    "description": "",
+    "error": {
+      "amountTooSmall": "",
+      "errorSending": "",
+      "invalidTokenPrice": "",
+      "noFeeAddress": ""
+    }
+  },
+  "tooltips": {
+    "tvl": "",
+    "apy": "",
+    "rewardsApy": "",
+    "deposit": "",
+    "deposited": "",
+    "boostedApy": "",
+    "lockupPeriod": "",
+    "manageYourPosition": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "noPositionsToManage": "",
+    "capInDollar": ""
+  },
+  "labels": {
+    "apy": "",
+    "rewardsApy": "",
+    "lockupPeriod": "",
+    "tvl": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "overview": "",
+    "capInDollar": ""
+  },
+  "widget": {
+    "depositCard": {
+      "apy": "",
+      "boostedApy": "",
+      "tvl": "",
+      "lockupPeriod": "",
+      "token": ""
+    },
+    "sweepTokensCard": {
+      "button": {
+        "claim": "",
+        "switchChain": "",
+        "waitingForTransaction": "",
+        "transactionInProgress": "",
+        "viewTransaction": ""
+      },
+      "error": {
+        "title": "",
+        "description": ""
+      },
+      "success": {
+        "title": "",
+        "description": ""
+      }
+    },
+    "zap": {
+      "sendToAddressName": "",
+      "sentToAddressName": "",
+      "depositSuccess": "",
+      "tabs": {
+        "deposit": "",
+        "withdraw": ""
+      },
+      "placeholder": {
+        "comingSoon": "",
+        "embedded-multisig": {
+          "title": "",
+          "description": ""
+        },
+        "non-evm": {
+          "title": "",
+          "description": ""
+        }
+      }
+    },
+    "earn": {
+      "depositSuccess": ""
+    },
+    "withdraw": {
+      "title": ""
+    }
+  },
+  "links": {
+    "discover": ""
+  },
+  "buttons": {
+    "depositButtonLabel": "",
+    "withdrawButtonLabel": "",
+    "managePositionsButtonLabel": "",
+    "deposit": "",
+    "depositNow": ""
+  },
+  "modal": {
+    "perks": {
+      "unclaimedPerk": {
+        "title": ""
+      },
+      "claimedPerk": {
+        "title": "",
+        "description": "",
+        "nextSteps": "",
+        "howToUsePerk": "",
+        "howToUsePerkDescription": ""
+      },
+      "signatureFailed": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "validationFailed": {
+        "title": "",
+        "description": "",
+        "close": ""
+      },
+      "unsupportedWallet": {
+        "title": "",
+        "description": "",
+        "switchWallet": ""
+      },
+      "unknown": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "stepper": {
+        "steps": {
+          "username": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "email": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "wallet": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "position": {
+            "first": "",
+            "next": "",
+            "finally": ""
+          }
+        },
+        "continue": "",
+        "submit": "",
+        "submitting": ""
+      }
+    }
+  }
+}

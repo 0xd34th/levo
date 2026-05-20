@@ -5,6 +5,7 @@ const {
   rateLimitMock,
   verifyQuoteTokenMock,
   getTransactionBlockMock,
+  getGasStationAddressMock,
   findUniqueMock,
   findFirstMock,
   updateManyMock,
@@ -14,6 +15,7 @@ const {
   rateLimitMock: vi.fn(),
   verifyQuoteTokenMock: vi.fn(),
   getTransactionBlockMock: vi.fn(),
+  getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   findUniqueMock: vi.fn(),
   findFirstMock: vi.fn(),
   updateManyMock: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('@/lib/sui', () => ({
   getSuiClient: () => ({
     getTransactionBlock: getTransactionBlockMock,
   }),
+}));
+
+vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -84,8 +90,11 @@ describe('POST /api/v1/payments/confirm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.HMAC_SECRET = 'a'.repeat(64);
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'testnet';
+    process.env.LEVO_USD_COIN_TYPE = '0xlevo::levo_usd::LEVO_USD';
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
   });
 
   it('rejects cross-origin confirmation requests before touching quote state', async () => {
@@ -420,6 +429,37 @@ describe('POST /api/v1/payments/confirm', () => {
     });
   });
 
+  it('includes the gas station address when the on-chain failure is missing sponsor gas coins', async () => {
+    const quotePayload = makeQuotePayload();
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'No valid gas coins found for the transaction.',
+        },
+      },
+    });
+    updateManyMock.mockResolvedValue({ count: 1 });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
   it('rejects confirmations when the on-chain sender does not match the quote sender', async () => {
     const quotePayload = makeQuotePayload();
 
@@ -531,5 +571,78 @@ describe('POST /api/v1/payments/confirm', () => {
     expect(getTransactionBlockMock).not.toHaveBeenCalled();
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: 'Invalid input' });
+  });
+
+  it('accepts mainnet USDC direct-wallet settlement for X-handle quotes', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+
+    const quotePayload = {
+      ...makeQuotePayload(),
+      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+    };
+    const quoteUpdateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const ledgerCreateMock = vi.fn().mockResolvedValue({});
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [
+        {
+          type: 'created',
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          objectType: `0x2::coin::Coin<${quotePayload.coinType}>`,
+        },
+      ],
+      balanceChanges: [
+        {
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          coinType: quotePayload.coinType,
+          amount: quotePayload.amount,
+        },
+      ],
+    });
+    transactionMock.mockImplementation(async (callback: (client: unknown) => Promise<void>) => {
+      await callback({
+        paymentQuote: {
+          updateMany: quoteUpdateManyMock,
+        },
+        paymentLedger: {
+          create: ledgerCreateMock,
+        },
+      });
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest: VALID_TX_DIGEST,
+    });
+    expect(quoteUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          coinType: quotePayload.coinType,
+        }),
+      }),
+    );
+    expect(ledgerCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          coinType: quotePayload.coinType,
+        }),
+      }),
+    );
   });
 });

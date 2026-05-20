@@ -3,13 +3,14 @@ import { deriveObjectID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
 
 const network = (process.env.NEXT_PUBLIC_SUI_NETWORK as 'testnet' | 'mainnet' | 'devnet') || 'testnet';
+const rpcUrl = process.env.SUI_RPC_URL?.trim();
 
 let _client: SuiJsonRpcClient | null = null;
 
 export function getSuiClient(): SuiJsonRpcClient {
   if (!_client) {
     _client = new SuiJsonRpcClient({
-      url: getJsonRpcFullnodeUrl(network),
+      url: rpcUrl || getJsonRpcFullnodeUrl(network),
       network,
     });
   }

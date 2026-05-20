@@ -3,10 +3,14 @@ import { NextRequest } from 'next/server';
 
 const {
   buildPrivyRawSignAuthorizationRequestMock,
+  buildMintIntoVaultTxMock,
+  executeTransactionBlockMock,
   findFirstMock,
   findUniqueMock,
+  getGasStationAddressMock,
   getGasStationKeypairMock,
   getPrivyClientMock,
+  paymentQuoteUpdateManyMock,
   redisDelMock,
   redisGetMock,
   redisSetMock,
@@ -20,10 +24,14 @@ const {
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   buildPrivyRawSignAuthorizationRequestMock: vi.fn(),
+  buildMintIntoVaultTxMock: vi.fn(),
+  executeTransactionBlockMock: vi.fn(),
   findFirstMock: vi.fn(),
   findUniqueMock: vi.fn(),
+  getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   getGasStationKeypairMock: vi.fn(),
   getPrivyClientMock: vi.fn(),
+  paymentQuoteUpdateManyMock: vi.fn(),
   redisDelMock: vi.fn(),
   redisGetMock: vi.fn(),
   redisSetMock: vi.fn(),
@@ -68,6 +76,7 @@ vi.mock('@/lib/api', async () => {
 });
 
 vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
   getGasStationKeypair: getGasStationKeypairMock,
 }));
 
@@ -82,7 +91,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     paymentQuote: {
       findFirst: findFirstMock,
-      updateMany: vi.fn(),
+      updateMany: paymentQuoteUpdateManyMock,
     },
   },
 }));
@@ -111,12 +120,18 @@ vi.mock('@/lib/sui', () => ({
   getSuiClient: getSuiClientMock,
 }));
 
+vi.mock('@/lib/stable-layer', () => ({
+  buildMintIntoVaultTx: buildMintIntoVaultTxMock,
+}));
+
 import { POST } from './route';
 
 describe('POST /api/v1/payments/send', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.HMAC_SECRET = 'x'.repeat(64);
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'testnet';
+    process.env.LEVO_USD_COIN_TYPE = '0xlevo::levo_usd::LEVO_USD';
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
     verifyPrivyXAuthMock.mockResolvedValue({
@@ -129,11 +144,16 @@ describe('POST /api/v1/payments/send', () => {
       },
     });
     getPrivyClientMock.mockReturnValue({});
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
     getGasStationKeypairMock.mockReturnValue(null);
+    paymentQuoteUpdateManyMock.mockResolvedValue({ count: 1 });
     redisGetMock.mockResolvedValue(null);
     redisSetMock.mockResolvedValue('OK');
     redisDelMock.mockResolvedValue(1);
-    getSuiClientMock.mockReturnValue({});
+    executeTransactionBlockMock.mockReset();
+    getSuiClientMock.mockReturnValue({
+      executeTransactionBlock: executeTransactionBlockMock,
+    });
     txAddMock.mockReturnValue('coin-object');
     txBuildMock.mockResolvedValue(Uint8Array.from([1, 2, 3]));
     buildPrivyRawSignAuthorizationRequestMock.mockReturnValue({
@@ -163,6 +183,7 @@ describe('POST /api/v1/payments/send', () => {
       nonce: 'nonce',
       expiresAt: Math.floor(Date.now() / 1000) + 300,
     });
+    buildMintIntoVaultTxMock.mockResolvedValue(undefined);
   });
 
   it('rejects sends when no embedded wallet has been provisioned', async () => {
@@ -307,6 +328,154 @@ describe('POST /api/v1/payments/send', () => {
           'privy-app-id': 'privy-app-id',
         },
       },
+    });
+  });
+
+  it('builds mainnet USDC X-handle sends as direct transfers without StableLayer minting', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    delete process.env.LEVO_USD_COIN_TYPE;
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    verifyQuoteTokenMock.mockReturnValueOnce({
+      xUserId: '99999',
+      derivationVersion: 1,
+      vaultAddress: '0xvault',
+      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+      amount: '1000000',
+      senderAddress: '0xwallet',
+      nonce: 'nonce',
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(buildMintIntoVaultTxMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
+  it('does not require StableLayer configuration for mainnet USDC X-handle sends', async () => {
+    process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
+    delete process.env.LEVO_USD_COIN_TYPE;
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    verifyQuoteTokenMock.mockReturnValueOnce({
+      xUserId: '99999',
+      derivationVersion: 1,
+      vaultAddress: '0xvault',
+      coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+      amount: '1000000',
+      senderAddress: '0xwallet',
+      nonce: 'nonce',
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(buildMintIntoVaultTxMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
+  it('returns the gas station address when sponsored execution fails due to missing gas coins', async () => {
+    const gasKeypair = {
+      toSuiAddress: vi.fn(() => '0xgasstation'),
+      signTransaction: vi.fn().mockResolvedValue({ signature: 'gas-signature' }),
+    };
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    getGasStationKeypairMock.mockReturnValueOnce(gasKeypair);
+    redisGetMock.mockResolvedValueOnce(JSON.stringify({
+      txBytesBase64: Buffer.from(Uint8Array.from([1, 2, 3])).toString('base64'),
+      walletId: 'wallet-id',
+      storedPublicKey: 'public-key',
+    }));
+    executeTransactionBlockMock.mockResolvedValueOnce({
+      effects: {
+        status: {
+          status: 'failure',
+          error: 'No valid gas coins found for the transaction.',
+        },
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteToken: 'quote-token',
+        authorizationSignature: 'client-authorization-signature',
+      }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(paymentQuoteUpdateManyMock).toHaveBeenCalled();
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+    });
+  });
+
+  it('returns the gas station address when sponsored transaction build fails for missing gas coins', async () => {
+    const gasKeypair = {
+      toSuiAddress: vi.fn(() => '0xgasstation'),
+      signTransaction: vi.fn(),
+    };
+
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+    getGasStationKeypairMock.mockReturnValueOnce(gasKeypair);
+    txBuildMock.mockRejectedValueOnce(
+      new Error('No valid gas coins found for the transaction.'),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     });
   });
 });

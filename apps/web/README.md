@@ -20,6 +20,17 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Sponsor Maintenance
+
+The app currently keeps the existing gas-station sponsor flow. For operational checks and manual recovery:
+
+```bash
+pnpm --dir apps/web gas-station:status
+pnpm --dir apps/web gas-station:merge
+```
+
+Use `status` to inspect sponsor balance and `Coin<SUI>` fragmentation. Use `merge` only during a quiet period; it is an operational mitigation, not a permanent fix for sponsor contention.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

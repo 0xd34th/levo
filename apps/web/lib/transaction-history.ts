@@ -9,7 +9,9 @@ export interface TransactionItem {
   coinType: string;
   amount: string;
   createdAt: string;
+  recipientType?: 'X_HANDLE' | 'SUI_ADDRESS';
   recipient: TransactionRecipient;
+  recipientAddress?: string;
 }
 
 export interface TransactionHistoryResponse {

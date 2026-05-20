@@ -1,0 +1,301 @@
+{
+  "navbar": {
+    "welcome": {
+      "title": "",
+      "subtitle": "",
+      "cta": ""
+    },
+    "links": {
+      "exchange": "",
+      "dashboard": "대시보드",
+      "buy": "매수",
+      "back": ""
+    },
+    "statsCards": {
+      "dexs": "",
+      "bridges": "",
+      "chains": ""
+    },
+    "connect": "",
+    "walletSelectMenu": {
+      "connectWallet": "",
+      "wallets": "",
+      "ecosystemSelectMenu": {
+        "selectEcosystem": "",
+        "noEcosystemAdapter": ""
+      }
+    },
+    "wallets": "",
+    "seeAllWallets": "",
+    "navbarMenu": {
+      "brandAssets": "",
+      "theme": "테마",
+      "developers": "개발자",
+      "support": "지원",
+      "resources": "",
+      "profile": "",
+      "privacyPolicy": "",
+      "termsConditions": ""
+    },
+    "walletMenu": {
+      "disconnect": "연결 해제",
+      "chains": "체인",
+      "switchChain": "체인 변경",
+      "copy": "복사",
+      "explore": "탐색",
+      "copiedMsg": "지갑 주소 복사 완료",
+      "walletNotInstalled": "",
+      "connectAnotherWallet": "",
+      "refreshBalances": "",
+      "totalBalance": "",
+      "walletBalance": "",
+      "totalBalanceTooltip": "",
+      "totalBalanceRefresh": "",
+      "numberOfChains": ""
+    },
+    "themes": {
+      "dark": "",
+      "light": "",
+      "system": "",
+      "switchToLight": "라이트 모드로 전환",
+      "switchToDark": "다크 모드로 전환",
+      "switchToSystem": "",
+      "lightModeDisabled": "",
+      "darkModeDisabled": "",
+      "systemModeDisabled": "",
+      "default": ""
+    },
+    "developers": {
+      "github": "깃허브",
+      "documentation": "문서"
+    }
+  },
+  "discordBanner": {
+    "ctaHeadline": "",
+    "ctaButton": ""
+  },
+  "badge": {
+    "updated": ""
+  },
+  "solanaAlert": {
+    "title": "",
+    "subtitle": ""
+  },
+  "seiAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "abstractAlert": {
+    "title": "",
+    "subtitle": "",
+    "buttonText": ""
+  },
+  "featureCard": {
+    "learnMore": ""
+  },
+  "button": {
+    "okay": "",
+    "manageYourPosition": "",
+    "goBack": "",
+    "connectAnotherWallet": ""
+  },
+  "error": {
+    "message": ""
+  },
+  "multisig": {
+    "connected": {
+      "title": "",
+      "description": ""
+    },
+    "transactionInitiated": {
+      "title": "",
+      "description": ""
+    }
+  },
+  "promo": {
+    "new": ""
+  },
+  "completedMissionsInformation": {
+    "title": "",
+    "description": ""
+  },
+  "format": {
+    "currency": "",
+    "currencyCompact": "",
+    "decimal": "",
+    "decimalCompact": "",
+    "percent": "",
+    "decimal2Digit": "",
+    "date": "",
+    "shortDate": ""
+  },
+  "contribution": {
+    "title": "",
+    "custom": "",
+    "confirm": "",
+    "thankYou": "",
+    "description": "",
+    "error": {
+      "amountTooSmall": "",
+      "errorSending": "",
+      "invalidTokenPrice": "",
+      "noFeeAddress": ""
+    }
+  },
+  "tooltips": {
+    "tvl": "",
+    "apy": "",
+    "rewardsApy": "",
+    "deposit": "",
+    "deposited": "",
+    "boostedApy": "",
+    "lockupPeriod": "",
+    "manageYourPosition": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "noPositionsToManage": "",
+    "capInDollar": ""
+  },
+  "labels": {
+    "apy": "",
+    "rewardsApy": "",
+    "lockupPeriod": "",
+    "tvl": "",
+    "assets_one": "",
+    "assets_other_one": "",
+    "assets_other": "",
+    "chains_one": "",
+    "chains_other": "",
+    "protocol": "",
+    "overview": "",
+    "capInDollar": ""
+  },
+  "widget": {
+    "depositCard": {
+      "apy": "",
+      "boostedApy": "",
+      "tvl": "",
+      "lockupPeriod": "",
+      "token": ""
+    },
+    "sweepTokensCard": {
+      "button": {
+        "claim": "",
+        "switchChain": "",
+        "waitingForTransaction": "",
+        "transactionInProgress": "",
+        "viewTransaction": ""
+      },
+      "error": {
+        "title": "",
+        "description": ""
+      },
+      "success": {
+        "title": "",
+        "description": ""
+      }
+    },
+    "zap": {
+      "sendToAddressName": "",
+      "sentToAddressName": "",
+      "depositSuccess": "",
+      "tabs": {
+        "deposit": "",
+        "withdraw": ""
+      },
+      "placeholder": {
+        "comingSoon": "",
+        "embedded-multisig": {
+          "title": "",
+          "description": ""
+        },
+        "non-evm": {
+          "title": "",
+          "description": ""
+        }
+      }
+    },
+    "earn": {
+      "depositSuccess": ""
+    },
+    "withdraw": {
+      "title": ""
+    }
+  },
+  "links": {
+    "discover": ""
+  },
+  "buttons": {
+    "depositButtonLabel": "",
+    "withdrawButtonLabel": "",
+    "managePositionsButtonLabel": "",
+    "deposit": "",
+    "depositNow": ""
+  },
+  "modal": {
+    "perks": {
+      "unclaimedPerk": {
+        "title": ""
+      },
+      "claimedPerk": {
+        "title": "",
+        "description": "",
+        "nextSteps": "",
+        "howToUsePerk": "",
+        "howToUsePerkDescription": ""
+      },
+      "signatureFailed": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "validationFailed": {
+        "title": "",
+        "description": "",
+        "close": ""
+      },
+      "unsupportedWallet": {
+        "title": "",
+        "description": "",
+        "switchWallet": ""
+      },
+      "unknown": {
+        "title": "",
+        "description": "",
+        "tryAgain": ""
+      },
+      "stepper": {
+        "steps": {
+          "username": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "email": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "wallet": {
+            "title": "",
+            "description_one": "",
+            "description_other": ""
+          },
+          "position": {
+            "first": "",
+            "next": "",
+            "finally": ""
+          }
+        },
+        "continue": "",
+        "submit": "",
+        "submitting": ""
+      }
+    }
+  }
+}

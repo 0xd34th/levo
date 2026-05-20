@@ -88,11 +88,11 @@ export async function rateLimit(
 
   if (redis.status !== 'ready') {
     logRateLimiterUnavailable(
-      `Redis is not ready (status=${redis.status}); allowing request`,
+      `Redis is not ready (status=${redis.status}); rejecting request`,
     );
     return {
-      allowed: true,
-      remaining: max,
+      allowed: false,
+      remaining: 0,
       resetAt,
     };
   }
@@ -118,10 +118,10 @@ export async function rateLimit(
       resetAt,
     };
   } catch (error) {
-    logRateLimiterUnavailable('Rate limiter unavailable, allowing request', error);
+    logRateLimiterUnavailable('Rate limiter unavailable, rejecting request', error);
     return {
-      allowed: true,
-      remaining: max,
+      allowed: false,
+      remaining: 0,
       resetAt,
     };
   }

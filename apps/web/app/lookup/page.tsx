@@ -1,24 +1,27 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Search, ShieldCheck, Wallet } from 'lucide-react';
+import { BadgeCheck, Search, ShieldCheck, Wallet } from 'lucide-react';
+import { LevoWebShell } from '@/components/levo-web-shell';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { PaymentTable } from '@/components/payment-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
-  claimStatusLabel,
+  Input,
+  largeFormInputPrefixOffsetClass,
+} from '@/components/ui/input';
+import {
   explorerUrl,
   formatPendingBalances,
   normalizeHandle,
   receivedPaymentDisplay,
   truncateAddress,
   untrackedBalanceNote,
+  walletReadyLabel,
   type PublicLookupResponse,
 } from '@/lib/received-dashboard-client';
 import { MAX_X_HANDLE_LENGTH } from '@/lib/send-form';
+import { cn } from '@/lib/utils';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
@@ -48,7 +51,7 @@ export default function LookupPage() {
 
     if (!username) {
       setLoading(false);
-      setError('Enter an X handle to check the vault.');
+      setError('Enter an X handle to check the recipient wallet.');
       setResult(null);
       return;
     }
@@ -67,7 +70,6 @@ export default function LookupPage() {
       });
 
       if (lookupRequestIdRef.current !== lookupRequestId) return;
-
       if (!response.ok) {
         const payload = await response.json().catch(() => ({ error: 'Lookup failed' }));
         throw new Error(payload.error ?? 'Lookup failed');
@@ -75,7 +77,6 @@ export default function LookupPage() {
 
       const payload = (await response.json()) as PublicLookupResponse;
       if (lookupRequestIdRef.current !== lookupRequestId) return;
-
       setResult(payload);
     } catch (lookupError) {
       if (controller.signal.aborted) return;
@@ -83,148 +84,164 @@ export default function LookupPage() {
       setResult(null);
       setError(lookupError instanceof Error ? lookupError.message : 'Lookup failed');
     } finally {
-      if (lookupAbortRef.current === controller) {
-        lookupAbortRef.current = null;
-      }
-      if (lookupRequestIdRef.current === lookupRequestId) {
-        setLoading(false);
-      }
+      if (lookupAbortRef.current === controller) lookupAbortRef.current = null;
+      if (lookupRequestIdRef.current === lookupRequestId) setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen">
-      <MobileTopBar title="Vault Lookup" backHref="/tools" />
+    <LevoWebShell
+      showMobileTopBar={false}
+      contentClassName="max-w-none px-0 pb-0 pt-0 md:max-w-none lg:px-8 lg:py-8"
+    >
+      <div className="lg:hidden">
+        <MobileTopBar title="Recipient lookup" backHref="/tools" />
+      </div>
 
-      <main className="mx-auto flex w-full max-w-lg flex-col px-4 pb-16 pt-6 md:max-w-4xl">
+      <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-3 md:max-w-3xl lg:max-w-5xl lg:px-0 lg:pb-0 lg:pt-0">
+        <section className="rounded-[20px] bg-surface px-4 py-4">
+          <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
+            <div className="relative flex-1">
+              <span
+                className={cn(
+                  'pointer-events-none absolute top-1/2 -translate-y-1/2 text-[18px] font-medium',
+                  largeFormInputPrefixOffsetClass,
+                )}
+                style={{ color: 'var(--text-mute)' }}
+              >
+                @
+              </span>
+              <Input
+                className="h-[56px] rounded-[14px] border-0 bg-background pl-14 pr-5 text-[17px] font-medium placeholder:text-[color:var(--text-fade)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-0"
+                maxLength={MAX_X_HANDLE_LENGTH + 1}
+                placeholder="username"
+                value={handle}
+                onChange={(event) => setHandle(normalizeHandle(event.target.value))}
+              />
+            </div>
+            <Button className="h-[56px] rounded-[14px] px-5" disabled={loading} type="submit">
+              <Search className="size-4" />
+              {loading ? 'Searching…' : 'Lookup'}
+            </Button>
+          </form>
 
-        <section className="mx-auto mt-8 w-full max-w-3xl">
-          <Card className="glass-card rounded-[30px] bg-card/95 py-0 dark:bg-[#11161d]/92">
-            <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
-              <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
-                    @
-                  </span>
-                  <Input
-                    className="h-16 rounded-[22px] border-border/70 bg-background/80 pl-12 text-lg font-medium dark:border-white/10 dark:bg-white/5"
-                    maxLength={MAX_X_HANDLE_LENGTH + 1}
-                    placeholder="username"
-                    value={handle}
-                    onChange={(event) => setHandle(normalizeHandle(event.target.value))}
-                  />
-                </div>
-                <Button className="h-16 rounded-[22px] px-5" disabled={loading} type="submit">
-                  <Search className="size-4" />
-                  {loading ? 'Searching…' : 'Lookup'}
-                </Button>
-              </form>
-
-              {error ? (
-                <div className="mt-4 rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                  {error}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+          {error ? (
+            <div
+              className="mt-3 rounded-[12px] px-3 py-2 text-[13px]"
+              style={{ background: 'var(--down-soft)', color: 'var(--down)' }}
+            >
+              {error}
+            </div>
+          ) : null}
         </section>
 
         {result ? (
           <>
-            <section className="mt-8 grid gap-4 md:grid-cols-3">
-              <div className="metric-card">
-                <p className="section-eyebrow">Vault exists</p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-                  {result.vaultExists ? 'Yes' : 'No'}
+            <section className="mt-5 grid gap-2.5 md:grid-cols-3">
+              <div className="rounded-[18px] bg-surface px-4 py-4">
+                <p className="eyebrow">Wallet ready</p>
+                <p className="mt-2 text-[22px] font-semibold tracking-[-0.02em]">
+                  {walletReadyLabel(result.walletReady)}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">{truncateAddress(result.vaultAddress)}</p>
+                <p
+                  className="mono-nums mt-2 text-[13px]"
+                  style={{ color: 'var(--text-mute)' }}
+                >
+                  {result.recipientAddress
+                    ? truncateAddress(result.recipientAddress)
+                    : 'Canonical wallet not yet provisioned.'}
+                </p>
               </div>
-              <div className="metric-card">
-                <p className="section-eyebrow">Pending balance</p>
-                <p className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+              <div className="rounded-[18px] bg-surface px-4 py-4">
+                <p className="eyebrow">Current wallet balance</p>
+                <p className="tabular-nums mt-2 text-[22px] font-semibold tracking-[-0.02em]">
                   {formatPendingBalances(result.pendingBalances)}
                 </p>
-                {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus) ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {untrackedBalanceNote(result.pendingBalances, result.recordedTotals, result.claimStatus)}
+                {untrackedBalanceNote(result.pendingBalances, result.recordedTotals) ? (
+                  <p className="mt-2 text-[13px]" style={{ color: 'var(--text-mute)' }}>
+                    {untrackedBalanceNote(result.pendingBalances, result.recordedTotals)}
                   </p>
                 ) : null}
-                <p className="mt-2 text-sm text-muted-foreground">Available after X login and wallet connection.</p>
               </div>
-              <div className="metric-card">
-                <p className="section-eyebrow">Claim status</p>
-                <p className="mt-3">
-                  <Badge className="rounded-full bg-secondary text-secondary-foreground dark:bg-white/8 dark:text-foreground">
-                    {claimStatusLabel(result.claimStatus)}
-                  </Badge>
+              <div className="rounded-[18px] bg-surface px-4 py-4">
+                <p className="eyebrow">Indexed received</p>
+                <p className="tabular-nums mt-2 text-[22px] font-semibold tracking-[-0.02em]">
+                  {formatPendingBalances(result.recordedTotals)}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">Public status for @{result.username}</p>
+                <p className="mt-2 text-[13px]" style={{ color: 'var(--text-mute)' }}>
+                  Confirmed transfers indexed for @{result.username}.
+                </p>
               </div>
             </section>
 
-            <section className="table-surface mt-8">
-              <div className="border-b border-border/70 px-5 py-5 dark:border-white/8">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-semibold tracking-[-0.03em]">Recent incoming payments</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Latest confirmed transfers routed into the deterministic vault.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="rounded-full border-border/70 px-3 text-muted-foreground dark:border-white/10">
-                      @{result.username}
-                    </Badge>
-                    <Badge variant="outline" className="rounded-full border-border/70 px-3 text-muted-foreground dark:border-white/10">
-                      <ShieldCheck className="mr-1 size-3.5" />
-                      Public view
-                    </Badge>
-                  </div>
+            <section className="mt-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <div>
+                  <p className="text-[15px] font-semibold">Recent incoming payments</p>
+                  <p className="mt-0.5 text-[13px]" style={{ color: 'var(--text-mute)' }}>
+                    Latest confirmed transfers to the canonical wallet.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium"
+                  >
+                    <BadgeCheck className="size-3" />@{result.username}
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[12px] font-medium"
+                    style={{ color: 'var(--text-mute)' }}
+                  >
+                    <ShieldCheck className="size-3" />
+                    Public view
+                  </span>
                 </div>
               </div>
 
-              <div className="px-5 py-5">
-                <PaymentTable
-                  counterpartyColumnLabel="Sender"
-                  emptyDescription="No confirmed incoming transfers were found for this handle yet."
-                  emptyTitle="Nothing pending yet"
-                  rows={result.recentIncomingPayments.map((payment) => ({
-                    id: payment.id,
-                    counterpartyLabel: truncateAddress(payment.senderAddress),
-                    counterpartySubLabel: 'Sender wallet',
-                    amount: receivedPaymentDisplay(payment),
-                    status: 'Confirmed',
-                    claimStatus: claimStatusLabel(result.claimStatus),
-                    date: payment.createdAt,
-                    txUrl: explorerUrl(NETWORK, payment.txDigest),
-                  }))}
-                  showClaimStatus
-                  showTxLink
-                />
-              </div>
+              <PaymentTable
+                counterpartyColumnLabel="Sender"
+                emptyDescription="No confirmed incoming transfers found yet."
+                emptyTitle="Nothing received yet"
+                rows={result.recentIncomingPayments.map((payment) => ({
+                  id: payment.id,
+                  counterpartyLabel: truncateAddress(payment.senderAddress),
+                  counterpartySubLabel: 'Sender wallet',
+                  amount: receivedPaymentDisplay(payment),
+                  status: 'Confirmed',
+                  direction: 'incoming',
+                  date: payment.createdAt,
+                  txUrl: explorerUrl(NETWORK, payment.txDigest),
+                }))}
+                showTxLink
+              />
             </section>
 
-            <section className="mx-auto mt-8 grid w-full max-w-5xl gap-4 md:grid-cols-2">
-              <div className="metric-card">
-                <p className="section-eyebrow">How it works</p>
-                <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
-                  The vault address is derived from the X user id, so funds can arrive before a wallet exists.
+            <section className="mt-5 grid gap-2.5 md:grid-cols-2">
+              <div className="rounded-[18px] bg-surface px-4 py-4">
+                <p className="eyebrow">How it works</p>
+                <p className="mt-2 text-[15px] font-semibold tracking-[-0.005em]">
+                  New transfers resolve a canonical Privy-backed Sui wallet for the X account and send there directly.
                 </p>
               </div>
-              <div className="metric-card">
-                <p className="section-eyebrow">Next step</p>
-                <p className="mt-3 text-lg font-semibold tracking-[-0.03em]">
-                  The recipient signs in with X, connects a Sui wallet, and claims the balance.
+              <div className="rounded-[18px] bg-surface px-4 py-4">
+                <p className="eyebrow">Next step</p>
+                <p className="mt-2 text-[15px] font-semibold tracking-[-0.005em]">
+                  {result.walletReady
+                    ? 'The canonical wallet is live and can receive assets immediately.'
+                    : 'The wallet is provisioned automatically the first time someone sends to this handle.'}
                 </p>
-                <p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <Wallet className="size-4 text-primary" />
-                  Claim UX lives at <span className="font-medium text-foreground">/claim</span>
+                <p
+                  className="mt-2 inline-flex items-center gap-2 text-[13px]"
+                  style={{ color: 'var(--text-mute)' }}
+                >
+                  <Wallet className="size-4" />
+                  Direct wallet delivery replaces the old claim flow.
                 </p>
               </div>
             </section>
           </>
         ) : null}
       </main>
-    </div>
+    </LevoWebShell>
   );
 }

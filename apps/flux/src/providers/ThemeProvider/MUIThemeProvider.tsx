@@ -1,0 +1,63 @@
+'use client';
+import type { Theme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
+import type { PropsWithChildren } from 'react';
+import { useEffect, useRef } from 'react';
+import { useColorScheme } from '@mui/material/styles';
+import { createJumperTheme } from 'src/theme/theme';
+import { useThemeStore } from 'src/stores/theme';
+import { useThemeConditionsMet } from 'src/hooks/theme/useThemeConditionsMet';
+import {
+  THEME_COLOR_SCHEME_STORAGE_KEY,
+  THEME_MODE_STORAGE_KEY,
+} from './constants';
+import CssBaseline from '@mui/material/CssBaseline';
+
+function LightModeBoundary({ children }: PropsWithChildren) {
+  const { mode, colorScheme, setColorScheme, setMode } = useColorScheme();
+
+  useEffect(() => {
+    setColorScheme({ light: 'light', dark: 'light' });
+
+    if (mode && mode !== 'light') {
+      setMode('light');
+    }
+  }, [mode, colorScheme, setColorScheme, setMode]);
+
+  return children;
+}
+
+/**
+ * App's theme provider component.
+ * Provider for the MUI theme context, mainly setting up the MUI provider, very linked to the next-theme provider
+ */
+export function MUIThemeProvider({ children }: PropsWithChildren) {
+  const jumperTheme = useThemeStore((state) => state.jumperTheme);
+  const { shouldShowForTheme } = useThemeConditionsMet();
+  const defaultThemeRef = useRef<Theme>(null);
+  const partnerThemeRef = useRef<Theme>(null);
+
+  if (!defaultThemeRef.current) {
+    defaultThemeRef.current = createJumperTheme(jumperTheme.default);
+  }
+  if (!partnerThemeRef.current) {
+    partnerThemeRef.current = createJumperTheme(jumperTheme.partner);
+  }
+
+  const theme = shouldShowForTheme
+    ? partnerThemeRef.current
+    : defaultThemeRef.current;
+
+  return (
+    <ThemeProvider
+      theme={theme}
+      modeStorageKey={THEME_MODE_STORAGE_KEY}
+      colorSchemeStorageKey={THEME_COLOR_SCHEME_STORAGE_KEY}
+      defaultMode="light"
+      disableTransitionOnChange
+    >
+      <CssBaseline enableColorScheme />
+      <LightModeBoundary>{children}</LightModeBoundary>
+    </ThemeProvider>
+  );
+}

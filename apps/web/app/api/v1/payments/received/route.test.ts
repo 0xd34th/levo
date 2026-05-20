@@ -51,7 +51,6 @@ import { GET } from './route';
 describe('GET /api/v1/payments/received', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_VAULT_REGISTRY_ID = 'registry-id';
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifyPrivyXAuthMock.mockResolvedValue({
       ok: true,
@@ -69,11 +68,11 @@ describe('GET /api/v1/payments/received', () => {
     buildIncomingPaymentsResponseMock.mockResolvedValue({
       username: 'alice',
       xUserId: '12345',
+      recipientAddress: `0x${'1'.repeat(64)}`,
+      walletReady: true,
+      derivationVersion: 1,
       pendingBalances: [],
       recordedTotals: [],
-      claimStatus: 'UNCLAIMED',
-      vaultAddress: '0xvault',
-      vaultExists: false,
       items: [],
       nextCursor: null,
     });
@@ -107,7 +106,6 @@ describe('GET /api/v1/payments/received', () => {
         profilePicture: 'https://pbs.twimg.com/profile_images/avatar.jpg',
         isBlueVerified: false,
       },
-      'registry-id',
       10,
       {
         createdAt: '2026-03-17T12:00:00.000Z',

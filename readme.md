@@ -1,71 +1,58 @@
 # Levo
 
-Send stablecoins to any X handle on Sui — no wallet address needed. Recipients claim funds when ready.
+Send stablecoins to any X handle on Sui, and let users earn yield in USDC with a Privy embedded wallet.
 
 ## How it works
 
-1. **Send** — Enter an `@handle` and amount. Levo derives a deterministic vault address from the X user ID and sends funds there on-chain. The sender's Privy embedded wallet signs the transaction server-side with gas sponsorship.
-2. **Claim** — The recipient signs in with X via Privy. A Nautilus enclave (AWS Nitro TEE) produces an Ed25519 attestation binding the X user ID to the recipient's Sui address. The on-chain contract verifies this attestation via hardware-backed PCR proof, claims the vault, sweeps coins, and withdraws to the recipient.
-3. **Dashboard** — Both senders and recipients can view payment history and track transaction status.
+1. **Send** — Enter an `@handle` and amount in USDC. Levo resolves a canonical Privy-backed Sui wallet for the X user and sends there directly.
+2. **Earn** — Users stake USDC through StableLayer, keep a USDC-only UX, and can claim yield or withdraw back to USDC.
+3. **Dashboard** — Users can view balances, recent activity, and direct wallet delivery status.
 
 ## Architecture
 
 ```
-apps/web              Next.js 16 frontend + API routes
-packages/contracts    Sui Move smart contracts (XVault + NautilusVerifier)
-infra/                Docker Compose (local Postgres + Redis)
+apps/web           Next.js 16 frontend + API routes
+packages/levo-usd  Standalone LevoUSD coin package for StableLayer settlement
 ```
 
-The attestation signer runs as a **Rust application inside an AWS Nitro Enclave** via the [Mysten Labs Nautilus framework](https://github.com/MystenLabs/nautilus). The enclave generates an ephemeral Ed25519 keypair on startup (private key never leaves the TEE), and its public key is registered on-chain through a hardware attestation document with PCR verification.
+### On-chain package (`packages/levo-usd`)
 
-### Smart contracts (`packages/contracts`)
-
-- **XVaultRegistry** — Global registry, admin controls, pause toggle
-- **XVault** — Per-user vault with deterministic address derivation (`derived_object`)
-- **NautilusVerifier** — Attestation verification via Nautilus `enclave::verify_signature`, with OTW-based `EnclaveConfig` and PCR registration
-- Key operations: `derive_vault_address`, `claim_vault`, `sweep_coin_to_vault`, `withdraw`, `withdraw_all`
-- Claim requires a valid `IntentMessage<AttestationMessage>` signature from a registered Nautilus enclave
-
-### Nautilus enclave
-
-Rust application running in AWS Nitro Enclave. Signs claim attestations with the enclave's ephemeral Ed25519 key.
-
-- `POST /process_data` — Accepts `{ payload: { x_user_id, sui_address, registry_id } }`, returns `{ signature, nonce, expires_at, intent_scope, timestamp_ms }`
-- `GET /health_check` — Returns enclave public key and endpoint status
-- `GET /get_attestation` — Returns AWS Nitro attestation document for on-chain registration
-- No external API calls needed — signing is purely local computation
-- Source: Nautilus framework `src/nautilus-server/src/apps/levo/mod.rs`
+- **LevoUSD** — Levo-branded StableLayer settlement asset (`levo_usd::LEVO_USD`)
+- Current product flow uses direct Privy wallets plus StableLayer earn flows; there is no claim/vault signer sidecar in the repo
 
 ### Web app (`apps/web`)
 
 | Page | Route | Description |
 |------|-------|-------------|
 | Home | `/` | Landing page |
-| Send | `/` | Send funds to an X handle |
-| Claim | `/claim` | Claim vault after X login |
-| Dashboard | `/dashboard/sent` | Sent payment history |
-| Dashboard | `/dashboard/received` | Received payment history |
+| Send | `/send` | Send funds to an X handle |
+| Deposit | `/deposit` | Fund the embedded wallet with USDC |
+| Earn | `/earn` | Stake USDC, claim yield, or withdraw back to USDC |
+| Activity | `/activity` | Sent and received payment history |
+| Lookup | `/lookup` | Public recipient wallet lookup by X handle |
 
 Key API routes:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/lookup/x-username` | GET | Public vault status lookup |
+| `/api/v1/lookup/x-username` | GET | Public recipient wallet lookup and recent incoming activity |
 | `/api/v1/payments/quote` | POST | Generate HMAC-signed payment quote |
 | `/api/v1/payments/send` | POST | Build, sign (Privy), and execute send transaction |
 | `/api/v1/payments/confirm` | POST | Confirm payment after on-chain verification |
-| `/api/v1/payments/claim` | POST | Request attestation, build and execute claim transaction |
 | `/api/v1/wallet/setup` | POST | Provision Privy embedded Sui wallet |
+| `/api/v1/earn/summary` | GET | Load USDC balances, deposited amount, and claimable yield |
+| `/api/v1/earn/preview` | POST | Preview a StableLayer earn action |
+| `/api/v1/earn/execute` | POST | Authorize and execute a StableLayer earn action |
+| `/api/v1/earn/confirm` | POST | Confirm earn settlement after on-chain verification |
 
 ### Tech stack
 
 - **Frontend**: React 19, Next.js 16 (App Router), Tailwind CSS 4, shadcn/ui
 - **Auth**: Privy (X/Twitter OAuth + embedded Sui wallets)
-- **Sui SDK**: @mysten/sui
+- **Sui SDK**: @mysten/sui, stable-layer-sdk
 - **Backend**: Next.js API routes, Prisma (PostgreSQL), Redis (rate limiting + locks)
-- **Enclave**: Rust, fastcrypto (Ed25519), BCS, axum — via Nautilus framework (AWS Nitro)
-- **Contracts**: Sui Move (2024.beta edition), depends on Nautilus `enclave` package
-- **Testing**: Vitest (web), Move unit tests (contracts), Rust tests (enclave)
+- **Contracts**: Sui Move (2024.beta edition)
+- **Testing**: Vitest (web), Move unit tests (contracts)
 
 ## Prerequisites
 
@@ -74,12 +61,11 @@ Key API routes:
 - PostgreSQL
 - Redis
 - Sui CLI (for contract deployment)
-- Rust + Cargo (for enclave development)
-- AWS account with Nitro Enclave support (for enclave deployment)
 
 ## Setup
 
 ```bash
+# Install dependencies
 git clone https://github.com/0xd34th/levo.git && cd levo
 pnpm install
 ```
@@ -98,74 +84,76 @@ cp apps/web/.env.example apps/web/.env
 | `NEXT_PUBLIC_PRIVY_APP_ID` | From Privy dashboard |
 | `PRIVY_APP_SECRET` | From Privy dashboard |
 | `HMAC_SECRET` | `openssl rand -hex 32` |
-| `NEXT_PUBLIC_SUI_NETWORK` | `testnet` |
-| `NEXT_PUBLIC_PACKAGE_ID` | From `deployed.testnet.json` |
-| `NEXT_PUBLIC_VAULT_REGISTRY_ID` | From `deployed.testnet.json` |
-| `NEXT_PUBLIC_TREASURY_CAP_ID` | From `deployed.testnet.json` |
-| `GAS_STATION_SECRET_KEY` | `openssl rand -base64 32` (fund the derived address with SUI) |
-| `ENCLAVE_OBJECT_ID` | From `deployed.testnet.json` — Nautilus `Enclave<NAUTILUS_VERIFIER>` shared object |
-| `ENCLAVE_REGISTRY_ID` | From `deployed.testnet.json` — `EnclaveConfig` object (used as domain separator) |
-| `NAUTILUS_ENCLAVE_URL` | Enclave URL, e.g. `http://<EC2_IP>:3000` |
+| `APP_ORIGIN` | `http://localhost:3000` |
+| `NEXT_PUBLIC_SUI_NETWORK` | `mainnet` |
+| `SUI_RPC_URL` | Mainnet fullnode URL, for example `https://fullnode.mainnet.sui.io:443` |
+| `NEXT_PUBLIC_PACKAGE_ID` | Mainnet Levo package ID |
+| `LEVO_USD_COIN_TYPE` | Active settlement coin type, typically from the standalone `packages/levo-usd` publish |
+| `GAS_STATION_SECRET_KEY` | `openssl rand -base64 32` (fund the derived address with mainnet SUI) |
 
 ### 2. Database and services
 
 ```bash
-# Start Postgres + Redis
-docker compose -f infra/docker-compose.yml up -d
-
-# Database migrations
+# Database
 cd apps/web && npx prisma migrate deploy && npx prisma generate
 
-# Start web app
+# Terminal 1 — web
 pnpm --filter web dev
 ```
 
-Object IDs for testnet are in `packages/contracts/deployed.testnet.json`.
+### 2.1 Manual rsync deploy to OVH
 
-### 3. Nautilus enclave (AWS Nitro)
-
-See the [Nautilus framework](https://github.com/MystenLabs/nautilus) for full deployment docs. Quick summary:
+如果你不想让服务器自己 `git fetch`，可以直接从本机把当前工作树同步到 OVH，再在远端执行安装、构建、迁移和进程重启：
 
 ```bash
-# On EC2 with Nitro Enclave support (min 4 vCPU)
-cd nautilus
-make ENCLAVE_APP=levo && make run
-sh expose_enclave.sh
-
-# Register on-chain (from local machine)
-sh register_enclave.sh $ENCLAVE_PKG $LEVO_PKG $CONFIG_ID $ENCLAVE_URL nautilus_verifier NAUTILUS_VERIFIER
+scripts/deploy-rsync.sh --host ovhsui.3mate.io --port 10122 --user root --remote-dir /opt/levo
 ```
 
-After each enclave restart, re-register the new ephemeral key via `register_enclave.sh`.
+如果服务器用的不是本地开发 `.env`，可以显式指定两份运行时配置：
+
+```bash
+scripts/deploy-rsync.sh \
+  --web-env-file /path/to/web.prod.env \
+```
+
+约束：
+
+- 脚本会同步当前工作树，但会排除 `.git`、`node_modules`、本地状态目录和运行时 `.env`
+- `apps/web/.env` 会在代码同步后单独上传
+- 远端默认执行：`pnpm install --frozen-lockfile` -> `pnpm --filter web build` -> `npx prisma migrate deploy` -> `supervisorctl restart levo-web`
+- 只想先看变更范围时，可加 `--dry-run`
+
+### 3. Mainnet publish steps
+
+当前主网发布流程只保留 LevoUSD 相关步骤：
+
+```bash
+pnpm publish:levo-usd:mainnet -- --confirm-mainnet --gas-budget 50000000
+pnpm onboard:levo-usd:mainnet -- --treasury-cap-id 0x... --brand-coin-type 0x...::levo_usd::LEVO_USD --max-supply-raw 1000000000000 --dry-run --json
+pnpm add-entity:levo-usd:mainnet -- --factory-cap-id 0x... --brand-coin-type 0x...::levo_usd::LEVO_USD --dry-run --json
+```
+
+其中 StableLayer 的正确顺序已经固定为：
+
+1. `stable_layer::new<BrandCoin, USDC>`
+2. `stable_layer::add_entity<BrandCoin, USDC, StableVaultFarmEntity<...>>`
 
 ## Testing
 
 ```bash
-pnpm --filter web exec vitest run         # Web app tests (135 tests)
-cd packages/contracts && sui move test    # Move contract tests (28 tests)
+pnpm --filter web exec vitest run              # Web app tests
+cd packages/levo-usd && sui move build          # Standalone LevoUSD package build
 ```
 
 ## Design decisions
 
 ### Why Privy instead of zkLogin
 
-zkLogin ties a Sui address to a specific OAuth provider nonce and epoch — if the user's JWT expires or Sui epochs rotate, the derived address changes and funds become inaccessible. This is a critical risk for a product where funds sit in vaults for an indefinite period before the recipient claims them.
+zkLogin ties a Sui address to a specific OAuth provider nonce and epoch. If the user's JWT expires or Sui epochs rotate, the derived address can change and account recovery becomes harder to reason about for a consumer payments product.
 
-Privy gives us a persistent, server-managed embedded wallet per user. The wallet address is stable across sessions and doesn't depend on OAuth token lifecycle. It also lets us do server-side transaction signing (for gas sponsorship and atomic claim flows) without requiring the user to install a browser extension or understand gas.
+Privy gives us a persistent, server-managed embedded wallet per user. The wallet address is stable across sessions and doesn't depend on OAuth token lifecycle. It also lets us do server-side transaction signing for gas sponsorship, direct-to-wallet delivery, and StableLayer earn flows without requiring the user to install a browser extension or understand gas. The UX stays "sign in with X, funds appear" with minimal wallet friction.
 
-### Why Nautilus (AWS Nitro Enclaves)
-
-The attestation signer runs inside an AWS Nitro Enclave — a hardware-isolated TEE where the Ed25519 private key is generated and never leaves the enclave. The enclave's public key is registered on-chain via a Nitro attestation document, with PCR values proving the exact code running inside.
-
-This provides:
-- **Key isolation** — Private key exists only in enclave memory
-- **Code integrity** — PCR hashes prove unmodified code
-- **Hardware attestation** — AWS-signed documents verify enclave identity on-chain
-- **Ephemeral keys** — Fresh keypair on each restart, no key material to manage
-
-## Testnet proof
-
-End-to-end flow verified on Sui testnet — screenshots at [`infra/images/`](infra/images/).
+We can always add zkLogin as an optional advanced path later, but for the MVP the embedded wallet approach eliminates the largest class of "lost funds" edge cases.
 
 ## License
 

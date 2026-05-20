@@ -14,10 +14,22 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import {
+  getOrCreateSuiWallet,
   buildPrivyRawSignAuthorizationRequest,
   decodeStoredSuiPublicKey,
   signSuiTransaction,
 } from './privy-wallet';
+import { prisma } from '@/lib/prisma';
+
+function toAsyncIterable<T>(items: T[]) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const item of items) {
+        yield item;
+      }
+    },
+  };
+}
 
 describe('decodeStoredSuiPublicKey', () => {
   const keypair = Ed25519Keypair.fromSecretKey(new Uint8Array(32).fill(7));
@@ -40,6 +52,127 @@ describe('decodeStoredSuiPublicKey', () => {
 
     expect(parsed.toRawBytes()).toEqual(publicKey.toRawBytes());
     expect(parsed.toSuiAddress()).toBe(address);
+  });
+});
+
+describe('getOrCreateSuiWallet', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reconciles an incomplete stored binding from an existing Privy Sui wallet instead of creating a new one', async () => {
+    const keypair = Ed25519Keypair.fromSecretKey(new Uint8Array(32).fill(5));
+    const publicKey = keypair.getPublicKey();
+    const walletAddress = publicKey.toSuiAddress();
+    const listMock = vi.fn().mockReturnValue(
+      toAsyncIterable([
+        {
+          id: 'wallet-existing',
+          address: walletAddress,
+          public_key: toHex(publicKey.toSuiBytes()),
+        },
+      ]),
+    );
+    const createMock = vi.fn();
+
+    vi.mocked(prisma.xUser.findUnique).mockResolvedValueOnce({
+      privyWalletId: null,
+      suiAddress: walletAddress,
+      suiPublicKey: null,
+    } as never);
+
+    const privy = {
+      wallets: () => ({
+        list: listMock,
+        create: createMock,
+      }),
+    } as unknown as PrivyClient;
+
+    await expect(
+      getOrCreateSuiWallet(privy, 'privy-user', '12345'),
+    ).resolves.toEqual({
+      privyWalletId: 'wallet-existing',
+      suiAddress: walletAddress,
+      suiPublicKey: toHex(publicKey.toSuiBytes()),
+    });
+
+    expect(listMock).toHaveBeenCalledWith({
+      user_id: 'privy-user',
+      chain_type: 'sui',
+    });
+    expect(createMock).not.toHaveBeenCalled();
+    expect(prisma.xUser.upsert).toHaveBeenCalledWith({
+      where: { xUserId: '12345' },
+      update: {
+        privyUserId: 'privy-user',
+        privyWalletId: 'wallet-existing',
+        suiAddress: walletAddress,
+        suiPublicKey: toHex(publicKey.toSuiBytes()),
+      },
+      create: {
+        xUserId: '12345',
+        username: '12345',
+        privyUserId: 'privy-user',
+        privyWalletId: 'wallet-existing',
+        suiAddress: walletAddress,
+        suiPublicKey: toHex(publicKey.toSuiBytes()),
+      },
+    });
+  });
+
+  it('rejects Privy wallet data that conflicts with a stored canonical Sui address', async () => {
+    const listMock = vi.fn().mockReturnValue(toAsyncIterable([]));
+    const createMock = vi.fn().mockResolvedValue({
+      id: 'wallet-id',
+      address: '0x3',
+      public_key: '11111111111111111111111111111111',
+    });
+    vi.mocked(prisma.xUser.findUnique).mockResolvedValueOnce({
+      privyWalletId: null,
+      suiAddress: '0x0000000000000000000000000000000000000000000000000000000000000002',
+      suiPublicKey: null,
+    } as never);
+
+    const privy = {
+      wallets: () => ({
+        list: listMock,
+        create: createMock,
+      }),
+    } as unknown as PrivyClient;
+
+    await expect(
+      getOrCreateSuiWallet(privy, 'privy-user', '12345'),
+    ).rejects.toThrow('Stored wallet binding conflicts with Privy wallet data.');
+    expect(prisma.xUser.upsert).not.toHaveBeenCalled();
+  });
+
+  it('uses the Privy SDK idempotency key when creating a new wallet', async () => {
+    const keypair = Ed25519Keypair.fromSecretKey(new Uint8Array(32).fill(6));
+    const publicKey = keypair.getPublicKey();
+    const walletAddress = publicKey.toSuiAddress();
+    const listMock = vi.fn().mockReturnValue(toAsyncIterable([]));
+    const createMock = vi.fn().mockResolvedValue({
+      id: 'wallet-id',
+      address: walletAddress,
+      public_key: toHex(publicKey.toSuiBytes()),
+    });
+
+    vi.mocked(prisma.xUser.findUnique).mockResolvedValueOnce(null as never);
+
+    const privy = {
+      wallets: () => ({
+        list: listMock,
+        create: createMock,
+      }),
+    } as unknown as PrivyClient;
+
+    await getOrCreateSuiWallet(privy, 'privy-user', '12345');
+
+    expect(createMock).toHaveBeenCalledWith({
+      chain_type: 'sui',
+      owner: { user_id: 'privy-user' },
+      idempotency_key: 'sui-wallet-12345',
+    });
   });
 });
 

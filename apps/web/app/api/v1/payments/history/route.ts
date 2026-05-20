@@ -15,6 +15,7 @@ import {
   encodeTransactionHistoryCursor,
 } from '@/lib/transaction-history-cursor';
 import { isTrustedProfilePictureUrl, type TransactionHistoryResponse } from '@/lib/transaction-history';
+import { truncateAddress } from '@/lib/received-dashboard-client';
 import { WALLET_AUTH_CHALLENGE_COOKIE } from '@/lib/wallet-auth';
 
 const QuerySchema = z.object({
@@ -103,7 +104,14 @@ export async function GET(req: NextRequest) {
       : { senderAddress },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
-    include: {
+    select: {
+      id: true,
+      txDigest: true,
+      coinType: true,
+      amount: true,
+      createdAt: true,
+      recipientType: true,
+      vaultAddress: true,
       xUser: {
         select: { username: true, profilePicture: true },
       },
@@ -125,13 +133,20 @@ export async function GET(req: NextRequest) {
       coinType: row.coinType,
       amount: row.amount.toString(),
       createdAt: row.createdAt.toISOString(),
-      recipient: {
-        username: row.xUser.username,
-        profilePicture:
-          row.xUser.profilePicture && isTrustedProfilePictureUrl(row.xUser.profilePicture)
-            ? row.xUser.profilePicture
-            : null,
-      },
+      recipientType: row.recipientType,
+      recipient: row.xUser
+        ? {
+            username: row.xUser.username,
+            profilePicture:
+              row.xUser.profilePicture && isTrustedProfilePictureUrl(row.xUser.profilePicture)
+                ? row.xUser.profilePicture
+                : null,
+          }
+        : {
+            username: truncateAddress(row.vaultAddress),
+            profilePicture: null,
+          },
+      ...(row.recipientType === 'SUI_ADDRESS' ? { recipientAddress: row.vaultAddress } : {}),
     })),
     nextCursor,
   };

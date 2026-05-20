@@ -1,10 +1,15 @@
 'use client';
 
 import { useId } from 'react';
-import { Input } from '@/components/ui/input';
+import {
+  Input,
+  largeFormInputContentInsetClass,
+  largeFormInputPrefixOffsetClass,
+  largeFormInputPrefixedContentInsetClass,
+} from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usesDollarAmountPrefix } from '@/lib/send-form';
-import { getCoinLabel, isValidAmountInput } from '@/lib/coins';
+import { formatAmount, getCoinLabel, isValidAmountInput } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 
 interface AmountInputProps {
@@ -12,9 +17,21 @@ interface AmountInputProps {
   onAmountChange: (amount: string) => void;
   coinType: string;
   disabled?: boolean;
+  /** Raw balance in base units (e.g. "5000000") for the selected coin type. */
+  availableBalance?: string | null;
 }
 
-export function AmountInput({ amount, onAmountChange, coinType, disabled = false }: AmountInputProps) {
+/**
+ * v3 amount input — quiet surface field, large tabular figure, token pill on the right.
+ * Kept `pl-6` / `left-6` / `pl-14` class shape to satisfy the existing inset contract.
+ */
+export function AmountInput({
+  amount,
+  onAmountChange,
+  coinType,
+  disabled = false,
+  availableBalance,
+}: AmountInputProps) {
   const inputId = useId();
   const showsDollarPrefix = usesDollarAmountPrefix(coinType);
 
@@ -25,17 +42,35 @@ export function AmountInput({ amount, onAmountChange, coinType, disabled = false
     }
   };
 
+  const balanceDisplay =
+    availableBalance != null
+      ? `${formatAmount(availableBalance, coinType)} ${getCoinLabel(coinType)}`
+      : null;
+
   return (
-    <div className="space-y-3">
-      <Label
-        htmlFor={inputId}
-        className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
-      >
-        Amount
-      </Label>
+    <div className="space-y-2.5">
+      <div className="flex items-baseline justify-between">
+        <Label htmlFor={inputId} className="eyebrow">
+          Amount
+        </Label>
+        {balanceDisplay ? (
+          <span
+            className="mono-nums text-[12px]"
+            style={{ color: 'var(--text-mute)' }}
+          >
+            Available {balanceDisplay}
+          </span>
+        ) : null}
+      </div>
       <div className="relative">
         {showsDollarPrefix ? (
-          <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-foreground">
+          <span
+            className={cn(
+              'pointer-events-none absolute top-1/2 -translate-y-1/2 text-[22px] font-semibold',
+              largeFormInputPrefixOffsetClass,
+            )}
+            style={{ color: 'var(--text-mute)' }}
+          >
             $
           </span>
         ) : null}
@@ -43,17 +78,23 @@ export function AmountInput({ amount, onAmountChange, coinType, disabled = false
           id={inputId}
           type="text"
           inputMode="decimal"
-          placeholder="20.00"
+          placeholder="0.00"
           value={amount}
           onChange={handleChange}
           disabled={disabled}
           className={cn(
-            'h-16 rounded-[22px] border-border/70 bg-background/80 pr-24 text-2xl font-semibold tracking-[-0.04em] text-foreground placeholder:text-muted-foreground/45 dark:border-white/10 dark:bg-white/5',
-            showsDollarPrefix ? 'pl-10' : 'pl-5',
+            'h-[60px] rounded-[16px] border-0 bg-surface text-[22px] font-semibold tabular-nums tracking-[-0.02em] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-0',
+            'pr-24',
+            showsDollarPrefix
+              ? largeFormInputPrefixedContentInsetClass
+              : largeFormInputContentInsetClass,
           )}
           autoComplete="off"
         />
-        <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 rounded-full border border-border/60 bg-secondary/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground dark:border-white/8 dark:bg-white/6">
+        <span
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-raise px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]"
+          style={{ color: 'var(--text-soft)' }}
+        >
           {getCoinLabel(coinType)}
         </span>
       </div>
