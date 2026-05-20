@@ -115,6 +115,7 @@ function KV({ label, value }: { label: string; value: string }) {
 }
 
 function executionLabel(outcome: ExecuteResponse): string {
+  if (outcome.status === 'queued') return `Queued: ${shortId(outcome.job.id)}`;
   if (outcome.status === 'confirmed') return `Confirmed: ${shortId(outcome.txDigest)}`;
   if (outcome.status === 'no_steps_pending') return 'No pending witness steps remain.';
   if (outcome.status === 'blocked_by_seal') return `Blocked by policy: ${outcome.reason}`;

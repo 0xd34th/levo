@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
 
 const {
-  executeNextStepMock,
+  queueNextExecutionJobMock,
   lockReleaseMock,
   prismaMock,
   redisPipelineMock,
@@ -14,7 +14,7 @@ const {
   };
 
   return {
-    executeNextStepMock: vi.fn(),
+    queueNextExecutionJobMock: vi.fn(),
     lockReleaseMock: vi.fn(),
     prismaMock: {
       agentMandate: {
@@ -40,20 +40,17 @@ vi.mock('@/lib/redis-lock', () => ({
     Promise.resolve({ status: 'acquired', release: lockReleaseMock }),
   ),
 }));
-vi.mock('./executor', () => ({
-  executeNextStep: executeNextStepMock,
+vi.mock('./user-agent', () => ({
+  queueNextExecutionJob: queueNextExecutionJobMock,
 }));
 
 describe('runScheduledTick query shape', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     redisPipelineMock.exec.mockResolvedValue([]);
-    executeNextStepMock.mockResolvedValue({
-      status: 'confirmed',
-      txDigest: 'digest',
-      actionId: 'action',
-      witnessId: 'witness',
-      nonceAfter: 1,
+    queueNextExecutionJobMock.mockResolvedValue({
+      status: 'queued',
+      job: { id: 'job' },
     });
     lockReleaseMock.mockResolvedValue(undefined);
   });
@@ -90,6 +87,6 @@ describe('runScheduledTick query shape', () => {
       }),
     );
     expect(prismaMock.agentAction.findFirst).not.toHaveBeenCalled();
-    expect(stats).toMatchObject({ scanned: 2, fired: 2, confirmed: 2 });
+    expect(stats).toMatchObject({ scanned: 2, fired: 2, queued: 2 });
   });
 });

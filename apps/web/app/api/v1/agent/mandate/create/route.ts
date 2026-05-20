@@ -12,12 +12,12 @@ import {
   loadOwnerWallet,
 } from '@/lib/agent/mandate-flow';
 import {
-  getPublicAgentAddress,
   resolveEarnRetainedAccountTarget,
 } from '@/lib/agent/config';
 import { MandateSpecSchema } from '@/lib/agent/mandate-spec';
 import type { MandateSpec } from '@/lib/agent/types';
 import { MANDATE_LIMITS } from '@/lib/agent/package';
+import { getDefaultUserAgent } from '@/lib/agent/user-agent';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -102,17 +102,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const agentAddress = getPublicAgentAddress();
-  if (!agentAddress) {
+  const userAgent = await getDefaultUserAgent(auth.identity.xUserId);
+  if (!userAgent) {
     return noStoreJson(
-      { error: 'Levo agent address is not configured' },
-      { status: 503 },
+      { error: 'No active external agent is configured. Bind an agent before creating mandates.' },
+      { status: 400 },
     );
   }
 
-  if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(agentAddress)) {
+  if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(userAgent.agentAddress)) {
     return noStoreJson(
-      { error: 'Mandate agent is not the configured Levo agent' },
+      { error: 'Mandate agent does not match your active external agent' },
       { status: 400 },
     );
   }
@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await createMandate({
       owner,
+      userAgent,
       spec: parsed.data.spec,
       plan: parsed.data.plan,
       metadataName: parsed.data.metadataName,
@@ -157,8 +158,6 @@ function validatePlanAgainstSpec(
   }
 
   const allowedTargets = new Set(spec.allowedTargets.map((target) => normalizeSuiAddress(target)));
-  const spentByCoin = new Map<string, bigint>();
-
   for (const step of plan) {
     if (!isSingleAction(step.actionType) || (spec.actions & step.actionType) !== step.actionType) {
       return 'Planned action is not allowed by the mandate spec';
@@ -178,9 +177,7 @@ function validatePlanAgainstSpec(
       return 'Planned amount exceeds the mandate per-transaction cap';
     }
 
-    const nextSpent = (spentByCoin.get(step.coinType) ?? 0n) + step.amount;
-    spentByCoin.set(step.coinType, nextSpent);
-    if (nextSpent > coinLimit.periodCap) {
+    if (step.amount > coinLimit.periodCap) {
       return 'Planned amount exceeds the mandate period cap';
     }
   }

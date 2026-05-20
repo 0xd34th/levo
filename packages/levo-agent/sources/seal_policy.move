@@ -7,6 +7,7 @@ use levo_agent::mandate::{Self, Mandate};
 
 const ENotApproved: u64 = 1;
 const EInvalidApprovalId: u64 = 2;
+const ENotAgent: u64 = 3;
 
 // Coin type is passed as a Move type parameter `<C>` rather than as a value
 // argument. This is required for Seal MPC compatibility: PTBs containing chained
@@ -20,8 +21,10 @@ public fun seal_approve<C>(
     proposed_amount: u64,
     proposed_next_commit: vector<u8>,
     clock: &Clock,
+    ctx: &sui::tx_context::TxContext,
 ) {
     let proposed_coin_type = type_name::with_defining_ids<C>();
+    assert!(ctx.sender() == mandate.agent(), ENotAgent);
     assert!(mandate::valid_commit_len(&proposed_next_commit), ENotApproved);
     assert!(
         id == mandate::derive_approval_id(

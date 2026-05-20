@@ -18,10 +18,13 @@ export type MandateRowStatus =
   | 'REVOKED'
   | 'EXPIRED'
   | 'PAUSED_BY_USER'
+  | 'LEGACY_PAUSED'
   | 'DESTROYED';
 
 export interface MandateSummary {
   id: string;
+  userAgentId: string | null;
+  agentAddress: string;
   mandateObjectId: string;
   name: string;
   actions: number;
@@ -91,6 +94,10 @@ export type InitializeConfirmedResponse = {
 };
 
 export type ExecuteResponse =
+  | {
+      status: 'queued';
+      job: { id: string };
+    }
   | {
       status: 'confirmed';
       txDigest: string;
@@ -375,6 +382,8 @@ export function statusLabel(status: MandateRowStatus): string {
       return 'Expired';
     case 'PAUSED_BY_USER':
       return 'Paused';
+    case 'LEGACY_PAUSED':
+      return 'Legacy paused';
     case 'DESTROYED':
       return 'Destroyed';
   }

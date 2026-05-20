@@ -13,6 +13,9 @@ const NOW = Date.UTC(2026, 4, 18, 0, 0, 0);
 
 const CONFIG: AgentMandateConfig = {
   agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
+  userAgentId: 'user-agent-id',
+  agentLabel: 'External agent',
+  executionMode: 'external_runner',
   templates: [
     {
       id: 'stablelayer-earn',
@@ -50,15 +53,14 @@ describe('mandate draft builder', () => {
         periodMs: '86400000',
         allowedTargets: [TARGET],
         expiryMs: String(NOW + 30 * 86_400_000),
-        metadata: { schedule: '0 9 * * *' },
+        metadata: { schedule: '0 9 * * *', plannedRuns: '30' },
       },
-      plan: [
-        {
-          actionType: 8,
-          target: TARGET,
-        },
-      ],
       metadataName: 'Earn harvest - StableLayer Earn',
+    });
+    expect(result.payload?.plan).toHaveLength(30);
+    expect(result.payload?.plan[0]).toMatchObject({
+      actionType: 8,
+      target: TARGET,
     });
     expect(result.payload?.spec.coinLimits[0]).toMatchObject({
       coinType: SUI_COIN_TYPE,
@@ -78,7 +80,7 @@ describe('mandate draft builder', () => {
 
     expect(result.payload?.spec.actions).toBe(4);
     expect(result.payload?.spec.periodMs).toBe('604800000');
-    expect(result.payload?.spec.metadata).toEqual({ schedule: '0 9 * * 1' });
+    expect(result.payload?.spec.metadata).toEqual({ schedule: '0 9 * * 1', plannedRuns: '13' });
     expect(result.payload?.spec.expiryMs).toBe(String(NOW + 90 * 86_400_000));
   });
 
@@ -110,6 +112,9 @@ describe('mandate draft builder', () => {
       state,
       {
         agentAddress: CONFIG.agentAddress,
+        userAgentId: CONFIG.userAgentId,
+        agentLabel: CONFIG.agentLabel,
+        executionMode: 'external_runner',
         templates: [],
         error: 'No StableLayer Earn account target found for this wallet.',
       },
@@ -118,5 +123,17 @@ describe('mandate draft builder', () => {
 
     expect(result.payload).toBeNull();
     expect(result.errors[0]).toBe('No StableLayer Earn account target found for this wallet.');
+  });
+
+  it('blocks scheduled plans over the v1 64-run cap', () => {
+    const state = {
+      ...createInitialAgentMandateDraftState('daily harvest', CONFIG.templates[0]),
+      expiryDays: '90' as const,
+    };
+    const result = buildCreateMandatePayload(state, CONFIG, NOW);
+
+    expect(result.payload).toBeNull();
+    expect(result.plannedRunCount).toBe(90);
+    expect(result.errors).toContain('V1 supports at most 64 planned runs. Shorten expiry or lower frequency.');
   });
 });

@@ -46,8 +46,10 @@ export function MandateCard({ mandate, onChanged }: Props) {
       if (outcome.status === 'confirmed') {
         setInfo(`Confirmed (tx ${shortDigest(outcome.txDigest)})`);
         await onChanged();
+      } else if (outcome.status === 'queued') {
+        setInfo(`Queued for external runner (${shortDigest(outcome.job.id)})`);
       } else if (outcome.status === 'no_steps_pending') {
-        setInfo('Witness chain is fully consumed.');
+        setInfo('All planned runs consumed.');
       } else if (outcome.status === 'blocked_by_seal') {
         setError(`Seal denied: ${outcome.reason}`);
       } else {
@@ -131,7 +133,10 @@ export function MandateCard({ mandate, onChanged }: Props) {
 
   const isActive = mandate.status === 'ACTIVE' && !expired;
   const isTerminated =
-    mandate.status === 'REVOKED' || mandate.status === 'EXPIRED' || expired;
+    mandate.status === 'REVOKED' ||
+    mandate.status === 'EXPIRED' ||
+    mandate.status === 'LEGACY_PAUSED' ||
+    expired;
   const isDestroyed = mandate.status === 'DESTROYED';
 
   return (
@@ -154,6 +159,10 @@ export function MandateCard({ mandate, onChanged }: Props) {
         <div>
           <dt style={{ color: 'var(--text-soft)' }}>Nonce</dt>
           <dd className="font-mono">{mandate.nonce}</dd>
+        </div>
+        <div>
+          <dt style={{ color: 'var(--text-soft)' }}>Agent</dt>
+          <dd className="font-mono">{shortAddress(mandate.agentAddress || 'Not bound')}</dd>
         </div>
         <div>
           <dt style={{ color: 'var(--text-soft)' }}>Initialized</dt>
@@ -235,7 +244,7 @@ export function MandateCard({ mandate, onChanged }: Props) {
         <div className="mt-3 rounded-[10px] bg-background p-3 text-[12px] ring-1 ring-[color:var(--border)]">
           <p className="font-medium">Confirm one agent execution</p>
           <p className="mt-1" style={{ color: 'var(--text-soft)' }}>
-            This consumes the next witness step and submits one bounded action for this mandate.
+            This queues the next witness step. Your external runner will decrypt with its agent key and submit the bounded action.
           </p>
           <div className="mt-3 flex gap-2">
             <Button

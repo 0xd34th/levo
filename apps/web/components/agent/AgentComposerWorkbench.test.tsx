@@ -29,6 +29,9 @@ vi.mock('@/components/agent/AgentChatPanel', () => ({
 
 const CONFIG: AgentMandateConfig = {
   agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
+  userAgentId: 'user-agent-id',
+  agentLabel: 'External agent',
+  executionMode: 'external_runner',
   templates: [
     {
       id: 'stablelayer-earn',
@@ -89,6 +92,8 @@ describe('Agent mandate creation UI', () => {
         onChanged={() => {}}
         mandate={{
           id: 'mandate-1',
+          userAgentId: 'user-agent-id',
+          agentAddress: CONFIG.agentAddress,
           mandateObjectId: '0x000000000000000000000000000000000000000000000000000000000000be11',
           name: 'Daily harvest',
           actions: 8,

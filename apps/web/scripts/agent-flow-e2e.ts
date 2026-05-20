@@ -36,7 +36,7 @@ import { getAgentAddress, getAgentKeypair } from '../lib/agent/kms';
 import type { MandateSpec, MandateSpecInput } from '../lib/agent/mandate-spec';
 import { MandateSpecSchema } from '../lib/agent/mandate-spec';
 import { prisma } from '../lib/prisma';
-import { ActionTrigger, MandateStatus } from '../lib/generated/prisma/client';
+import { ActionTrigger, MandateStatus, UserAgentStatus } from '../lib/generated/prisma/client';
 
 const ONE_DAY_MS = 86_400_000n;
 const TEST_COIN_TYPE = '0x2::sui::SUI';
@@ -76,6 +76,15 @@ async function main() {
       suiPublicKey: ownerPubBase64,
     },
   });
+  const userAgent = await prisma.userAgent.create({
+    data: {
+      xUserId: fakeXUserId,
+      agentAddress,
+      label: 'E2E platform signer',
+      status: UserAgentStatus.ACTIVE,
+      isDefault: true,
+    },
+  });
   console.log('Test xUserId :', fakeXUserId, '\n');
 
   // ----- Fund owner from agent -----
@@ -112,6 +121,7 @@ async function main() {
 
   const prepared = await createMandate({
     owner: ownerWallet,
+    userAgent,
     spec,
     plan,
     metadataName: 'E2E mandate',
@@ -128,6 +138,7 @@ async function main() {
   const created = await finalizeCreateMandate({
     input: {
       owner: ownerWallet,
+      userAgent,
       spec,
       plan,
       metadataName: 'E2E mandate',

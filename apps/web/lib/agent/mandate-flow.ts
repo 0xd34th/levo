@@ -5,6 +5,7 @@ import type {
 import {
   MandateStatus,
   type AgentMandate,
+  type UserAgent,
 } from '@/lib/generated/prisma/client';
 import { hasValidHmacSecret } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
@@ -117,6 +118,7 @@ export async function __submitOwnerTxWithSignature(args: {
 
 export interface CreateMandateInput {
   owner: OwnerWallet;
+  userAgent: Pick<UserAgent, 'id' | 'agentAddress'>;
   spec: MandateSpec;
   plan: PlannedAction[];
   metadataName?: string;
@@ -204,6 +206,8 @@ export async function finalizeCreateMandate(args: {
     const mandate = await tx.agentMandate.create({
       data: {
         xUserId: input.owner.xUserId,
+        userAgentId: input.userAgent.id,
+        agentAddress: input.userAgent.agentAddress,
         mandateObjectId,
         name: input.metadataName ?? 'Agent mandate',
         actions: input.spec.actions,

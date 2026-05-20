@@ -5,12 +5,14 @@ const {
   loadOwnerWalletMock,
   rateLimitMock,
   resolveEarnRetainedAccountTargetMock,
+  getDefaultUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveEarnRetainedAccountTargetMock: vi.fn(),
+  getDefaultUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -30,8 +32,11 @@ vi.mock('@/lib/agent/mandate-flow', () => ({
 }));
 
 vi.mock('@/lib/agent/config', () => ({
-  getAgentMandateConfig: (targetAddress: string) => ({
-    agentAddress: process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS ?? '',
+  getAgentMandateConfig: (targetAddress: string, userAgent: { id: string; agentAddress: string; label: string } | null) => ({
+    agentAddress: userAgent?.agentAddress ?? '',
+    userAgentId: userAgent?.id ?? null,
+    agentLabel: userAgent?.label ?? null,
+    executionMode: 'external_runner',
     templates: [
       {
         id: 'stablelayer-earn',
@@ -42,11 +47,18 @@ vi.mock('@/lib/agent/config', () => ({
     ],
   }),
   getDisabledAgentMandateConfig: (error: string) => ({
-    agentAddress: process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS ?? '',
+    agentAddress: '',
+    userAgentId: null,
+    agentLabel: null,
+    executionMode: 'external_runner',
     templates: [],
     error,
   }),
   resolveEarnRetainedAccountTarget: resolveEarnRetainedAccountTargetMock,
+}));
+
+vi.mock('@/lib/agent/user-agent', () => ({
+  getDefaultUserAgent: getDefaultUserAgentMock,
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
@@ -66,7 +78,6 @@ const OWNER_ADDRESS = '0x0000000000000000000000000000000000000000000000000000000
 describe('GET /api/v1/agent/config', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS = AGENT;
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
     verifyPrivyXAuthMock.mockResolvedValue({
@@ -82,6 +93,11 @@ describe('GET /api/v1/agent/config', () => {
     resolveEarnRetainedAccountTargetMock.mockResolvedValue({
       ok: true,
       targetAddress: TARGET,
+    });
+    getDefaultUserAgentMock.mockResolvedValue({
+      id: 'user-agent-id',
+      agentAddress: AGENT,
+      label: 'External agent',
     });
   });
 
@@ -111,6 +127,9 @@ describe('GET /api/v1/agent/config', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
       agentAddress: AGENT,
+      userAgentId: 'user-agent-id',
+      agentLabel: 'External agent',
+      executionMode: 'external_runner',
       templates: [
         {
           id: 'stablelayer-earn',
@@ -140,7 +159,10 @@ describe('GET /api/v1/agent/config', () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({
-      agentAddress: AGENT,
+      agentAddress: '',
+      userAgentId: null,
+      agentLabel: null,
+      executionMode: 'external_runner',
       templates: [],
       error: 'No StableLayer Earn account target found for this wallet.',
     });

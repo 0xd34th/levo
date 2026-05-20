@@ -5,6 +5,7 @@ import {
   resolveEarnRetainedAccountTarget,
 } from '@/lib/agent/config';
 import { loadOwnerWallet } from '@/lib/agent/mandate-flow';
+import { getDefaultUserAgent } from '@/lib/agent/user-agent';
 import {
   getClientIp,
   noStoreJson,
@@ -49,5 +50,6 @@ export async function GET(req: NextRequest) {
     return noStoreJson(getDisabledAgentMandateConfig(target.error));
   }
 
-  return noStoreJson(getAgentMandateConfig(target.targetAddress));
+  const userAgent = await getDefaultUserAgent(auth.identity.xUserId);
+  return noStoreJson(getAgentMandateConfig(target.targetAddress, userAgent));
 }

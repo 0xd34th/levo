@@ -54,6 +54,7 @@ describe('mandate lifecycle transaction binding', () => {
     await expect(
       createMandate({
         owner: OWNER,
+        userAgent: { id: 'user-agent-id', agentAddress: SPEC.agent },
         spec: SPEC,
         plan: PLAN,
         authorizationSignature: 'client-authorization-signature',

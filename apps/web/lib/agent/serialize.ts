@@ -6,6 +6,8 @@ import type { AgentAction, AgentMandate } from '@/lib/generated/prisma/client';
 export interface SerializedAgentMandate {
   id: string;
   xUserId: string;
+  userAgentId: string | null;
+  agentAddress: string;
   mandateObjectId: string;
   name: string;
   actions: number;
@@ -31,6 +33,8 @@ export function serializeAgentMandate(m: AgentMandate): SerializedAgentMandate {
   return {
     id: m.id,
     xUserId: m.xUserId,
+    userAgentId: m.userAgentId,
+    agentAddress: m.agentAddress,
     mandateObjectId: m.mandateObjectId,
     name: m.name,
     actions: m.actions,

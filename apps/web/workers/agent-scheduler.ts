@@ -58,8 +58,7 @@ async function tickOnce() {
   if (stats) {
     console.log(
       `[agent-scheduler] tick ${elapsed}ms — scanned=${stats.scanned} fired=${stats.fired} ` +
-        `confirmed=${stats.confirmed} blocked=${stats.blocked} failed=${stats.failed} ` +
-        `skipped=${stats.skipped}`,
+        `queued=${stats.queued} exhausted=${stats.exhausted} failed=${stats.failed} skipped=${stats.skipped}`,
     );
   }
 }

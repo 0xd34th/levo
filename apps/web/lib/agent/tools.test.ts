@@ -30,6 +30,8 @@ describe('buildAgentTools', () => {
     vi.spyOn(prisma.agentMandate, 'findFirst').mockResolvedValue({
       id: 'mandate-row',
       xUserId: 'test-user',
+      userAgentId: 'user-agent-id',
+      agentAddress: '0xagent',
       mandateObjectId: '0xmandate',
       name: 'Daily harvest',
       actions: 8,

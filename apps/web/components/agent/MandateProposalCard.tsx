@@ -111,6 +111,14 @@ export function MandateProposalCard({
           <dd className="font-mono">{summary.target}</dd>
         </div>
         <div>
+          <dt style={{ color: 'var(--text-soft)' }}>Agent</dt>
+          <dd className="font-mono">{shortAddress(proposal.spec.agent)}</dd>
+        </div>
+        <div>
+          <dt style={{ color: 'var(--text-soft)' }}>Runs</dt>
+          <dd>{proposal.plan.length}</dd>
+        </div>
+        <div>
           <dt style={{ color: 'var(--text-soft)' }}>Per-tx cap</dt>
           <dd>{summary.perTxCap}</dd>
         </div>
@@ -156,7 +164,7 @@ export function MandateProposalCard({
           <DialogHeader>
             <DialogTitle>Approve agent mandate</DialogTitle>
             <DialogDescription>
-              Review what the agent can do before the wallet signs create and initialize transactions.
+              Review what your external runner agent can do before the wallet signs create and initialize transactions.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 text-[13px]">
@@ -164,6 +172,7 @@ export function MandateProposalCard({
               <p className="font-medium">Can</p>
               <ul className="mt-2 space-y-1" style={{ color: 'var(--text-soft)' }}>
                 <li>Run {summary.action} for {summary.amount} per scheduled step.</li>
+                <li>Use agent address {shortAddress(proposal.spec.agent)}.</li>
                 <li>Spend up to {summary.perTxCap} per transaction.</li>
                 <li>Spend up to {summary.periodCap} each period.</li>
               </ul>
@@ -182,6 +191,7 @@ export function MandateProposalCard({
                 <li>1. Create and share the mandate object.</li>
                 <li>2. Initialize the witness chain.</li>
                 <li>3. Future runs consume one witness and authorize one Earn action.</li>
+                <li>4. Levo queues jobs; your runner signs and submits each execution.</li>
               </ol>
               <details className="mt-3">
                 <summary className="cursor-pointer text-[12px] font-medium">Developer details</summary>
@@ -194,6 +204,7 @@ export function MandateProposalCard({
     target: proposal.spec.allowedTargets[0],
     coin: proposal.spec.coinLimits[0],
     firstStep: proposal.plan[0],
+    plannedRuns: proposal.plan.length,
   },
   null,
   2,
@@ -222,6 +233,10 @@ export function MandateProposalCard({
       </Dialog>
     </div>
   );
+}
+
+function shortAddress(addr: string): string {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function formatMs(ms: bigint): string {

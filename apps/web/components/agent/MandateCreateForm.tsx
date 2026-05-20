@@ -78,12 +78,18 @@ const EARN_INTENT_PRESETS: Array<{ label: string; intent: string }> = [
 
 const FALLBACK_CONFIG: AgentMandateConfig = {
   agentAddress: '',
+  userAgentId: null,
+  agentLabel: null,
+  executionMode: 'external_runner',
   templates: [],
   error: 'Loading agent configuration...',
 };
 
 const SIGN_IN_REQUIRED_CONFIG: AgentMandateConfig = {
   agentAddress: '',
+  userAgentId: null,
+  agentLabel: null,
+  executionMode: 'external_runner',
   templates: [],
   error: 'Sign in with X to load your Earn account target.',
 };
@@ -247,6 +253,9 @@ export function MandateCreateForm({
             </div>
             <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
               Based on: {activeIntent}
+            </p>
+            <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+              Agent: {effectiveConfig.agentAddress ? shortAddress(effectiveConfig.agentAddress) : 'not bound'} · External runner
             </p>
           </div>
           <Button
@@ -437,7 +446,7 @@ export function MandateCreateForm({
       <div className="grid grid-cols-2 gap-2 text-[12px]" style={{ color: 'var(--text-soft)' }}>
         <div className="flex items-center gap-1.5">
           <CalendarClock className="size-3.5" />
-          {state.cadence === 'manual' ? 'Manual trigger' : 'Scheduled execution'}
+          {state.cadence === 'manual' ? 'Manual trigger' : `${build.plannedRunCount} planned runs`}
         </div>
         <div className="flex items-center gap-1.5">
           <Coins className="size-3.5" />
@@ -446,6 +455,10 @@ export function MandateCreateForm({
       </div>
     </div>
   );
+}
+
+function shortAddress(addr: string): string {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function SegmentedGroup<T extends string>({

@@ -5,7 +5,7 @@ import {
   noStoreJson,
   verifySameOrigin,
 } from '@/lib/api';
-import { executeNextStep } from '@/lib/agent/executor';
+import { queueNextExecutionJob } from '@/lib/agent/user-agent';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
@@ -14,11 +14,8 @@ import { acquireRedisLock } from '@/lib/redis-lock';
 
 // POST /api/v1/agent/mandate/[id]/execute
 //
-// Single-step trigger: agent KMS consumes the next unconsumed witness in the
-// mandate's chain. No owner signature is required — by virtue of having created
-// the mandate, the owner has already authorized this set of actions via Seal.
-// Phase G will add a scheduler that calls this on cron; Phase D adds chat-tool
-// invocation. This route is the chat-tool / manual-trigger entry point.
+// Single-step trigger: queue the next unconsumed witness for the user's external
+// runner. The web runtime never signs or submits the agent transaction.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -69,21 +66,22 @@ export async function POST(
   }
 
   try {
-    const outcome = await executeNextStep({
+    const outcome = await queueNextExecutionJob({
       mandateId: id,
       trigger: ActionTrigger.CHAT,
     });
     const httpStatus =
-      outcome.status === 'confirmed'
+      outcome.status === 'queued'
         ? 200
         : outcome.status === 'no_steps_pending'
           ? 200
-          : outcome.status === 'blocked_by_seal'
-            ? 422
-            : outcome.actionId === ''
-              ? 409
-              : 500;
-    return noStoreJson(outcome, { status: httpStatus });
+          : 409;
+    return noStoreJson(
+      outcome.status === 'queued'
+        ? { status: 'queued', job: { id: outcome.job.id } }
+        : outcome,
+      { status: httpStatus },
+    );
   } catch (error) {
     return noStoreJson(
       { error: error instanceof Error ? error.message : 'Execute failed' },

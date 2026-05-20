@@ -3,12 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { getRedis } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
 import { extractSchedule, nextCronRun } from './cron-util';
-import { executeNextStep, type ExecuteOutcome } from './executor';
+import { queueNextExecutionJob } from './user-agent';
 
 export { extractSchedule, nextCronRun };
 
-// Agent scheduler — minute-grain loop that drives `executeNextStep` for any
-// ACTIVE mandate whose `metadata.schedule` cron expression has fired since the
+// Agent scheduler — minute-grain loop that queues runner jobs for any ACTIVE
+// mandate whose `metadata.schedule` cron expression has fired since the
 // last recorded SCHEDULED action. Persistent across worker restarts: the
 // scheduler reads the latest SCHEDULED `AgentAction` per mandate to know when
 // the cron last fired.
@@ -24,9 +24,9 @@ const COUNTERS_KEY = 'agent:scheduler:counters';
 export interface TickStats {
   scanned: number;
   fired: number;
-  confirmed: number;
-  blocked: number;
+  queued: number;
   failed: number;
+  exhausted: number;
   skipped: number;
 }
 
@@ -35,15 +35,16 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
   const stats: TickStats = {
     scanned: 0,
     fired: 0,
-    confirmed: 0,
-    blocked: 0,
+    queued: 0,
     failed: 0,
+    exhausted: 0,
     skipped: 0,
   };
 
   const mandates = await prisma.agentMandate.findMany({
     where: {
       status: MandateStatus.ACTIVE,
+      userAgentId: { not: null },
       witnessCommit: { not: null },
       expiryMs: { gt: BigInt(now.getTime()) },
     },
@@ -81,26 +82,27 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
 
     stats.fired += 1;
     const outcome = await fireForMandate(mandate.id);
-    if (outcome.status === 'confirmed') stats.confirmed += 1;
-    else if (outcome.status === 'blocked_by_seal') stats.blocked += 1;
-    else if (outcome.status === 'failed') stats.failed += 1;
+    if (outcome.status === 'queued') stats.queued += 1;
+    else if (outcome.status === 'no_steps_pending') stats.exhausted += 1;
+    else stats.failed += 1;
   }
 
   await incrementCounters(stats);
   return stats;
 }
 
-async function fireForMandate(mandateId: string): Promise<ExecuteOutcome> {
+async function fireForMandate(mandateId: string): Promise<
+  Awaited<ReturnType<typeof queueNextExecutionJob>>
+> {
   const lock = await acquireRedisLock(`agent-execute:${mandateId}`, 60);
   if (lock.status !== 'acquired') {
     return {
       status: 'failed',
       reason: lock.status === 'busy' ? 'another execution in progress' : 'lock unavailable',
-      actionId: '',
     };
   }
   try {
-    return await executeNextStep({
+    return await queueNextExecutionJob({
       mandateId,
       trigger: ActionTrigger.SCHEDULED,
     });
@@ -108,7 +110,6 @@ async function fireForMandate(mandateId: string): Promise<ExecuteOutcome> {
     return {
       status: 'failed',
       reason: err instanceof Error ? err.message : 'unknown error',
-      actionId: '',
     };
   } finally {
     await lock.release();
@@ -123,9 +124,9 @@ async function incrementCounters(stats: TickStats): Promise<void> {
     const pipe = redis.pipeline();
     pipe.hincrby(COUNTERS_KEY, 'scanned', stats.scanned);
     pipe.hincrby(COUNTERS_KEY, 'fired', stats.fired);
-    pipe.hincrby(COUNTERS_KEY, 'confirmed', stats.confirmed);
-    pipe.hincrby(COUNTERS_KEY, 'blocked', stats.blocked);
+    pipe.hincrby(COUNTERS_KEY, 'queued', stats.queued);
     pipe.hincrby(COUNTERS_KEY, 'failed', stats.failed);
+    pipe.hincrby(COUNTERS_KEY, 'exhausted', stats.exhausted);
     pipe.hincrby(COUNTERS_KEY, 'skipped', stats.skipped);
     pipe.hset(COUNTERS_KEY, 'last_tick_ms', Date.now());
     await pipe.exec();

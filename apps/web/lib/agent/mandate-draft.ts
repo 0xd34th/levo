@@ -25,6 +25,7 @@ export interface AgentMandateDraftState {
 export interface AgentMandateDraftBuildResult {
   payload: CreateMandatePayload | null;
   errors: string[];
+  plannedRunCount: number;
 }
 
 const ACTION_BITS: Record<AgentMandateAction, number> = {
@@ -40,6 +41,7 @@ const ACTION_NAMES: Record<AgentMandateAction, string> = {
 };
 
 const DAILY_CRON = '0 9 * * *';
+export const MAX_PLANNED_RUNS = 64;
 
 const CADENCE_SCHEDULES: Record<Exclude<AgentMandateCadence, 'custom'>, string | null> = {
   manual: null,
@@ -127,7 +129,7 @@ export function buildCreateMandatePayload(
   const errors: string[] = [];
   const template = config.templates.find((t) => t.id === state.templateId);
   if (config.error) errors.push(config.error);
-  if (!config.agentAddress) errors.push('Levo agent address is not configured.');
+  if (!config.agentAddress) errors.push('No active external agent is configured.');
   if (!template) errors.push('StableLayer Earn target is not configured.');
 
   const amount = parseDisplayAmountToBaseUnitsWithOverride(
@@ -154,6 +156,8 @@ export function buildCreateMandatePayload(
   const periodMs = parsePositiveInteger(state.periodMs, 'Period', errors);
   const expiryDays = Number.parseInt(state.expiryDays, 10);
   const schedule = scheduleForState(state, errors);
+  const expiryMsBigint = BigInt(nowMs + expiryDays * 86_400_000);
+  const plannedRunCount = plannedRunsForState(state, nowMs, Number(expiryMsBigint), schedule, errors);
 
   if (perTxCap !== null && periodCap !== null && perTxCap > periodCap) {
     errors.push('Per-run cap must be less than or equal to the period cap.');
@@ -163,11 +167,17 @@ export function buildCreateMandatePayload(
   }
 
   if (errors.length > 0 || !template || amount === null || perTxCap === null || periodCap === null || periodMs === null) {
-    return { payload: null, errors };
+    return { payload: null, errors, plannedRunCount };
   }
 
   const action = ACTION_BITS[state.action];
-  const expiryMs = String(nowMs + expiryDays * 86_400_000);
+  const expiryMs = expiryMsBigint.toString();
+  const plan = Array.from({ length: plannedRunCount }, () => ({
+    actionType: action,
+    coinType: state.coinType,
+    target: template.targetAddress,
+    amount: amount.toString(),
+  }));
 
   return {
     payload: {
@@ -184,19 +194,15 @@ export function buildCreateMandatePayload(
         periodMs: periodMs.toString(),
         allowedTargets: [template.targetAddress],
         expiryMs,
-        metadata: schedule ? { schedule } : undefined,
+        metadata: schedule
+          ? { schedule, plannedRuns: String(plannedRunCount) }
+          : { plannedRuns: String(plannedRunCount) },
       },
-      plan: [
-        {
-          actionType: action,
-          coinType: state.coinType,
-          target: template.targetAddress,
-          amount: amount.toString(),
-        },
-      ],
+      plan,
       metadataName: `${ACTION_NAMES[state.action]} - ${template.label}`,
     },
     errors,
+    plannedRunCount,
   };
 }
 
@@ -270,4 +276,33 @@ function scheduleForState(state: AgentMandateDraftState, errors: string[]): stri
     return null;
   }
   return schedule;
+}
+
+function plannedRunsForState(
+  state: AgentMandateDraftState,
+  nowMs: number,
+  expiryMs: number,
+  schedule: string | null,
+  errors: string[],
+): number {
+  if (!schedule) return 1;
+  if (state.cadence === 'daily') return assertMaxRuns(Math.ceil((expiryMs - nowMs) / 86_400_000), errors);
+  if (state.cadence === 'weekly') return assertMaxRuns(Math.ceil((expiryMs - nowMs) / (7 * 86_400_000)), errors);
+
+  let count = 0;
+  let cursor: Date | null = new Date(nowMs);
+  while (count <= MAX_PLANNED_RUNS) {
+    const next = nextCronRun(schedule, cursor);
+    if (!next || next.getTime() >= expiryMs) break;
+    count += 1;
+    cursor = next;
+  }
+  return assertMaxRuns(Math.max(count, 1), errors);
+}
+
+function assertMaxRuns(count: number, errors: string[]): number {
+  if (count > MAX_PLANNED_RUNS) {
+    errors.push(`V1 supports at most ${MAX_PLANNED_RUNS} planned runs. Shorten expiry or lower frequency.`);
+  }
+  return count;
 }

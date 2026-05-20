@@ -15,6 +15,7 @@ import {
 } from '@/lib/agent/client';
 import { cn } from '@/lib/utils';
 import { AgentChatPanel } from './AgentChatPanel';
+import { AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
 import { MandateCreateForm } from './MandateCreateForm';
 
@@ -23,12 +24,13 @@ interface AgentDashboardProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type View = 'chat' | 'list' | 'create';
+type View = 'chat' | 'list' | 'create' | 'settings';
 
 const TAB_LABELS: Record<View, string> = {
   chat: 'Chat',
   list: 'Mandates',
   create: 'Create',
+  settings: 'Settings',
 };
 
 export function AgentDashboard({ open, onOpenChange }: AgentDashboardProps) {
@@ -168,7 +170,7 @@ export function AgentWorkspace({ className, headerAction, initialView = 'chat' }
       </header>
 
       <nav className="flex gap-1 border-b border-[color:var(--border)] px-3 py-2 text-[12px]">
-        {(['chat', 'list', 'create'] as View[]).map((v) => (
+        {(['chat', 'list', 'create', 'settings'] as View[]).map((v) => (
           <button
             key={v}
             type="button"
@@ -197,7 +199,7 @@ export function AgentWorkspace({ className, headerAction, initialView = 'chat' }
               onChanged={reload}
             />
           </div>
-        ) : (
+        ) : view === 'create' ? (
           <div className="h-full overflow-y-auto">
             <MandateCreateForm
               onCancel={() => setView('list')}
@@ -207,6 +209,8 @@ export function AgentWorkspace({ className, headerAction, initialView = 'chat' }
               }}
             />
           </div>
+        ) : (
+          <AgentSettings />
         )}
       </div>
 

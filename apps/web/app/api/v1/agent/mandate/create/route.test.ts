@@ -6,6 +6,7 @@ const {
   loadOwnerWalletMock,
   rateLimitMock,
   resolveEarnRetainedAccountTargetMock,
+  getDefaultUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
@@ -13,6 +14,7 @@ const {
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveEarnRetainedAccountTargetMock: vi.fn(),
+  getDefaultUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -33,8 +35,11 @@ vi.mock('@/lib/agent/mandate-flow', () => ({
 }));
 
 vi.mock('@/lib/agent/config', () => ({
-  getPublicAgentAddress: () => process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS?.trim() ?? '',
   resolveEarnRetainedAccountTarget: resolveEarnRetainedAccountTargetMock,
+}));
+
+vi.mock('@/lib/agent/user-agent', () => ({
+  getDefaultUserAgent: getDefaultUserAgentMock,
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
@@ -94,7 +99,6 @@ function makeBody(overrides: {
 describe('POST /api/v1/agent/mandate/create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS = AGENT;
     rateLimitMock.mockResolvedValue({ allowed: true });
     verifySameOriginMock.mockReturnValue({ ok: true });
     verifyPrivyXAuthMock.mockResolvedValue({
@@ -110,6 +114,11 @@ describe('POST /api/v1/agent/mandate/create', () => {
     resolveEarnRetainedAccountTargetMock.mockResolvedValue({
       ok: true,
       targetAddress: TARGET,
+    });
+    getDefaultUserAgentMock.mockResolvedValue({
+      id: 'user-agent-id',
+      agentAddress: AGENT,
+      label: 'External agent',
     });
     createMandateMock.mockResolvedValue({
       status: 'authorization_required',
@@ -135,6 +144,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
     });
     expect(createMandateMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        userAgent: expect.objectContaining({ id: 'user-agent-id', agentAddress: AGENT }),
         metadataName: 'Earn harvest - StableLayer Earn',
       }),
     );
@@ -177,7 +187,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
     expect(createMandateMock).not.toHaveBeenCalled();
   });
 
-  it('rejects a spec agent outside the configured platform agent', async () => {
+  it('rejects a spec agent outside the active user agent', async () => {
     const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
@@ -188,7 +198,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: 'Mandate agent is not the configured Levo agent',
+      error: 'Mandate agent does not match your active external agent',
     });
     expect(createMandateMock).not.toHaveBeenCalled();
   });

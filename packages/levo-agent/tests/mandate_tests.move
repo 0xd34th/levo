@@ -1404,6 +1404,7 @@ fun seal_approve_accepts_bound_identity() {
         &next_commit,
     );
 
+    scenario.next_tx(AGENT);
     seal_policy::seal_approve<TEST_COIN>(
         id,
         &mandate,
@@ -1412,6 +1413,7 @@ fun seal_approve_accepts_bound_identity() {
         500,
         next_commit,
         &clock,
+        scenario.ctx(),
     );
 
     mandate::destroy_for_testing(mandate);
@@ -1426,6 +1428,7 @@ fun seal_approve_aborts_on_wrong_identity() {
     let mut mandate = make_default_mandate(&mut scenario, &clock);
     init_current_commit(&mut mandate, &mut scenario, &clock);
 
+    scenario.next_tx(AGENT);
     seal_policy::seal_approve<TEST_COIN>(
         b"wrong_identity",
         &mandate,
@@ -1434,6 +1437,39 @@ fun seal_approve_aborts_on_wrong_identity() {
         500,
         terminal_commit(),
         &clock,
+        scenario.ctx(),
+    );
+
+    mandate::destroy_for_testing(mandate);
+    clock::destroy_for_testing(clock);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = seal_policy::ENotAgent)]
+fun seal_approve_aborts_on_non_agent_sender() {
+    let mut scenario = ts::begin(OWNER);
+    let clock = make_clock(&mut scenario, 0);
+    let mut mandate = make_default_mandate(&mut scenario, &clock);
+    init_current_commit(&mut mandate, &mut scenario, &clock);
+    let next_commit = terminal_commit();
+    let id = mandate::derive_approval_id_with_type<TEST_COIN>(
+        &mandate,
+        mandate::action_earn_deposit(),
+        VAULT,
+        500,
+        &next_commit,
+    );
+
+    scenario.next_tx(STRANGER);
+    seal_policy::seal_approve<TEST_COIN>(
+        id,
+        &mandate,
+        mandate::action_earn_deposit(),
+        VAULT,
+        500,
+        next_commit,
+        &clock,
+        scenario.ctx(),
     );
 
     mandate::destroy_for_testing(mandate);

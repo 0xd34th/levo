@@ -1,6 +1,6 @@
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { discoverEarnRetainedAccountId } from '@/lib/stable-layer-earn';
-import { getAgentAddress, isAgentSignerConfigured } from './kms';
+import type { UserAgent } from '@/lib/generated/prisma/client';
 
 export interface AgentMandateTemplate {
   id: 'stablelayer-earn';
@@ -11,6 +11,9 @@ export interface AgentMandateTemplate {
 
 export interface AgentMandateConfig {
   agentAddress: string;
+  userAgentId: string | null;
+  agentLabel: string | null;
+  executionMode: 'external_runner';
   templates: AgentMandateTemplate[];
   error?: string;
 }
@@ -19,35 +22,37 @@ export type ResolveEarnRetainedAccountTargetResult =
   | { ok: true; targetAddress: string }
   | { ok: false; error: string; status: number };
 
-export function getPublicAgentAddress(): string {
-  const explicit = process.env.NEXT_PUBLIC_LEVO_AGENT_ADDRESS?.trim();
-  if (explicit) return normalizeSuiAddress(explicit);
-  if (isAgentSignerConfigured()) return getAgentAddress();
-  return '';
-}
-
 export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig {
-  const agentAddress = getPublicAgentAddress();
-
   return {
-    agentAddress,
+    agentAddress: '',
+    userAgentId: null,
+    agentLabel: null,
+    executionMode: 'external_runner',
     templates: [],
     error,
   };
 }
 
-export function getAgentMandateConfig(targetAddress: string): AgentMandateConfig {
-  const agentAddress = getPublicAgentAddress();
-  if (!agentAddress) {
+export function getAgentMandateConfig(
+  targetAddress: string,
+  userAgent: Pick<UserAgent, 'id' | 'agentAddress' | 'label'> | null,
+): AgentMandateConfig {
+  if (!userAgent) {
     return {
-      agentAddress,
+      agentAddress: '',
+      userAgentId: null,
+      agentLabel: null,
+      executionMode: 'external_runner',
       templates: [],
-      error: 'Levo agent address is not configured.',
+      error: 'No active external agent is configured. Bind an agent before creating mandates.',
     };
   }
 
   return {
-    agentAddress,
+    agentAddress: normalizeSuiAddress(userAgent.agentAddress),
+    userAgentId: userAgent.id,
+    agentLabel: userAgent.label,
+    executionMode: 'external_runner',
     templates: [
       {
         id: 'stablelayer-earn',
