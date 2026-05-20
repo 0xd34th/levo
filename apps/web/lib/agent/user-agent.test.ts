@@ -1,44 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {},
 }));
 
-describe('user agent binding challenge', () => {
-  it('accepts a valid Sui personal-message signature and rejects a bad signer', async () => {
+describe('owner-authorized user agent binding intent', () => {
+  it('accepts the matching owner wallet binding payload and rejects mismatches', async () => {
     process.env.HMAC_SECRET = 'x'.repeat(64);
     const {
-      issueAgentChallenge,
-      verifyAgentChallengeSignature,
+      issueOwnerAgentBindingIntent,
+      verifyOwnerAgentBindingIntent,
     } = await import('./user-agent');
-    const agent = new Ed25519Keypair();
-    const other = new Ed25519Keypair();
-    const agentAddress = agent.getPublicKey().toSuiAddress();
-    const challenge = issueAgentChallenge({
-      xUserId: '12345',
+    const ownerAddress = '0x0000000000000000000000000000000000000000000000000000000000000123';
+    const agentAddress = '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b';
+    const binding = issueOwnerAgentBindingIntent({
+      ownerXUserId: '12345',
+      ownerAddress,
       agentAddress,
+      label: 'Home runner',
     });
-    const message = new TextEncoder().encode(challenge.message);
 
-    const good = await agent.signPersonalMessage(message);
-    await expect(
-      verifyAgentChallengeSignature({
-        xUserId: '12345',
+    expect(
+      verifyOwnerAgentBindingIntent(binding.bindingIntent, {
+        ownerXUserId: '12345',
+        ownerAddress,
         agentAddress,
-        challengeToken: challenge.challengeToken,
-        signature: good.signature,
+        label: 'Home runner',
+        payloadBase64: binding.payloadBase64,
       }),
-    ).resolves.toEqual({ ok: true, agentAddress });
+    ).toEqual({ ok: true });
 
-    const bad = await other.signPersonalMessage(message);
-    await expect(
-      verifyAgentChallengeSignature({
-        xUserId: '12345',
-        agentAddress,
-        challengeToken: challenge.challengeToken,
-        signature: bad.signature,
+    expect(
+      verifyOwnerAgentBindingIntent(binding.bindingIntent, {
+        ownerXUserId: '12345',
+        ownerAddress,
+        agentAddress: '0x000000000000000000000000000000000000000000000000000000000000dead',
+        label: 'Home runner',
+        payloadBase64: binding.payloadBase64,
       }),
-    ).resolves.toEqual({ ok: false, error: 'Invalid agent address signature.' });
+    ).toEqual({ ok: false, reason: 'agent binding intent mismatch' });
   });
 });

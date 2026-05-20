@@ -1,11 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
+import { useAuthorizationSignature, useIdentityToken, usePrivy } from '@privy-io/react-auth';
 import { Copy, Loader2, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  parsePrivyAuthorizationRequiredResponse,
+  type PrivyAuthorizationRequest,
+} from '@/lib/privy-authorization';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 
 interface UserAgentRow {
@@ -19,24 +23,24 @@ interface UserAgentRow {
   runnerTokenRotatedAt: string | null;
 }
 
-interface ChallengeState {
-  challengeToken: string;
-  message: string;
-  expiresAt: string;
-}
-
 interface AgentSettingsProps {
   onAgentsChanged?: () => void;
+}
+
+interface AgentBindingAuthorizationRequired {
+  status: 'authorization_required';
+  authorizationRequest: PrivyAuthorizationRequest;
+  bindingPayloadBase64: string;
+  bindingIntent: string;
 }
 
 export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
   const [agents, setAgents] = useState<UserAgentRow[]>([]);
   const [agentAddress, setAgentAddress] = useState('');
   const [label, setLabel] = useState('External agent');
-  const [challenge, setChallenge] = useState<ChallengeState | null>(null);
-  const [signature, setSignature] = useState('');
   const [runnerToken, setRunnerToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,44 +62,39 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
     void reload().catch((err) => setError(err instanceof Error ? err.message : 'Failed to load agents'));
   }, [reload]);
 
-  const issueChallenge = async () => {
-    setBusy('challenge');
+  const register = async () => {
+    setBusy('register');
     setError(null);
     setRunnerToken(null);
     try {
-      const res = await authedFetch('/api/v1/agent/user-agents/challenge', {
+      const first = await authedFetch('/api/v1/agent/user-agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentAddress }),
+        body: JSON.stringify({ agentAddress, label }),
       });
-      const data = await readJson(res);
-      setChallenge(data as ChallengeState);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to issue challenge');
-    } finally {
-      setBusy(null);
-    }
-  };
+      const firstData = await readJson(first);
+      const authorizationRequired = parseAgentBindingAuthorizationRequired(firstData);
+      if (!authorizationRequired) {
+        throw new Error('Agent binding authorization was not returned. Please try again.');
+      }
 
-  const register = async () => {
-    if (!challenge) return;
-    setBusy('register');
-    setError(null);
-    try {
-      const res = await authedFetch('/api/v1/agent/user-agents', {
+      const { signature } = await generateAuthorizationSignature(
+        authorizationRequired.authorizationRequest,
+      );
+
+      const second = await authedFetch('/api/v1/agent/user-agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentAddress,
           label,
-          challengeToken: challenge.challengeToken,
-          signature,
+          authorizationSignature: signature,
+          bindingPayloadBase64: authorizationRequired.bindingPayloadBase64,
+          bindingIntent: authorizationRequired.bindingIntent,
         }),
       });
-      const data = (await readJson(res)) as { runnerToken: string };
+      const data = (await readJson(second)) as { runnerToken: string };
       setRunnerToken(data.runnerToken);
-      setChallenge(null);
-      setSignature('');
       await reload();
       onAgentsChanged?.();
     } catch (err) {
@@ -147,27 +146,11 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
         <div className="mt-3 grid gap-3">
           <Field label="Agent address" value={agentAddress} onChange={setAgentAddress} placeholder="0x..." />
           <Field label="Label" value={label} onChange={setLabel} placeholder="Home runner" />
-          <Button type="button" size="sm" onClick={issueChallenge} disabled={busy !== null || !agentAddress.trim()}>
-            {busy === 'challenge' && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-            Generate challenge
+          <Button type="button" size="sm" onClick={register} disabled={busy !== null || !agentAddress.trim()}>
+            {busy === 'register' && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            Bind external agent
           </Button>
         </div>
-
-        {challenge && (
-          <div className="mt-4 space-y-3 rounded-[10px] bg-background p-3 ring-1 ring-[color:var(--border)]">
-            <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
-              Sign this personal message with the external agent key, then paste the serialized signature.
-            </p>
-            <pre className="max-h-44 overflow-auto rounded-[8px] bg-[color:var(--surface)] p-2 text-[11px]">
-{challenge.message}
-            </pre>
-            <Field label="Signature" value={signature} onChange={setSignature} placeholder="Base64 serialized signature" />
-            <Button type="button" size="sm" onClick={register} disabled={busy !== null || !signature.trim()}>
-              {busy === 'register' && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              Register agent
-            </Button>
-          </div>
-        )}
       </section>
 
       {runnerToken && (
@@ -257,4 +240,26 @@ async function readJson(res: Response): Promise<unknown> {
     );
   }
   return data;
+}
+
+function parseAgentBindingAuthorizationRequired(
+  payload: unknown,
+): AgentBindingAuthorizationRequired | null {
+  const authorizationRequired = parsePrivyAuthorizationRequiredResponse(payload);
+  if (
+    authorizationRequired &&
+    payload &&
+    typeof payload === 'object' &&
+    'bindingPayloadBase64' in payload &&
+    typeof (payload as { bindingPayloadBase64: unknown }).bindingPayloadBase64 === 'string' &&
+    'bindingIntent' in payload &&
+    typeof (payload as { bindingIntent: unknown }).bindingIntent === 'string'
+  ) {
+    return {
+      ...authorizationRequired,
+      bindingPayloadBase64: (payload as { bindingPayloadBase64: string }).bindingPayloadBase64,
+      bindingIntent: (payload as { bindingIntent: string }).bindingIntent,
+    };
+  }
+  return null;
 }

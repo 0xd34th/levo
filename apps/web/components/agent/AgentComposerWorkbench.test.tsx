@@ -53,6 +53,7 @@ const NO_AGENT_CONFIG: AgentMandateConfig = {
 
 import { AgentWorkspace } from './AgentDashboard';
 import { AgentComposerWorkbench } from './AgentComposerWorkbench';
+import { AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
 
 describe('Agent mandate creation UI', () => {
@@ -78,6 +79,15 @@ describe('Agent mandate creation UI', () => {
 
     expect(markup).toContain('No active external agent is configured. Bind an agent before creating mandates.');
     expect(markup).toContain('Bind agent');
+  });
+
+  it('agent settings binds through wallet confirmation instead of manual challenges', () => {
+    const markup = renderToStaticMarkup(<AgentSettings />);
+
+    expect(markup).toContain('Bind external agent');
+    expect(markup).not.toContain('Generate challenge');
+    expect(markup).not.toContain('Signature');
+    expect(markup).not.toContain('Sign this personal message');
   });
 
   it('/agent/new with intent renders contextual options and preview', () => {

@@ -1,6 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
-import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
 import {
   ActionStatus,
   AgentExecutionJobStatus,
@@ -18,8 +17,8 @@ import { getMandateExecutionBlockReason } from './execution-guard';
 import { extractWitnessConsumed } from './audit';
 import { getAgentSuiClient } from './sui-client';
 
-const CHALLENGE_SCOPE = 'agent-bind-challenge';
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
+const OWNER_BINDING_SCOPE = 'agent-owner-binding-v1';
+const OWNER_BINDING_TTL_MS = 10 * 60 * 1000;
 const RUNNER_TOKEN_PREFIX = 'lvo_runner_';
 const CLAIM_TTL_MS = 5 * 60 * 1000;
 
@@ -49,83 +48,119 @@ export function serializeUserAgent(agent: UserAgent): SerializedUserAgent {
   };
 }
 
-interface AgentChallengePayload {
-  xUserId: string;
+interface OwnerAgentBindingPayload {
+  v: 1;
+  ownerXUserId: string;
+  ownerAddress: string;
   agentAddress: string;
+  label: string;
   nonce: string;
   issuedAt: number;
   expiresAt: number;
 }
 
-export function issueAgentChallenge(args: {
-  xUserId: string;
+export type OwnerAgentBindingIntentVerification =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | 'agent binding intent invalid'
+        | 'agent binding intent expired'
+        | 'agent binding intent mismatch';
+    };
+
+export function normalizeUserAgentLabel(label?: string): string {
+  return label?.trim() || 'External agent';
+}
+
+export function issueOwnerAgentBindingIntent(args: {
+  ownerXUserId: string;
+  ownerAddress: string;
   agentAddress: string;
+  label?: string;
   nowMs?: number;
-}): { challengeToken: string; message: string; expiresAt: string } {
+}): { bindingIntent: string; payloadBase64: string; expiresAt: string } {
   const secret = getAgentHmacSecret();
   const now = args.nowMs ?? Date.now();
-  const payload: AgentChallengePayload = {
-    xUserId: args.xUserId,
+  const payload: OwnerAgentBindingPayload = {
+    v: 1,
+    ownerXUserId: args.ownerXUserId,
+    ownerAddress: normalizeSuiAddress(args.ownerAddress),
     agentAddress: normalizeSuiAddress(args.agentAddress),
+    label: normalizeUserAgentLabel(args.label),
     nonce: randomBytes(16).toString('base64url'),
     issuedAt: now,
-    expiresAt: now + CHALLENGE_TTL_MS,
+    expiresAt: now + OWNER_BINDING_TTL_MS,
   };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const mac = createScopedHmac(payloadB64, secret, CHALLENGE_SCOPE);
+  const mac = createScopedHmac(payloadB64, secret, OWNER_BINDING_SCOPE);
   return {
-    challengeToken: `${payloadB64}.${mac}`,
-    message: buildAgentChallengeMessage(payload),
+    bindingIntent: `${payloadB64}.${mac}`,
+    payloadBase64: Buffer.from(buildOwnerAgentBindingMessage(payload)).toString('base64'),
     expiresAt: new Date(payload.expiresAt).toISOString(),
   };
 }
 
-export async function verifyAgentChallengeSignature(args: {
-  xUserId: string;
-  agentAddress: string;
-  challengeToken: string;
-  signature: string;
-}): Promise<{ ok: true; agentAddress: string } | { ok: false; error: string }> {
-  const payload = verifyAgentChallenge(args.challengeToken);
-  if (!payload) return { ok: false, error: 'Invalid or expired agent challenge.' };
-  const normalizedAgent = normalizeSuiAddress(args.agentAddress);
-  if (payload.xUserId !== args.xUserId || payload.agentAddress !== normalizedAgent) {
-    return { ok: false, error: 'Agent challenge does not match this session.' };
+export function verifyOwnerAgentBindingIntent(
+  token: string | undefined,
+  binding: {
+    ownerXUserId: string;
+    ownerAddress: string;
+    agentAddress: string;
+    label?: string;
+    payloadBase64: string;
+  },
+  nowMs = Date.now(),
+): OwnerAgentBindingIntentVerification {
+  const payload = verifyOwnerAgentBindingPayload(token);
+  if (!payload) return { ok: false, reason: 'agent binding intent invalid' };
+  if (payload.expiresAt <= nowMs) {
+    return { ok: false, reason: 'agent binding intent expired' };
   }
-  try {
-    await verifyPersonalMessageSignature(
-      new TextEncoder().encode(buildAgentChallengeMessage(payload)),
-      args.signature,
-      { address: normalizedAgent },
-    );
-    return { ok: true, agentAddress: normalizedAgent };
-  } catch {
-    return { ok: false, error: 'Invalid agent address signature.' };
+
+  const expected = {
+    ownerXUserId: binding.ownerXUserId,
+    ownerAddress: normalizeSuiAddress(binding.ownerAddress),
+    agentAddress: normalizeSuiAddress(binding.agentAddress),
+    label: normalizeUserAgentLabel(binding.label),
+    payloadBase64: Buffer.from(buildOwnerAgentBindingMessage(payload)).toString('base64'),
+  };
+  const actual = {
+    ownerXUserId: payload.ownerXUserId,
+    ownerAddress: payload.ownerAddress,
+    agentAddress: payload.agentAddress,
+    label: payload.label,
+    payloadBase64: binding.payloadBase64,
+  };
+  if (
+    actual.ownerXUserId !== expected.ownerXUserId ||
+    actual.ownerAddress !== expected.ownerAddress ||
+    actual.agentAddress !== expected.agentAddress ||
+    actual.label !== expected.label ||
+    actual.payloadBase64 !== expected.payloadBase64
+  ) {
+    return { ok: false, reason: 'agent binding intent mismatch' };
   }
+  return { ok: true };
 }
 
-function verifyAgentChallenge(token: string): AgentChallengePayload | null {
+function verifyOwnerAgentBindingPayload(token: string | undefined): OwnerAgentBindingPayload | null {
+  if (!token) return null;
   const dot = token.indexOf('.');
   if (dot === -1) return null;
   const payloadB64 = token.slice(0, dot);
   const received = token.slice(dot + 1);
-  const expected = createScopedHmac(payloadB64, getAgentHmacSecret(), CHALLENGE_SCOPE);
+  const expected = createScopedHmac(payloadB64, getAgentHmacSecret(), OWNER_BINDING_SCOPE);
   if (!hasMatchingHmac(received, [expected])) return null;
   try {
-    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString()) as Partial<AgentChallengePayload>;
-    if (
-      typeof payload.xUserId !== 'string' ||
-      typeof payload.agentAddress !== 'string' ||
-      typeof payload.nonce !== 'string' ||
-      typeof payload.issuedAt !== 'number' ||
-      typeof payload.expiresAt !== 'number' ||
-      payload.expiresAt <= Date.now()
-    ) {
-      return null;
-    }
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString()) as Partial<OwnerAgentBindingPayload>;
+    if (!isOwnerAgentBindingPayload(payload)) return null;
     return {
-      xUserId: payload.xUserId,
+      v: 1,
+      ownerXUserId: payload.ownerXUserId,
+      ownerAddress: normalizeSuiAddress(payload.ownerAddress),
       agentAddress: normalizeSuiAddress(payload.agentAddress),
+      label: normalizeUserAgentLabel(payload.label),
       nonce: payload.nonce,
       issuedAt: payload.issuedAt,
       expiresAt: payload.expiresAt,
@@ -135,11 +170,28 @@ function verifyAgentChallenge(token: string): AgentChallengePayload | null {
   }
 }
 
-function buildAgentChallengeMessage(payload: AgentChallengePayload): string {
+function isOwnerAgentBindingPayload(value: unknown): value is OwnerAgentBindingPayload {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Partial<OwnerAgentBindingPayload>;
+  return (
+    payload.v === 1 &&
+    typeof payload.ownerXUserId === 'string' &&
+    typeof payload.ownerAddress === 'string' &&
+    typeof payload.agentAddress === 'string' &&
+    typeof payload.label === 'string' &&
+    typeof payload.nonce === 'string' &&
+    Number.isFinite(payload.issuedAt) &&
+    Number.isFinite(payload.expiresAt)
+  );
+}
+
+function buildOwnerAgentBindingMessage(payload: OwnerAgentBindingPayload): string {
   return [
     'Levo BYO Agent Binding',
-    `X User: ${payload.xUserId}`,
+    `Owner X User: ${payload.ownerXUserId}`,
+    `Owner Wallet: ${payload.ownerAddress}`,
     `Agent: ${payload.agentAddress}`,
+    `Label: ${payload.label}`,
     `Nonce: ${payload.nonce}`,
     `Expires: ${new Date(payload.expiresAt).toISOString()}`,
   ].join('\n');
@@ -152,7 +204,7 @@ export async function registerUserAgent(args: {
 }): Promise<{ agent: UserAgent; runnerToken: string }> {
   const runnerToken = generateRunnerToken();
   const runnerTokenHash = hashRunnerToken(runnerToken);
-  const label = args.label?.trim() || 'External agent';
+  const label = normalizeUserAgentLabel(args.label);
   const agentAddress = normalizeSuiAddress(args.agentAddress);
 
   return prisma.$transaction(async (tx) => {
