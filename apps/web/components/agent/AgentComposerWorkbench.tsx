@@ -8,6 +8,7 @@ import {
   buildCreateMandatePayload,
   createInitialAgentMandateDraftState,
 } from '@/lib/agent/mandate-draft';
+import { AgentChatPanel } from './AgentChatPanel';
 import { AgentSettings } from './AgentSettings';
 import { MandateCreateForm } from './MandateCreateForm';
 import { MandateDraftPreview } from './MandateDraftPreview';
@@ -38,23 +39,16 @@ export function AgentComposerWorkbench({
   }, [intent]);
 
   return (
-    <div className="grid min-h-[calc(100vh-4rem)] gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
       <section className="flex min-h-[620px] flex-col rounded-[16px] bg-[color:var(--surface)] p-4">
         <div className="border-b border-[color:var(--border)] pb-3">
-          <h1 className="text-[24px] font-semibold tracking-[-0.01em]">New mandate</h1>
+          <h1 className="text-[24px] font-semibold tracking-[-0.01em]">Agent workspace</h1>
           <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-            {helperText}
+            Chat can inspect Sui and prepare handoffs. Approval stays in guided cards.
           </p>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pt-4">
-          <MandateCreateForm
-            initialIntent={intent}
-            initialConfig={initialConfig}
-            onDraftChange={setProposal}
-            onCreated={() => {}}
-            onOpenAgentSettings={() => setSettingsOpen(true)}
-            configReloadSignal={configReloadSignal}
-          />
+        <div className="min-h-0 flex-1 pt-4">
+          <AgentChatPanel onMandateCreated={() => {}} />
         </div>
       </section>
       {settingsOpen ? (
@@ -81,7 +75,27 @@ export function AgentComposerWorkbench({
           />
         </aside>
       ) : (
-        <MandateDraftPreview proposal={proposal} />
+        <aside className="flex min-h-[620px] flex-col gap-4">
+          <section className="rounded-[16px] bg-[color:var(--surface)] p-4">
+            <div className="border-b border-[color:var(--border)] pb-3">
+              <h2 className="text-[18px] font-semibold">New mandate</h2>
+              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+                {helperText}
+              </p>
+            </div>
+            <div className="pt-4">
+              <MandateCreateForm
+                initialIntent={intent}
+                initialConfig={initialConfig}
+                onDraftChange={setProposal}
+                onCreated={() => {}}
+                onOpenAgentSettings={() => setSettingsOpen(true)}
+                configReloadSignal={configReloadSignal}
+              />
+            </div>
+          </section>
+          <MandateDraftPreview proposal={proposal} />
+        </aside>
       )}
     </div>
   );

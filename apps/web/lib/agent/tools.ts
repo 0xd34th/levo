@@ -2,15 +2,19 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { serializeAgentMandate } from './serialize';
+import {
+  buildExplorerTools,
+  type ExplorerToolContext,
+} from './explorer';
 
-interface ToolContext {
-  xUserId: string;
-}
+interface ToolContext extends ExplorerToolContext {}
 
 // Agent tool registry used by `/api/v1/agent/chat`. Each tool is bound to the
 // calling user's xUserId so server-side queries never leak cross-tenant data.
 export function buildAgentTools(ctx: ToolContext) {
   return {
+    ...buildExplorerTools(ctx),
+
     list_my_mandates: tool({
       description:
         "List the calling user's existing agent mandates. Use this when the user asks about their mandates, history, or current status. Returns up to 20 most-recent rows.",

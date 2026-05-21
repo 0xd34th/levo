@@ -67,10 +67,10 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Deposit into Earn');
     expect(markup).toContain('Withdraw from Earn');
     expect(markup).toContain('Mandate preview');
+    expect(markup).toContain('AgentChatPanel');
     expect(markup).not.toContain('Action');
     expect(markup).not.toContain('Cadence');
     expect(markup).not.toContain('Expiry');
-    expect(markup).not.toContain('Ask about existing mandates');
     expect(markup).not.toContain('Ask me to manage your yield');
   });
 

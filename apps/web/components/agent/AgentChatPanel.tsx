@@ -13,14 +13,14 @@ import { Input } from '@/components/ui/input';
 import { ExecuteResultCard } from './ExecuteResultCard';
 import { MandateListCard } from './MandateListCard';
 import { ExecuteConfirmationCard } from './ExecuteConfirmationCard';
+import { SuiToolCard } from './SuiExplorerCards';
 
 interface Props {
   onMandateCreated: () => void | Promise<void>;
 }
 
-// Chat panel powered by DeepSeek + AI SDK v5 useChat. Chat is now for
-// inspecting and executing existing mandates; new mandate creation lives in the
-// guided form so raw vault/cap/cron details stay out of the conversation.
+// Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
+// tools with mandate inspection/handoff while keeping signing outside chat.
 export function AgentChatPanel({ onMandateCreated }: Props) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
@@ -93,7 +93,7 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about existing mandates or run one"
+          placeholder="Ask about Sui tokens, wallets, txs, swaps, or Earn mandates"
           disabled={busy}
           className="flex-1"
         />
@@ -108,9 +108,9 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
 function EmptyState() {
   return (
     <div className="rounded-[12px] bg-[color:var(--surface)] p-4">
-      <p className="text-[13px] font-medium">Ask about your mandates.</p>
+      <p className="text-[13px] font-medium">Explore Sui or manage mandates.</p>
       <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-        Try “Show my mandates” or “Run my daily harvest mandate”.
+        Try “Show my Sui portfolio”, “Explain this tx”, or “Create a daily Earn harvest mandate”.
       </p>
     </div>
   );
@@ -193,6 +193,9 @@ function ToolPartView({
         onExecuted={onMandateCreated}
       />
     );
+  }
+  if (typeof kind === 'string') {
+    return <SuiToolCard output={output as Record<string, unknown>} />;
   }
   // Default: try to render mandate list (the only other tool today).
   if ((output as { mandates?: unknown }).mandates) {
