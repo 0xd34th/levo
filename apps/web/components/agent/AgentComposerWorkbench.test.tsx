@@ -55,6 +55,7 @@ import { AgentWorkspace } from './AgentDashboard';
 import { AgentComposerWorkbench } from './AgentComposerWorkbench';
 import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
+import { MandateWorkbench } from './MandateWorkbench';
 
 describe('Agent mandate creation UI', () => {
   it('/agent/new initial SSR markup asks for intent before showing option controls', () => {
@@ -177,5 +178,13 @@ describe('Agent mandate creation UI', () => {
 
     expect(markup).toContain('Review execution');
     expect(markup).not.toContain('Execute now');
+  });
+
+  it('/agent exposes settings as a page-level tab next to mandates', () => {
+    const markup = renderToStaticMarkup(<MandateWorkbench />);
+
+    expect(markup).toContain('Mandates');
+    expect(markup).toContain('Settings');
+    expect(markup).toContain('Mandates and recent runs');
   });
 });

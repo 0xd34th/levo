@@ -45,11 +45,20 @@ import {
   shortId,
 } from '@/lib/agent/display';
 import { cn } from '@/lib/utils';
+import { AgentSettings } from './AgentSettings';
+
+type AgentPageTab = 'mandates' | 'settings';
+
+const AGENT_PAGE_TABS: Array<{ value: AgentPageTab; label: string }> = [
+  { value: 'mandates', label: 'Mandates' },
+  { value: 'settings', label: 'Settings' },
+];
 
 export function MandateWorkbench() {
   const { getAccessToken, ready, authenticated } = usePrivy();
   const { identityToken } = useIdentityToken();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const [activeTab, setActiveTab] = useState<AgentPageTab>('mandates');
   const [mandates, setMandates] = useState<MandateSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MandateDetailResponse | null>(null);
@@ -121,98 +130,147 @@ export function MandateWorkbench() {
           <div>
             <h1 className="text-[19px] font-semibold">Agent</h1>
             <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
-              Mandates and recent runs
+              {activeTab === 'mandates' ? 'Mandates and recent runs' : 'Authorized external agents'}
             </p>
           </div>
           <Button size="icon-sm" aria-label="New mandate" render={<Link href="/agent/new" />}>
             <Plus className="size-4" />
           </Button>
         </div>
-        {loading ? (
-          <ShellMessage compact>Loading...</ShellMessage>
-        ) : mandates.length === 0 ? (
-          <EmptyMandates />
-        ) : (
-          <ul className="space-y-2 overflow-y-auto lg:max-h-[calc(100vh-9rem)]">
-            {mandates.map((mandate) => (
-              <li key={mandate.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(mandate.id)}
-                  className={cn(
-                    'w-full rounded-[12px] p-3 text-left ring-1 transition',
-                    selectedId === mandate.id
-                      ? 'bg-background ring-[color:var(--border-strong)]'
-                      : 'bg-transparent ring-transparent hover:bg-background/70',
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-[14px] font-medium">{mandate.name}</p>
-                      <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-                        {describeMandateIntent(mandate.actions)}
-                      </p>
+        <AgentPageTabList activeTab={activeTab} onTabChange={setActiveTab} />
+        {activeTab === 'mandates' ? (
+          loading ? (
+            <ShellMessage compact>Loading...</ShellMessage>
+          ) : mandates.length === 0 ? (
+            <EmptyMandates />
+          ) : (
+            <ul className="space-y-2 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
+              {mandates.map((mandate) => (
+                <li key={mandate.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(mandate.id)}
+                    className={cn(
+                      'w-full rounded-[12px] p-3 text-left ring-1 transition',
+                      selectedId === mandate.id
+                        ? 'bg-background ring-[color:var(--border-strong)]'
+                        : 'bg-transparent ring-transparent hover:bg-background/70',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-medium">{mandate.name}</p>
+                        <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+                          {describeMandateIntent(mandate.actions)}
+                        </p>
+                      </div>
+                      <StatusPill status={mandate.status} />
                     </div>
-                    <StatusPill status={mandate.status} />
-                  </div>
-                  <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
-                    {nextRunLabel(mandate)}
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
+                    <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
+                      {nextRunLabel(mandate)}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : (
+          <div className="rounded-[12px] bg-background p-4 text-[13px] ring-1 ring-[color:var(--border)]">
+            <p className="font-medium">Agent settings</p>
+            <p className="mt-1" style={{ color: 'var(--text-soft)' }}>
+              Review bound agents, rotate runner tokens, or revoke access.
+            </p>
+          </div>
         )}
       </section>
 
       <section className="min-w-0 rounded-[16px] bg-[color:var(--surface)] p-4 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-        {error ? (
-          <p className="mb-3 rounded-[10px] bg-background px-3 py-2 text-[13px]" style={{ color: 'var(--down)' }}>
-            {error}
-          </p>
-        ) : null}
-        {selected ? (
-          <MandateDetail
-            mandate={selected}
-            actions={detail?.actions ?? []}
-            busy={busy}
-            onExecute={() =>
-              runAction('execute', () =>
-                executeMandate({ getAccessToken, identityToken }, selected.id),
-              )
-            }
-            onPause={() =>
-              runAction('pause', () =>
-                pauseMandate({ getAccessToken, identityToken }, selected.id),
-              )
-            }
-            onResume={() =>
-              runAction('resume', () =>
-                resumeMandate({ getAccessToken, identityToken }, selected.id),
-              )
-            }
-            onRevoke={() =>
-              runAction('revoke', () =>
-                revokeMandate(
-                  { getAccessToken, identityToken, generateAuthorizationSignature },
-                  selected.id,
-                ),
-              )
-            }
-            onDestroy={() =>
-              runAction('destroy', () =>
-                destroyMandate(
-                  { getAccessToken, identityToken, generateAuthorizationSignature },
-                  selected.id,
-                ),
-              )
-            }
+        {activeTab === 'settings' ? (
+          <AgentSettings
+            onAgentsChanged={() => {
+              void reloadList();
+            }}
           />
         ) : (
-          <EmptyMandates />
+          <>
+            {error ? (
+              <p className="mb-3 rounded-[10px] bg-background px-3 py-2 text-[13px]" style={{ color: 'var(--down)' }}>
+                {error}
+              </p>
+            ) : null}
+            {selected ? (
+              <MandateDetail
+                mandate={selected}
+                actions={detail?.actions ?? []}
+                busy={busy}
+                onExecute={() =>
+                  runAction('execute', () =>
+                    executeMandate({ getAccessToken, identityToken }, selected.id),
+                  )
+                }
+                onPause={() =>
+                  runAction('pause', () =>
+                    pauseMandate({ getAccessToken, identityToken }, selected.id),
+                  )
+                }
+                onResume={() =>
+                  runAction('resume', () =>
+                    resumeMandate({ getAccessToken, identityToken }, selected.id),
+                  )
+                }
+                onRevoke={() =>
+                  runAction('revoke', () =>
+                    revokeMandate(
+                      { getAccessToken, identityToken, generateAuthorizationSignature },
+                      selected.id,
+                    ),
+                  )
+                }
+                onDestroy={() =>
+                  runAction('destroy', () =>
+                    destroyMandate(
+                      { getAccessToken, identityToken, generateAuthorizationSignature },
+                      selected.id,
+                    ),
+                  )
+                }
+              />
+            ) : (
+              <EmptyMandates />
+            )}
+          </>
         )}
       </section>
     </div>
+  );
+}
+
+function AgentPageTabList({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: AgentPageTab;
+  onTabChange: (tab: AgentPageTab) => void;
+}) {
+  return (
+    <nav className="mb-3 grid grid-cols-2 gap-1 rounded-[10px] bg-background p-1 ring-1 ring-[color:var(--border)]" aria-label="Agent sections">
+      {AGENT_PAGE_TABS.map((tab) => (
+        <button
+          key={tab.value}
+          type="button"
+          aria-pressed={activeTab === tab.value}
+          onClick={() => onTabChange(tab.value)}
+          className={cn(
+            'h-9 rounded-[8px] px-3 text-[13px] font-medium transition',
+            activeTab === tab.value
+              ? 'bg-foreground text-background'
+              : 'text-[color:var(--text-soft)] hover:bg-[color:var(--surface)] hover:text-foreground',
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
   );
 }
 
