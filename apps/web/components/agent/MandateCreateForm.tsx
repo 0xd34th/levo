@@ -458,7 +458,9 @@ function AgentConfigNotice({
   message: string;
   onOpenAgentSettings?: () => void;
 }) {
-  const shouldOfferAgentSettings = message.includes('No active external agent');
+  const shouldOfferAgentSettings =
+    message.includes('No active external agent') ||
+    message.includes('Loading agent configuration');
 
   return (
     <div
