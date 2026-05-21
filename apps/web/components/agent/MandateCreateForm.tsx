@@ -6,7 +6,6 @@ import {
   CalendarClock,
   ChevronDown,
   Coins,
-  MessageSquareText,
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -46,6 +45,7 @@ interface MandateCreateFormProps {
   onDraftChange?: (proposal: ProposalPayload | null) => void;
   onOpenAgentSettings?: () => void;
   configReloadSignal?: number;
+  showIntentPrompt?: boolean;
 }
 
 const ACTIONS: Array<{ value: AgentMandateAction; label: string }> = [
@@ -62,21 +62,6 @@ const CADENCES: Array<{ value: AgentMandateCadence; label: string }> = [
 ];
 
 const EXPIRIES: Array<AgentMandateDraftState['expiryDays']> = ['30', '90', '365'];
-
-const EARN_INTENT_PRESETS: Array<{ label: string; intent: string }> = [
-  {
-    label: 'Auto-harvest yield',
-    intent: 'auto-harvest claimable yield daily with conservative caps',
-  },
-  {
-    label: 'Deposit into Earn',
-    intent: 'deposit into Earn manually with conservative caps',
-  },
-  {
-    label: 'Withdraw from Earn',
-    intent: 'withdraw from Earn manually with conservative caps',
-  },
-];
 
 const FALLBACK_CONFIG: AgentMandateConfig = {
   agentAddress: '',
@@ -104,6 +89,7 @@ export function MandateCreateForm({
   onDraftChange,
   onOpenAgentSettings,
   configReloadSignal = 0,
+  showIntentPrompt = true,
 }: MandateCreateFormProps) {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
@@ -199,29 +185,33 @@ export function MandateCreateForm({
   };
 
   if (!activeIntent) {
+    if (!showIntentPrompt) {
+      return (
+        <div className="space-y-3">
+          <section className="rounded-[12px] bg-background p-4 ring-1 ring-[color:var(--border)]">
+            <p className="text-[14px] font-medium">No mandate intent selected</p>
+            <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+              Choose an Earn mandate command in the Agent workspace. The guided approval controls will appear here.
+            </p>
+          </section>
+          {(effectiveConfig.error || activeConfigError) && (
+            <AgentConfigNotice
+              message={effectiveConfig.error ?? activeConfigError ?? ''}
+              onOpenAgentSettings={onOpenAgentSettings}
+            />
+          )}
+        </div>
+      );
+    }
+
     return (
       <form onSubmit={submitIntent} className="space-y-5">
         <section className="rounded-[14px] bg-background p-4 ring-1 ring-[color:var(--border)]">
-          <div className="flex items-center gap-2">
-            <MessageSquareText className="size-4" />
-            <h2 className="text-[16px] font-semibold">What should the agent do?</h2>
-          </div>
-          <p className="mt-2 text-[13px] leading-[1.45]" style={{ color: 'var(--text-soft)' }}>
-            Describe the Earn task in your own words. The next screen will show only the choices needed for that request.
+          <p className="text-[14px] font-semibold">What should the agent do?</p>
+          <p className="mt-1 text-[13px] leading-[1.45]" style={{ color: 'var(--text-soft)' }}>
+            Describe the Earn task in your own words.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {EARN_INTENT_PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => commitIntent(preset.intent)}
-                className="rounded-[999px] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-background"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-3 flex gap-2">
             <Input
               value={intentInput}
               onChange={(e) => setIntentInput(e.target.value)}

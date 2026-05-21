@@ -91,6 +91,7 @@ export function AgentComposerWorkbench({
                 onCreated={() => {}}
                 onOpenAgentSettings={() => setSettingsOpen(true)}
                 configReloadSignal={configReloadSignal}
+                showIntentPrompt={false}
               />
             </div>
           </section>

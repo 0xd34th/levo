@@ -19,6 +19,51 @@ interface Props {
   onMandateCreated: () => void | Promise<void>;
 }
 
+const COMMAND_GROUPS = [
+  {
+    label: 'Markets',
+    commands: [
+      { label: 'SUI price', prompt: 'How is SUI performing today?' },
+      { label: 'Trending coins', prompt: 'What coins are trending on Sui in the last 24 hours?' },
+      { label: 'Top DEX pools', prompt: 'Show me the top DEX pools on Sui by volume.' },
+      { label: 'New listings', prompt: 'What new tokens were listed on Sui this week?' },
+    ],
+  },
+  {
+    label: 'Wallet',
+    commands: [
+      { label: 'My portfolio', prompt: 'Show me my portfolio' },
+      { label: 'Recent activity', prompt: 'Show my recent activity' },
+      { label: 'DeFi positions', prompt: 'Show my DeFi positions' },
+    ],
+  },
+  {
+    label: 'On-chain',
+    commands: [
+      { label: 'Object 0x6', prompt: 'What is the Sui object 0x6 (clock)?' },
+      { label: 'Explain a digest', prompt: 'Explain this Sui transaction digest' },
+      { label: 'NFT collection', prompt: 'Show me the Suipanda NFT collection' },
+    ],
+  },
+  {
+    label: 'Trade',
+    commands: [
+      { label: 'Swap 1 SUI to USDC', prompt: 'Quote me a swap of 1 SUI to USDC' },
+      { label: 'Send to .sui', prompt: 'Prepare a transfer of 1 SUI to alice.sui' },
+      { label: 'Bridge to Sui', prompt: 'Prepare a bridge of 0.1 ETH from Ethereum to Sui' },
+    ],
+  },
+  {
+    label: 'Mandates',
+    commands: [
+      { label: 'Auto-harvest yield', prompt: 'Create a mandate to auto-harvest claimable Earn yield daily with conservative caps' },
+      { label: 'Deposit into Earn', prompt: 'Create a mandate to deposit into Earn manually with conservative caps' },
+      { label: 'Withdraw from Earn', prompt: 'Create a mandate to withdraw from Earn manually with conservative caps' },
+      { label: 'Show mandates', prompt: 'Show my mandates' },
+    ],
+  },
+];
+
 // Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
 // tools with mandate inspection/handoff while keeping signing outside chat.
 export function AgentChatPanel({ onMandateCreated }: Props) {
@@ -48,13 +93,25 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
 
   const busy = status === 'streaming' || status === 'submitted' || submitting;
 
+  const submitPrompt = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setSubmitting(true);
+    setInput('');
+    try {
+      await sendMessage({ text: trimmed });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div
         ref={listRef}
         className="flex-1 space-y-3 overflow-y-auto pb-3"
       >
-        {messages.length === 0 && <EmptyState />}
+        {messages.length === 0 && <EmptyState onPick={submitPrompt} disabled={busy} />}
         {messages.map((m) => (
           <MessageBubble
             key={m.id}
@@ -78,15 +135,7 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          const text = input.trim();
-          if (!text || busy) return;
-          setSubmitting(true);
-          setInput('');
-          try {
-            await sendMessage({ text });
-          } finally {
-            setSubmitting(false);
-          }
+          await submitPrompt(input);
         }}
           className="mt-2 flex items-center gap-2 border-t border-[color:var(--border)] pt-3"
       >
@@ -105,13 +154,41 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  onPick,
+  disabled,
+}: {
+  onPick: (prompt: string) => void | Promise<void>;
+  disabled: boolean;
+}) {
   return (
     <div className="rounded-[12px] bg-[color:var(--surface)] p-4">
       <p className="text-[13px] font-medium">Explore Sui or manage mandates.</p>
       <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-        Try “Show my Sui portfolio”, “Explain this tx”, or “Create a daily Earn harvest mandate”.
+        Start with a Sui query, a prepared transfer/swap, or an Earn mandate handoff.
       </p>
+      <div className="mt-4 space-y-3">
+        {COMMAND_GROUPS.map((group) => (
+          <div key={group.label} className="grid gap-2 sm:grid-cols-[76px_1fr] sm:items-start">
+            <p className="pt-1 text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--text-mute)' }}>
+              {group.label}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {group.commands.map((command) => (
+                <button
+                  key={command.label}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onPick(command.prompt)}
+                  className="rounded-full border border-[color:var(--border)] bg-background px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--raise)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {command.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -24,7 +24,14 @@ vi.mock('@/components/agent/MandateProposalCard', () => ({
 }));
 
 vi.mock('@/components/agent/AgentChatPanel', () => ({
-  AgentChatPanel: () => <div>AgentChatPanel</div>,
+  AgentChatPanel: () => (
+    <div>
+      <p>Explore Sui or manage mandates.</p>
+      <button>Auto-harvest yield</button>
+      <button>Deposit into Earn</button>
+      <button>Withdraw from Earn</button>
+    </div>
+  ),
 }));
 
 const CONFIG: AgentMandateConfig = {
@@ -62,12 +69,13 @@ describe('Agent mandate creation UI', () => {
     searchParams = '';
     const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
 
-    expect(markup).toContain('What should the agent do?');
+    expect(markup).toContain('Explore Sui or manage mandates.');
     expect(markup).toContain('Auto-harvest yield');
     expect(markup).toContain('Deposit into Earn');
     expect(markup).toContain('Withdraw from Earn');
+    expect(markup).toContain('No mandate intent selected');
     expect(markup).toContain('Mandate preview');
-    expect(markup).toContain('AgentChatPanel');
+    expect(markup).not.toContain('What should the agent do?');
     expect(markup).not.toContain('Action');
     expect(markup).not.toContain('Cadence');
     expect(markup).not.toContain('Expiry');
@@ -80,6 +88,7 @@ describe('Agent mandate creation UI', () => {
 
     expect(markup).toContain('No active external agent is configured. Bind an agent before creating mandates.');
     expect(markup).toContain('Bind agent');
+    expect(markup).not.toContain('What should the agent do?');
   });
 
   it('agent settings binds through wallet confirmation instead of manual challenges', () => {
