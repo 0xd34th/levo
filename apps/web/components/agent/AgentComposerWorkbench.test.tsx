@@ -53,7 +53,7 @@ const NO_AGENT_CONFIG: AgentMandateConfig = {
 
 import { AgentWorkspace } from './AgentDashboard';
 import { AgentComposerWorkbench } from './AgentComposerWorkbench';
-import { AgentSettings } from './AgentSettings';
+import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
 
 describe('Agent mandate creation UI', () => {
@@ -88,6 +88,29 @@ describe('Agent mandate creation UI', () => {
     expect(markup).not.toContain('Generate challenge');
     expect(markup).not.toContain('Signature');
     expect(markup).not.toContain('Sign this personal message');
+  });
+
+  it('runner token panel offers a setup prompt that includes the one-time token', () => {
+    const prompt = buildRunnerSetupPrompt({
+      baseUrl: 'https://levo.krilly.ai',
+      runnerToken: 'lvo_runner_test',
+      agentAddress: CONFIG.agentAddress,
+      agentLabel: 'Home runner',
+    });
+    const markup = renderToStaticMarkup(
+      <RunnerTokenPanel
+        runnerToken="lvo_runner_test"
+        agentAddress={CONFIG.agentAddress}
+        agentLabel="Home runner"
+        baseUrl="https://levo.krilly.ai"
+      />,
+    );
+
+    expect(prompt).toContain('LEVO_RUNNER_TOKEN=lvo_runner_test');
+    expect(prompt).toContain(`LEVO_AGENT_ADDRESS=${CONFIG.agentAddress}`);
+    expect(prompt).toContain('LEVO_BASE_URL=https://levo.krilly.ai');
+    expect(markup).toContain('Copy setup prompt');
+    expect(markup).toContain('Copy token');
   });
 
   it('/agent/new with intent renders contextual options and preview', () => {

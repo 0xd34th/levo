@@ -42,6 +42,10 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
   const [agentAddress, setAgentAddress] = useState('');
   const [label, setLabel] = useState('External agent');
   const [runnerToken, setRunnerToken] = useState<string | null>(null);
+  const [runnerTokenAgent, setRunnerTokenAgent] = useState<{
+    agentAddress: string;
+    label: string;
+  } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +70,7 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
     setBusy('register');
     setError(null);
     setRunnerToken(null);
+    setRunnerTokenAgent(null);
     try {
       const first = await authedFetch('/api/v1/agent/user-agents', {
         method: 'POST',
@@ -93,8 +98,15 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
           bindingIntent: authorizationRequired.bindingIntent,
         }),
       });
-      const data = (await readJson(second)) as { runnerToken: string };
+      const data = (await readJson(second)) as {
+        agent?: Pick<UserAgentRow, 'agentAddress' | 'label'>;
+        runnerToken: string;
+      };
       setRunnerToken(data.runnerToken);
+      setRunnerTokenAgent({
+        agentAddress: data.agent?.agentAddress ?? agentAddress,
+        label: data.agent?.label ?? label,
+      });
       await reload();
       onAgentsChanged?.();
     } catch (err) {
@@ -104,13 +116,18 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
     }
   };
 
-  const rotate = async (id: string) => {
-    setBusy(`rotate:${id}`);
+  const rotate = async (agent: UserAgentRow) => {
+    setBusy(`rotate:${agent.id}`);
     setError(null);
+    setRunnerTokenAgent(null);
     try {
-      const res = await authedFetch(`/api/v1/agent/user-agents/${id}/token`, { method: 'POST' });
+      const res = await authedFetch(`/api/v1/agent/user-agents/${agent.id}/token`, { method: 'POST' });
       const data = (await readJson(res)) as { runnerToken: string };
       setRunnerToken(data.runnerToken);
+      setRunnerTokenAgent({
+        agentAddress: agent.agentAddress,
+        label: agent.label,
+      });
       await reload();
       onAgentsChanged?.();
     } catch (err) {
@@ -154,20 +171,11 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
       </section>
 
       {runnerToken && (
-        <section className="rounded-[12px] bg-background p-3 ring-1 ring-[color:var(--border)]">
-          <p className="text-[13px] font-medium">Runner token</p>
-          <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-            Shown once. Store it in your runner environment.
-          </p>
-          <div className="mt-2 flex gap-2">
-            <code className="min-w-0 flex-1 overflow-auto rounded-[8px] bg-[color:var(--surface)] px-2 py-2 text-[11px]">
-              {runnerToken}
-            </code>
-            <Button type="button" size="icon-sm" variant="outline" onClick={() => void navigator.clipboard?.writeText(runnerToken)}>
-              <Copy className="size-3.5" />
-            </Button>
-          </div>
-        </section>
+        <RunnerTokenPanel
+          runnerToken={runnerToken}
+          agentAddress={runnerTokenAgent?.agentAddress ?? agentAddress}
+          agentLabel={runnerTokenAgent?.label ?? label}
+        />
       )}
 
       <section className="space-y-2">
@@ -191,7 +199,7 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
               </div>
               {agent.status === 'ACTIVE' && (
                 <div className="mt-3 flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => rotate(agent.id)} disabled={busy !== null}>
+                  <Button type="button" size="sm" variant="outline" onClick={() => rotate(agent)} disabled={busy !== null}>
                     {busy === `rotate:${agent.id}` ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 size-3.5" />}
                     Rotate token
                   </Button>
@@ -209,6 +217,93 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
       {error && <p className="rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]" style={{ color: 'var(--down)' }}>{error}</p>}
     </div>
   );
+}
+
+export function RunnerTokenPanel({
+  runnerToken,
+  agentAddress,
+  agentLabel,
+  baseUrl,
+}: {
+  runnerToken: string;
+  agentAddress: string;
+  agentLabel?: string | null;
+  baseUrl?: string;
+}) {
+  const resolvedBaseUrl = baseUrl ?? getBrowserBaseUrl();
+  const setupPrompt = buildRunnerSetupPrompt({
+    baseUrl: resolvedBaseUrl,
+    runnerToken,
+    agentAddress,
+    agentLabel,
+  });
+
+  return (
+    <section className="rounded-[12px] bg-background p-3 ring-1 ring-[color:var(--border)]">
+      <p className="text-[13px] font-medium">Runner token</p>
+      <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+        Shown once. Store it in your runner environment.
+      </p>
+      <div className="mt-2 flex gap-2">
+        <code className="min-w-0 flex-1 overflow-auto rounded-[8px] bg-[color:var(--surface)] px-2 py-2 text-[11px]">
+          {runnerToken}
+        </code>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void navigator.clipboard?.writeText(runnerToken)}
+        >
+          <Copy className="mr-1.5 size-3.5" />
+          Copy token
+        </Button>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="default"
+        className="mt-2 w-full"
+        onClick={() => void navigator.clipboard?.writeText(setupPrompt)}
+      >
+        <Copy className="mr-1.5 size-3.5" />
+        Copy setup prompt
+      </Button>
+    </section>
+  );
+}
+
+export function buildRunnerSetupPrompt({
+  baseUrl,
+  runnerToken,
+  agentAddress,
+  agentLabel,
+}: {
+  baseUrl: string;
+  runnerToken: string;
+  agentAddress: string;
+  agentLabel?: string | null;
+}): string {
+  const labelLine = agentLabel?.trim() ? `Agent label: ${agentLabel.trim()}\n` : '';
+  return [
+    'Set up my Levo BYO external agent runner with the configuration below.',
+    '',
+    'Keep the runner token secret. Do not print it in public logs, commits, screenshots, or chat after setup.',
+    '',
+    'Configuration:',
+    `LEVO_BASE_URL=${baseUrl}`,
+    `LEVO_RUNNER_TOKEN=${runnerToken}`,
+    `LEVO_AGENT_ADDRESS=${agentAddress}`,
+    `${labelLine}LEVO_AGENT_ALIAS=agent-alpha`,
+    '',
+    'Use the local Sui CLI alias or keypair that controls LEVO_AGENT_ADDRESS.',
+    'Start the runner, keep it online, and use the token only for Levo runner heartbeat/job claim APIs.',
+    'If the token is lost or exposed, rotate it in Levo Agent settings and replace the runner environment value.',
+  ].join('\n');
+}
+
+function getBrowserBaseUrl(): string {
+  if (typeof window === 'undefined') return 'https://levo.krilly.ai';
+  return window.location.origin;
 }
 
 function Field({
