@@ -81,7 +81,12 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
         const headers = new Headers(init?.headers);
         if (token) headers.set('Authorization', `Bearer ${token}`);
         if (identityToken) headers.set('X-Privy-Identity-Token', identityToken);
-        return fetch(url, { ...init, headers });
+        const response = await fetch(url, { ...init, headers });
+        if (!response.ok) {
+          const payload = await response.clone().json().catch(() => null);
+          throw new Error(formatAgentChatHttpError(response.status, payload));
+        }
+        return response;
       },
     }),
   });
@@ -152,6 +157,21 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
       </form>
     </div>
   );
+}
+
+export function formatAgentChatHttpError(status: number, payload: unknown): string {
+  if (status === 401) return 'Sign in to use agent chat.';
+  if (status === 403) return 'Refresh the page and try again; the chat request was blocked.';
+  if (status === 429) return 'Agent chat is rate limited. Try again shortly.';
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'error' in payload &&
+    typeof (payload as { error?: unknown }).error === 'string'
+  ) {
+    return (payload as { error: string }).error;
+  }
+  return `Agent chat failed with HTTP ${status}.`;
 }
 
 function EmptyState({

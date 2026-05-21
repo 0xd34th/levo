@@ -28,9 +28,9 @@ export function SuiToolCard({ output }: { output: AnyRecord }) {
   if (kind === 'activity-card') return <ActivityCard data={output} />;
   if (kind === 'object-card') return <ObjectCard data={output} />;
   if (kind === 'tx-card') return <TxCard data={output} />;
-  if (kind === 'defi-card') return <GenericCard icon={<Landmark className="size-4" />} title="DeFi positions" data={output} />;
-  if (kind === 'trending-card') return <GenericCard icon={<Sparkles className="size-4" />} title="Trending on Sui" data={output} />;
-  if (kind === 'nft-card') return <GenericCard icon={<Boxes className="size-4" />} title="NFT collection" data={output} />;
+  if (kind === 'defi-card') return <DeFiCard data={output} />;
+  if (kind === 'trending-card') return <TrendingCard data={output} />;
+  if (kind === 'nft-card') return <NftCollectionCard data={output} />;
   if (kind === 'write-card') return <WriteCard data={output} />;
   if (kind === 'mandate-intent') return <MandateIntentCard data={output} />;
   if (kind === 'followups') return <Followups data={output} />;
@@ -184,6 +184,79 @@ function TxCard({ data }: { data: AnyRecord }) {
   );
 }
 
+function DeFiCard({ data }: { data: AnyRecord }) {
+  const positions = extractRecordList(data.positions);
+  return (
+    <Shell
+      icon={<Landmark className="size-4" />}
+      title="DeFi positions"
+      subtitle={`${shortId(stringValue(data.address), 8, 6)} · ${stringValue(data.source, 'unknown')}`}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Positions" value={String(positions.length)} />
+        <Stat label="Source" value={stringValue(data.source, 'Unknown')} />
+      </div>
+      {positions.length ? (
+        <ResultList
+          items={positions.slice(0, 6).map((position) => ({
+            title: firstString(position, ['protocol', 'platform', 'name', 'poolName', 'type'], 'Position'),
+            subtitle: firstString(position, ['asset', 'symbol', 'coinType', 'pool'], 'Sui DeFi'),
+            value: usdValue(firstDefined(position, ['usdValue', 'valueUsd', 'value', 'totalValue'])),
+          }))}
+        />
+      ) : (
+        <EmptyResult text={stringValue(data.warning, 'No DeFi positions returned.')} />
+      )}
+      {typeof data.warning === 'string' ? <Warnings warnings={[data.warning]} /> : null}
+    </Shell>
+  );
+}
+
+function TrendingCard({ data }: { data: AnyRecord }) {
+  const items = extractRecordList(data.items);
+  return (
+    <Shell icon={<Sparkles className="size-4" />} title="Trending on Sui" subtitle={stringValue(data.source, 'unknown')}>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Results" value={String(items.length)} />
+        <Stat label="Source" value={stringValue(data.source, 'Unknown')} />
+      </div>
+      {items.length ? (
+        <ResultList
+          items={items.slice(0, 8).map((item) => ({
+            title: firstString(item, ['symbol', 'name', 'poolName', 'pair', 'coinSymbol'], 'Sui market'),
+            subtitle: firstString(item, ['coinType', 'poolId', 'objectId', 'address'], 'Trending pool'),
+            value: metricValue(firstDefined(item, ['volume24H', 'volume24h', 'volume', 'liquidity', 'tvl'])),
+          }))}
+        />
+      ) : (
+        <EmptyResult text="No trending markets returned." />
+      )}
+    </Shell>
+  );
+}
+
+function NftCollectionCard({ data }: { data: AnyRecord }) {
+  const detail = recordValue(data.data);
+  const name = firstString(detail, ['name', 'collectionName', 'title'], stringValue(data.collection, 'NFT collection'));
+  return (
+    <Shell icon={<Boxes className="size-4" />} title={name} subtitle={stringValue(data.source, 'unknown')}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Items" value={metricValue(firstDefined(detail, ['items', 'supply', 'totalItems', 'nftCount']))} />
+        <Stat label="Owners" value={metricValue(firstDefined(detail, ['owners', 'holderCount', 'ownerCount']))} />
+        <Stat label="Floor" value={metricValue(firstDefined(detail, ['floorPrice', 'floor', 'floorPriceMist']))} />
+        <Stat label="24h volume" value={metricValue(firstDefined(detail, ['volume24H', 'volume24h', 'volume']))} />
+      </div>
+      <SummaryRows
+        rows={[
+          ['Collection', stringValue(data.collection, name)],
+          ['Description', firstString(detail, ['description'], '')],
+          ['Verified', booleanLabel(firstDefined(detail, ['verified', 'isVerified']))],
+        ]}
+      />
+    </Shell>
+  );
+}
+
 function WriteCard({ data }: { data: AnyRecord }) {
   const action = stringValue(data.action, 'action');
   const icon = action === 'transfer' ? <Send className="size-4" /> : action === 'swap' ? <Repeat2 className="size-4" /> : <ExternalLink className="size-4" />;
@@ -258,10 +331,55 @@ function Followups({ data }: { data: AnyRecord }) {
 function GenericCard({ icon, title, data }: { icon: ReactNode; title: string; data: AnyRecord }) {
   return (
     <Shell icon={icon} title={title}>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-[11px]" style={{ color: 'var(--text-soft)' }}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
+      <SummaryRows rows={Object.entries(data).map(([key, value]) => [labelize(key), displayValue(value)])} />
     </Shell>
+  );
+}
+
+function ResultList({
+  items,
+}: {
+  items: Array<{ title: string; subtitle: string; value?: string }>;
+}) {
+  return (
+    <div className="mt-3 divide-y divide-[color:var(--border)]">
+      {items.map((item, index) => (
+        <div key={`${item.title}-${index}`} className="flex items-center justify-between gap-3 py-2">
+          <div className="min-w-0">
+            <p className="truncate font-medium">{item.title}</p>
+            <p className="truncate text-[11px]" style={{ color: 'var(--text-soft)' }}>
+              {shortMiddle(item.subtitle, 48)}
+            </p>
+          </div>
+          {item.value ? <p className="shrink-0 tabular-nums">{item.value}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SummaryRows({ rows }: { rows: Array<[string, string]> }) {
+  const visibleRows = rows.filter(([, value]) => value);
+  if (!visibleRows.length) return null;
+  return (
+    <div className="mt-3 grid gap-2">
+      {visibleRows.slice(0, 8).map(([label, value]) => (
+        <div key={label} className="rounded-[8px] bg-[color:var(--surface)] px-3 py-2">
+          <p className="text-[10px] uppercase" style={{ color: 'var(--text-mute)' }}>
+            {label}
+          </p>
+          <p className="mt-0.5 break-words text-[12px]">{shortMiddle(value, 160)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyResult({ text }: { text: string }) {
+  return (
+    <p className="mt-3 rounded-[8px] bg-[color:var(--surface)] px-3 py-2" style={{ color: 'var(--text-soft)' }}>
+      {text}
+    </p>
   );
 }
 
@@ -309,6 +427,12 @@ function percentValue(value: unknown): string {
   return `${number >= 0 ? '+' : ''}${formatNumber(number)}%`;
 }
 
+function metricValue(value: unknown): string {
+  const number = numberValue(value);
+  if (number !== null) return formatNumber(number);
+  return stringValue(value, 'Unavailable');
+}
+
 function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
@@ -320,4 +444,60 @@ function capitalize(value: string): string {
 function shortMiddle(value: string, max: number): string {
   if (value.length <= max) return value;
   return `${value.slice(0, Math.floor(max / 2))}...${value.slice(-Math.floor(max / 2))}`;
+}
+
+function extractRecordList(value: unknown): AnyRecord[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (!isRecord(value)) return [];
+  for (const key of ['data', 'items', 'list', 'pools', 'positions', 'collections']) {
+    const nested = value[key];
+    if (Array.isArray(nested)) return nested.filter(isRecord);
+  }
+  return [];
+}
+
+function recordValue(value: unknown): AnyRecord {
+  return isRecord(value) ? value : {};
+}
+
+function isRecord(value: unknown): value is AnyRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function firstDefined(record: AnyRecord, keys: string[]): unknown {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function firstString(record: AnyRecord, keys: string[], fallback: string): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return fallback;
+}
+
+function displayValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return formatNumber(value);
+  if (typeof value === 'boolean') return booleanLabel(value);
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`;
+  if (isRecord(value)) return `${Object.keys(value).length} field${Object.keys(value).length === 1 ? '' : 's'}`;
+  return '';
+}
+
+function booleanLabel(value: unknown): string {
+  if (typeof value !== 'boolean') return '';
+  return value ? 'Yes' : 'No';
+}
+
+function labelize(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
