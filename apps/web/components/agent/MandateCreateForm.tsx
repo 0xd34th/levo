@@ -24,6 +24,7 @@ import {
 } from '@/lib/agent/mandate-draft';
 import type { CreateMandatePayload } from '@/lib/agent/client';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,6 +82,15 @@ const SIGN_IN_REQUIRED_CONFIG: AgentMandateConfig = {
   error: 'Sign in with X to load your Earn account target.',
 };
 
+const WALLET_PREPARING_CONFIG: AgentMandateConfig = {
+  agentAddress: '',
+  userAgentId: null,
+  agentLabel: null,
+  executionMode: 'external_runner',
+  templates: [],
+  error: 'Preparing your wallet for Agent approvals...',
+};
+
 export function MandateCreateForm({
   onCancel,
   onCreated,
@@ -93,6 +103,7 @@ export function MandateCreateForm({
 }: MandateCreateFormProps) {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
+  const embeddedWallet = useEmbeddedWallet();
   const [activeIntent, setActiveIntent] = useState(initialIntent?.trim() ?? '');
   const [intentInput, setIntentInput] = useState(initialIntent?.trim() ?? '');
   const [config, setConfig] = useState<AgentMandateConfig>(initialConfig ?? FALLBACK_CONFIG);
@@ -101,13 +112,23 @@ export function MandateCreateForm({
   );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
-  const effectiveConfig = initialConfig ?? (ready && !authenticated ? SIGN_IN_REQUIRED_CONFIG : config);
-  const activeConfigError = authenticated ? configError : null;
+  const walletSetupBlocked = ready && authenticated && !embeddedWallet.suiAddress;
+  const walletSetupError = walletSetupBlocked ? embeddedWallet.error : null;
+  const walletGateConfig = walletSetupError
+    ? { ...WALLET_PREPARING_CONFIG, error: walletSetupError }
+    : walletSetupBlocked
+      ? WALLET_PREPARING_CONFIG
+      : null;
+  const effectiveConfig = walletGateConfig ?? initialConfig ?? (ready && !authenticated ? SIGN_IN_REQUIRED_CONFIG : config);
+  const activeConfigError = authenticated && !walletGateConfig ? configError : null;
 
   useEffect(() => {
     if (initialConfig) return;
     if (!ready) return;
     if (!authenticated) {
+      return;
+    }
+    if (!embeddedWallet.suiAddress) {
       return;
     }
 
@@ -149,7 +170,7 @@ export function MandateCreateForm({
     return () => {
       cancelled = true;
     };
-  }, [authenticated, configReloadSignal, getAccessToken, identityToken, initialConfig, ready]);
+  }, [authenticated, configReloadSignal, embeddedWallet.suiAddress, getAccessToken, identityToken, initialConfig, ready]);
 
   const build = useMemo(() => buildCreateMandatePayload(state, effectiveConfig), [effectiveConfig, state]);
   const proposal = useMemo<ProposalPayload | null>(() => {
@@ -198,6 +219,7 @@ export function MandateCreateForm({
             <AgentConfigNotice
               message={effectiveConfig.error ?? activeConfigError ?? ''}
               onOpenAgentSettings={onOpenAgentSettings}
+              onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
             />
           )}
         </div>
@@ -228,6 +250,7 @@ export function MandateCreateForm({
           <AgentConfigNotice
             message={effectiveConfig.error ?? activeConfigError ?? ''}
             onOpenAgentSettings={onOpenAgentSettings}
+            onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
           />
         )}
       </form>
@@ -413,6 +436,7 @@ export function MandateCreateForm({
         <AgentConfigNotice
           message={effectiveConfig.error ?? activeConfigError ?? build.errors[0]}
           onOpenAgentSettings={onOpenAgentSettings}
+          onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
         />
       )}
 
@@ -454,9 +478,11 @@ function shortAddress(addr: string): string {
 function AgentConfigNotice({
   message,
   onOpenAgentSettings,
+  onRetryWalletSetup,
 }: {
   message: string;
   onOpenAgentSettings?: () => void;
+  onRetryWalletSetup?: () => void;
 }) {
   const shouldOfferAgentSettings =
     message.includes('No active external agent') ||
@@ -468,6 +494,17 @@ function AgentConfigNotice({
       style={{ color: 'var(--down)' }}
     >
       <p>{message}</p>
+      {onRetryWalletSetup && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="self-start whitespace-nowrap sm:self-auto"
+          onClick={onRetryWalletSetup}
+        >
+          Retry wallet setup
+        </Button>
+      )}
       {shouldOfferAgentSettings && onOpenAgentSettings && (
         <Button
           type="button"

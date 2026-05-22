@@ -19,6 +19,15 @@ vi.mock('@privy-io/react-auth', () => ({
   }),
 }));
 
+vi.mock('@/lib/use-embedded-wallet', () => ({
+  useEmbeddedWallet: () => ({
+    suiAddress: '0xowner',
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 vi.mock('@/components/agent/MandateProposalCard', () => ({
   MandateProposalCard: () => <div>Review permission</div>,
 }));
