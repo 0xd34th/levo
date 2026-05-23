@@ -843,21 +843,6 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
       },
     }),
 
-    suggest_followups: tool({
-      description: "Suggest concise follow-up questions for the current Sui exploration.",
-      inputSchema: z.object({ topic: z.string().optional() }),
-      async execute(input) {
-        const topic = input.topic ?? 'this wallet';
-        return {
-          kind: 'followups',
-          questions: [
-            `Show recent activity for ${topic}`,
-            `Explain the last transaction for ${topic}`,
-            `Check DeFi positions for ${topic}`,
-          ],
-        };
-      },
-    }),
   };
 }
 

@@ -33,7 +33,6 @@ describe('buildAgentTools', () => {
         'prepare_swap',
         'prepare_bridge',
         'prepare_earn_mandate_intent',
-        'suggest_followups',
       ]),
     );
   });
