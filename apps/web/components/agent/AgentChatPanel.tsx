@@ -558,22 +558,31 @@ function normalizeTableRow(row: string[], size: number): string[] {
 }
 
 function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
-  return parts.map((part, index) => {
-    const linkMatch = part.match(/^\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)$/);
-    if (linkMatch) {
+  const parts = splitInlineMarkdownLinks(text);
+  if (parts.some((part) => typeof part !== 'string')) {
+    return parts.map((part, index) => {
+      if (typeof part === 'string') {
+        return <span key={`${part}-${index}`}>{renderInlineMarkdown(part)}</span>;
+      }
       return (
         <a
-          key={`${part}-${index}`}
-          href={linkMatch[2]}
+          key={`${part.href}-${index}`}
+          href={normalizeMarkdownHref(part.href)}
           target="_blank"
           rel="noreferrer"
           className="font-medium underline underline-offset-2"
         >
-          {linkMatch[1]}
+          {part.label}
         </a>
       );
-    }
+    });
+  }
+  return renderInlineMarkdownWithoutLinks(text);
+}
+
+function renderInlineMarkdownWithoutLinks(text: string) {
+  const parts = text.split(/(\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
+  return parts.map((part, index) => {
     if (/^\\?`+[^`\n]+\\?`+$/.test(part)) {
       const codeText = part.replace(/^\\?`+/, '').replace(/\\?`+$/, '');
       return (
@@ -593,4 +602,50 @@ function renderInlineMarkdown(text: string) {
     }
     return part.replace(/\\?`/g, '');
   });
+}
+
+function splitInlineMarkdownLinks(text: string): Array<string | { label: string; href: string }> {
+  const parts: Array<string | { label: string; href: string }> = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const labelStart = text.indexOf('[', cursor);
+    if (labelStart === -1) break;
+    const labelEnd = text.indexOf('](', labelStart + 1);
+    if (labelEnd === -1) break;
+
+    const hrefStart = labelEnd + 2;
+    const hrefEnd = findMarkdownHrefEnd(text, hrefStart);
+    if (hrefEnd === -1) {
+      cursor = labelEnd + 2;
+      continue;
+    }
+
+    if (labelStart > cursor) parts.push(text.slice(cursor, labelStart));
+    parts.push({
+      label: text.slice(labelStart + 1, labelEnd),
+      href: text.slice(hrefStart, hrefEnd),
+    });
+    cursor = hrefEnd + 1;
+  }
+
+  if (!parts.length) return [text];
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts.filter((part) => (typeof part === 'string' ? part.length > 0 : part.label.length > 0 && part.href.length > 0));
+}
+
+function findMarkdownHrefEnd(text: string, start: number): number {
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] !== ')') continue;
+    const next = text[i + 1];
+    if (!next || /\s|[.,!?;:]/.test(next)) return i;
+  }
+  return -1;
+}
+
+function normalizeMarkdownHref(href: string): string {
+  const trimmed = href.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/(?!\/)/.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }

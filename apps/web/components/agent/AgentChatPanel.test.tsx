@@ -118,6 +118,21 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('[bridge route]');
   });
 
+  it('renders bare-domain markdown links with parenthesized query text', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={
+          'Earn mandate handoff: [Open guided form](levo.krilly.ai/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn).'
+        }
+      />,
+    );
+
+    expect(markup).toContain('<a');
+    expect(markup).toContain('href="https://levo.krilly.ai/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn"');
+    expect(markup).toContain('Open guided form');
+    expect(markup).not.toContain('[Open guided form]');
+  });
+
   it('strips stray backticks from plain text fallback segments', () => {
     const markup = renderToStaticMarkup(<AgentResponseText text={'Stores a `timestamp_ms` field'} />);
 
