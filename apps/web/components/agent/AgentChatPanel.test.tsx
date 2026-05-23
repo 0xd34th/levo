@@ -90,6 +90,20 @@ describe('AgentResponseText', () => {
     expect(markup).toContain('Top Pools');
     expect(markup).not.toContain('---');
   });
+
+  it('renders inline code spans without exposing backtick markers', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={
+          'Tokens appearing in recent trades:\n- ZSWAP (`0x8070e3615d59a18a04acde27afffcdafc6331695617c4018c527e3b23e53da94::zswap::ZSWAP`)'
+        }
+      />,
+    );
+
+    expect(markup).toContain('<code');
+    expect(markup).toContain('0x8070e3615d59a18a04acde27afffcdafc6331695617c4018c527e3b23e53da94::zswap::ZSWAP');
+    expect(markup).not.toContain('`0x8070e3615d59a18a04acde27afffcdafc6331695617c4018c527e3b23e53da94');
+  });
 });
 
 describe('ToolPartView', () => {
