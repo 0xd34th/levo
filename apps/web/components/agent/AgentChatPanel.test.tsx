@@ -80,6 +80,16 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('## SUI Market');
     expect(markup).not.toContain('### Standout Pools');
   });
+
+  it('renders markdown separators instead of exposing dash runs', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'Here is the latest:\n\n---\n\n### Top Pools'} />,
+    );
+
+    expect(markup).toContain('<hr');
+    expect(markup).toContain('Top Pools');
+    expect(markup).not.toContain('---');
+  });
 });
 
 describe('ToolPartView', () => {

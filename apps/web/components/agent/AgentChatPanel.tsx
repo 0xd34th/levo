@@ -405,6 +405,14 @@ export function AgentResponseText({ text }: { text: string }) {
             </HeadingTag>
           );
         }
+        if (block.type === 'separator') {
+          return (
+            <hr
+              key={`separator-${index}`}
+              className="border-[color:var(--border)]"
+            />
+          );
+        }
         return (
           <p key={`${block.text}-${index}`} className="whitespace-pre-wrap">
             {renderInlineMarkdown(block.text)}
@@ -418,6 +426,7 @@ export function AgentResponseText({ text }: { text: string }) {
 type AgentResponseBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'heading'; level: 2 | 3; text: string }
+  | { type: 'separator' }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] };
 
@@ -451,6 +460,12 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
     if (!line) {
       flushParagraph();
       flushList();
+      continue;
+    }
+    if (/^[-*_]{3,}$/.test(line)) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: 'separator' });
       continue;
     }
     const nextLine = lines[i + 1]?.trim() ?? '';
