@@ -106,6 +106,13 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('`0x8070e3615d59a18a04acde27afffcdafc6331695617c4018c527e3b23e53da94');
     expect(markup).not.toContain('``0x6``');
   });
+
+  it('strips stray backticks from plain text fallback segments', () => {
+    const markup = renderToStaticMarkup(<AgentResponseText text={'Stores a `timestamp_ms` field'} />);
+
+    expect(markup).toContain('timestamp_ms');
+    expect(markup).not.toContain('`timestamp_ms`');
+  });
 });
 
 describe('ToolPartView', () => {

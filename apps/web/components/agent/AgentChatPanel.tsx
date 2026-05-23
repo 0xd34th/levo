@@ -557,6 +557,6 @@ function renderInlineMarkdown(text: string) {
     if (part.startsWith('*') && part.endsWith('*')) {
       return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>;
     }
-    return part;
+    return part.replace(/\\?`/g, '');
   });
 }
