@@ -143,6 +143,36 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('[Open guided form]');
   });
 
+  it('renders relative markdown links from mandate follow-up copy', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={
+          '👉 \n[Continue to guided mandate form](/agent/new?intent=Manual%20withdraw%20from%20Earn%20%E2%80%94%20conservative%20caps%3A%20small%20per-tx%20limit%2C%20manual%20trigger%20only%2C%20no%20recurring%20schedule%2C%20short%20expiry)'
+        }
+      />,
+    );
+
+    expect(markup).toContain('<a');
+    expect(markup).toContain('href="/agent/new?intent=Manual%20withdraw%20from%20Earn%20%E2%80%94%20conservative%20caps%3A%20small%20per-tx%20limit%2C%20manual%20trigger%20only%2C%20no%20recurring%20schedule%2C%20short%20expiry"');
+    expect(markup).toContain('Continue to guided mandate form');
+    expect(markup).not.toContain('[Continue to guided mandate form]');
+  });
+
+  it('renders markdown links whose href contains balanced parentheses', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={
+          'Open [guided form](levo.krilly.ai/agent/new?intent=Manual%20execution%20(no%20cron%20schedule).) when ready.'
+        }
+      />,
+    );
+
+    expect(markup).toContain('<a');
+    expect(markup).toContain('href="https://levo.krilly.ai/agent/new?intent=Manual%20execution%20(no%20cron%20schedule)."');
+    expect(markup).toContain('guided form');
+    expect(markup).not.toContain('[guided form]');
+  });
+
   it('strips stray backticks from plain text fallback segments', () => {
     const markup = renderToStaticMarkup(<AgentResponseText text={'Stores a `timestamp_ms` field'} />);
 

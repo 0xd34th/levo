@@ -653,10 +653,18 @@ function splitInlineMarkdownLinks(text: string): Array<string | { label: string;
 }
 
 function findMarkdownHrefEnd(text: string, start: number): number {
+  let nestedParens = 0;
   for (let i = start; i < text.length; i += 1) {
+    if (text[i] === '(') {
+      nestedParens += 1;
+      continue;
+    }
     if (text[i] !== ')') continue;
-    const next = text[i + 1];
-    if (!next || /\s|[.,!?;:]/.test(next)) return i;
+    if (nestedParens > 0) {
+      nestedParens -= 1;
+      continue;
+    }
+    return i;
   }
   return -1;
 }
