@@ -58,9 +58,11 @@ Be concise. Default to bullets or short paragraphs. In chat prose use human-read
 // Returns the AI-SDK v5 UI message stream which @ai-sdk/react useChat consumes.
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = await rateLimit(`agent-chat:${ip}`, 60, 20);
-  if (!rl.allowed) {
-    return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
+  if (!agentChatRateLimitDisabled()) {
+    const rl = await rateLimit(`agent-chat:${ip}`, 60, 20);
+    if (!rl.allowed) {
+      return noStoreJson({ error: 'Rate limit exceeded' }, { status: 429 });
+    }
   }
 
   const sameOrigin = verifySameOrigin(req);
@@ -122,6 +124,11 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function agentChatRateLimitDisabled(): boolean {
+  const value = process.env.AGENT_CHAT_RATE_LIMIT_DISABLED?.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
 }
 
 function sanitizeMessages(messages: z.infer<typeof MessageSchema>[]): UIMessage[] {
