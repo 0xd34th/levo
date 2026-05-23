@@ -107,6 +107,17 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('``0x6``');
   });
 
+  it('renders inline markdown links without exposing bracket syntax', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'Open [bridge route](https://www.okx.com/web3/dex-swap/bridge?fromChain=ethereum&toChain=sui).'} />,
+    );
+
+    expect(markup).toContain('<a');
+    expect(markup).toContain('href="https://www.okx.com/web3/dex-swap/bridge?fromChain=ethereum&amp;toChain=sui"');
+    expect(markup).toContain('bridge route');
+    expect(markup).not.toContain('[bridge route]');
+  });
+
   it('strips stray backticks from plain text fallback segments', () => {
     const markup = renderToStaticMarkup(<AgentResponseText text={'Stores a `timestamp_ms` field'} />);
 

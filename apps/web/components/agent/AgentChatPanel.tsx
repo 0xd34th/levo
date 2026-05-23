@@ -558,8 +558,22 @@ function normalizeTableRow(row: string[], size: number): string[] {
 }
 
 function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
+  const parts = text.split(/(\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
   return parts.map((part, index) => {
+    const linkMatch = part.match(/^\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)$/);
+    if (linkMatch) {
+      return (
+        <a
+          key={`${part}-${index}`}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium underline underline-offset-2"
+        >
+          {linkMatch[1]}
+        </a>
+      );
+    }
     if (/^\\?`+[^`\n]+\\?`+$/.test(part)) {
       const codeText = part.replace(/^\\?`+/, '').replace(/\\?`+$/, '');
       return (
