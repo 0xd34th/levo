@@ -39,6 +39,21 @@ describe('AgentResponseText', () => {
     expect(markup).toContain('<strong>Token</strong>');
     expect(markup).not.toContain('- <strong>Token</strong>');
   });
+
+  it('renders simple markdown tables instead of exposing raw pipe syntax', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={'Here is the latest on SUI:\n\n| Metric | Value |\n|---|---|\n| **Price** | $0.00 |\n| 24h Volume | N/A |'}
+      />,
+    );
+
+    expect(markup).toContain('<table');
+    expect(markup).toContain('<th');
+    expect(markup).toContain('Metric');
+    expect(markup).toContain('<strong>Price</strong>');
+    expect(markup).not.toContain('| Metric | Value |');
+    expect(markup).not.toContain('|---|---|');
+  });
 });
 
 describe('ToolPartView', () => {

@@ -333,6 +333,41 @@ export function AgentResponseText({ text }: { text: string }) {
   return (
     <div className="space-y-2">
       {blocks.map((block, index) => {
+        if (block.type === 'table') {
+          return (
+            <div key={`${block.headers.join('|')}-${index}`} className="overflow-x-auto">
+              <table className="w-full border-separate border-spacing-0 text-left text-[12px]">
+                <thead>
+                  <tr>
+                    {block.headers.map((cell, cellIndex) => (
+                      <th
+                        key={`${cell}-${cellIndex}`}
+                        className="border-b border-[color:var(--border)] px-2 py-1 font-medium first:pl-0 last:pr-0"
+                        style={{ color: 'var(--text-soft)' }}
+                      >
+                        {renderInlineMarkdown(cell)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, rowIndex) => (
+                    <tr key={`${row.join('|')}-${rowIndex}`}>
+                      {row.map((cell, cellIndex) => (
+                        <td
+                          key={`${cell}-${cellIndex}`}
+                          className="border-b border-[color:var(--border)] px-2 py-1 align-top first:pl-0 last:pr-0"
+                        >
+                          {renderInlineMarkdown(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
         if (block.type === 'list') {
           return (
             <ul key={`${block.items.join('|')}-${index}`} className="ml-4 list-disc space-y-1">
@@ -354,7 +389,8 @@ export function AgentResponseText({ text }: { text: string }) {
 
 type AgentResponseBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'list'; items: string[] };
+  | { type: 'list'; items: string[] }
+  | { type: 'table'; headers: string[]; rows: string[][] };
 
 function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
   const blocks: AgentResponseBlock[] = [];
@@ -372,11 +408,32 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
     list = [];
   };
 
-  for (const rawLine of text.split('\n')) {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const rawLine = lines[i];
     const line = rawLine.trim();
     if (!line) {
       flushParagraph();
       flushList();
+      continue;
+    }
+    const nextLine = lines[i + 1]?.trim() ?? '';
+    if (isMarkdownTableLine(line) && isMarkdownTableSeparator(nextLine)) {
+      flushParagraph();
+      flushList();
+      const headers = parseMarkdownTableRow(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length) {
+        const rowLine = lines[i].trim();
+        if (!isMarkdownTableLine(rowLine)) {
+          i -= 1;
+          break;
+        }
+        rows.push(normalizeTableRow(parseMarkdownTableRow(rowLine), headers.length));
+        i += 1;
+      }
+      blocks.push({ type: 'table', headers, rows });
       continue;
     }
     if (/^[-*]\s+/.test(line)) {
@@ -391,6 +448,28 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
   flushParagraph();
   flushList();
   return blocks;
+}
+
+function isMarkdownTableLine(line: string): boolean {
+  return line.startsWith('|') && line.endsWith('|') && line.includes('|', 1);
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  if (!isMarkdownTableLine(line)) return false;
+  return parseMarkdownTableRow(line).every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function parseMarkdownTableRow(line: string): string[] {
+  return line
+    .slice(1, -1)
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function normalizeTableRow(row: string[], size: number): string[] {
+  if (row.length === size) return row;
+  if (row.length > size) return row.slice(0, size);
+  return [...row, ...Array.from({ length: size - row.length }, () => '')];
 }
 
 function renderInlineMarkdown(text: string) {
