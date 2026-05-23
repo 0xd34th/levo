@@ -6,6 +6,8 @@ import { loadMcpTools, resetExplorerMemoryCacheForTests } from './explorer';
 
 const FULL_SUI_COIN =
   '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
+const MAINNET_USDC_COIN =
+  '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
 afterEach(() => {
   resetExplorerMemoryCacheForTests();
@@ -246,6 +248,44 @@ describe('buildAgentTools', () => {
       warning: expect.stringContaining('unavailable'),
     });
     vi.useRealTimers();
+  });
+
+  it('maps USDC symbol aliases before preparing swap cards', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const requestUrl = new URL(String(url));
+        if (requestUrl.pathname.endsWith('/coin/detail')) {
+          const coinType = requestUrl.searchParams.get('coinType');
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: {
+                coinType,
+                symbol: coinType === MAINNET_USDC_COIN ? 'USDC' : 'SUI',
+                decimals: coinType === MAINNET_USDC_COIN ? 6 : 9,
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error(`unexpected URL ${requestUrl.pathname}`));
+      }),
+    );
+
+    const tool = buildAgentTools({
+      xUserId: 'test-user',
+      senderAddress: '0x123',
+    }).prepare_swap as unknown as {
+      execute: (input: { tokenIn: string; tokenOut: string; amountIn: string; slippageBps: number }) => Promise<Record<string, unknown>>;
+    };
+    const output = await tool.execute({ tokenIn: 'SUI', tokenOut: 'USDC', amountIn: '1', slippageBps: 50 });
+
+    expect(output).toMatchObject({
+      kind: 'write-card',
+      tokenOut: { coinType: MAINNET_USDC_COIN, symbol: 'USDC', decimals: 6 },
+      message: 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
+    });
   });
 });
 

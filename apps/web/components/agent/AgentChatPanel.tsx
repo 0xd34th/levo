@@ -425,8 +425,11 @@ export function AgentResponseText({ text }: { text: string }) {
 
 function sanitizeProviderDiagnostics(text: string): string {
   return text
+    .replace(/\bboth the OKX and 7K quote adapters are not running\b/gi, 'live quote routes are unavailable')
+    .replace(/\bOKX and 7K quote adapters are not running\b/gi, 'live quote routes are unavailable')
     .replace(/\bboth OKX and 7K routes are disabled\/not configured\b/gi, 'live quote routes are unavailable')
     .replace(/\bconfigured quote providers \(OKX and 7K\) aren't active\b/gi, 'live quote routes are unavailable')
+    .replace(/\bquote sources offline\b/gi, 'live quote unavailable')
     .replace(/\bcurrent server flags? or providers\b/gi, 'live quote routes')
     .replace(/\bon this server\b/gi, 'right now')
     .replace(/\bBlockVision\s+\d{3}\s+\/[^\s).,;]+/gi, 'the data provider returned an unavailable response')

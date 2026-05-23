@@ -138,7 +138,16 @@ async function bvGet<T>(
 }
 
 function normalizeCoinType(input: string | undefined): string {
-  const value = !input || input.toLowerCase() === 'sui' ? SUI_COIN : input;
+  const trimmedInput = input?.trim();
+  const normalizedInput = trimmedInput?.toLowerCase();
+  let value: string;
+  if (!normalizedInput || normalizedInput === 'sui') {
+    value = SUI_COIN;
+  } else if (normalizedInput === 'usdc' || normalizedInput === 'wusdc') {
+    value = USDC_COIN;
+  } else {
+    value = trimmedInput ?? input ?? '';
+  }
   const parts = value.split('::');
   if (parts.length < 3) return value;
   return `${normalizeObjectId(parts[0])}::${parts.slice(1).join('::')}`;
