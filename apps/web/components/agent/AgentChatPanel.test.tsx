@@ -69,6 +69,17 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('1. <strong>Your wallet portfolio</strong>');
     expect(markup).not.toContain('*can*');
   });
+
+  it('renders markdown headings without exposing hash markers', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'Here is the latest:\n\n## SUI Market\n- Price: $1.03\n\n### Standout Pools'} />,
+    );
+
+    expect(markup).toContain('SUI Market');
+    expect(markup).toContain('Standout Pools');
+    expect(markup).not.toContain('## SUI Market');
+    expect(markup).not.toContain('### Standout Pools');
+  });
 });
 
 describe('ToolPartView', () => {

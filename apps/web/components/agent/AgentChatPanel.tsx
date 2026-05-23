@@ -394,6 +394,17 @@ export function AgentResponseText({ text }: { text: string }) {
             </ListTag>
           );
         }
+        if (block.type === 'heading') {
+          const HeadingTag = block.level === 3 ? 'h3' : 'h2';
+          return (
+            <HeadingTag
+              key={`${block.text}-${index}`}
+              className="pt-1 text-[13px] font-semibold"
+            >
+              {renderInlineMarkdown(block.text)}
+            </HeadingTag>
+          );
+        }
         return (
           <p key={`${block.text}-${index}`} className="whitespace-pre-wrap">
             {renderInlineMarkdown(block.text)}
@@ -406,6 +417,7 @@ export function AgentResponseText({ text }: { text: string }) {
 
 type AgentResponseBlock =
   | { type: 'paragraph'; text: string }
+  | { type: 'heading'; level: 2 | 3; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] };
 
@@ -442,6 +454,17 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
       continue;
     }
     const nextLine = lines[i + 1]?.trim() ?? '';
+    const headingMatch = line.match(/^(#{2,3})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      blocks.push({
+        type: 'heading',
+        level: headingMatch[1].length === 3 ? 3 : 2,
+        text: headingMatch[2],
+      });
+      continue;
+    }
     if (isMarkdownTableLine(line) && isMarkdownTableSeparator(nextLine)) {
       flushParagraph();
       flushList();
