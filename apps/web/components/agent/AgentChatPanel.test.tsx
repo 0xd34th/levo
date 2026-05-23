@@ -91,6 +91,16 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('---');
   });
 
+  it('renders blockquotes without exposing quote markers', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'> Live bridge execution is not available in Levo right now.'} />,
+    );
+
+    expect(markup).toContain('Live bridge execution is not available');
+    expect(markup).not.toContain('&gt;');
+    expect(markup).not.toContain('> Live bridge');
+  });
+
   it('renders inline code spans without exposing backtick markers', () => {
     const markup = renderToStaticMarkup(
       <AgentResponseText

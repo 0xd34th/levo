@@ -413,6 +413,17 @@ export function AgentResponseText({ text }: { text: string }) {
             />
           );
         }
+        if (block.type === 'blockquote') {
+          return (
+            <div
+              key={`${block.text}-${index}`}
+              className="rounded-[8px] border border-[color:var(--border)] bg-background px-3 py-2 text-[12px]"
+              style={{ color: 'var(--text-soft)' }}
+            >
+              {renderInlineMarkdown(block.text)}
+            </div>
+          );
+        }
         return (
           <p key={`${block.text}-${index}`} className="whitespace-pre-wrap">
             {renderInlineMarkdown(block.text)}
@@ -447,6 +458,7 @@ type AgentResponseBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'heading'; level: 2 | 3; text: string }
   | { type: 'separator' }
+  | { type: 'blockquote'; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] };
 
@@ -486,6 +498,12 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
       flushParagraph();
       flushList();
       blocks.push({ type: 'separator' });
+      continue;
+    }
+    if (/^>\s+/.test(line)) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: 'blockquote', text: line.replace(/^>\s+/, '') });
       continue;
     }
     const nextLine = lines[i + 1]?.trim() ?? '';
