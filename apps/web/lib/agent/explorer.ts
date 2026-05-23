@@ -6,6 +6,7 @@ import { getRedis } from '@/lib/rate-limit';
 import { getSuiClient } from '@/lib/sui';
 
 const SUI_COIN = '0x2::sui::SUI';
+const SUI_MARKET_COIN = '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
 const SUI_CHAIN_INDEX = '784';
 const USDC_COIN =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
@@ -18,6 +19,10 @@ export interface ExplorerToolContext {
 type JsonRecord = Record<string, unknown>;
 
 const memoryCache = new Map<string, { value: unknown; expiresAt: number }>();
+
+export function resetExplorerMemoryCacheForTests(): void {
+  memoryCache.clear();
+}
 
 function env(name: string, fallback = ''): string {
   const value = process.env[name]?.trim();
@@ -133,8 +138,10 @@ async function bvGet<T>(
 }
 
 function normalizeCoinType(input: string | undefined): string {
-  if (!input || input.toLowerCase() === 'sui') return SUI_COIN;
-  return input;
+  const value = !input || input.toLowerCase() === 'sui' ? SUI_COIN : input;
+  const parts = value.split('::');
+  if (parts.length < 3) return value;
+  return `${normalizeObjectId(parts[0])}::${parts.slice(1).join('::')}`;
 }
 
 function normalizeObjectId(input: string): string {
@@ -219,6 +226,26 @@ function fromBaseUnits(raw: string | number | undefined, decimals: number): stri
   const whole = padded.slice(0, -decimals).replace(/^0+(?=\d)/, '') || '0';
   const frac = padded.slice(-decimals).replace(/0+$/, '');
   return frac ? `${whole}.${frac}` : whole;
+}
+
+function marketNumber(record: JsonRecord | null, keys: string[]): number | undefined {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (Number.isFinite(number)) return number;
+  }
+  return undefined;
+}
+
+function market24hChange(record: JsonRecord | null): number | undefined {
+  const direct = marketNumber(record, ['priceChangePercentage24H', 'priceChange24H']);
+  if (direct !== undefined) return direct;
+  const market = record?.market;
+  if (!market || typeof market !== 'object' || Array.isArray(market)) return undefined;
+  const hour24 = (market as JsonRecord).hour24;
+  if (!hour24 || typeof hour24 !== 'object' || Array.isArray(hour24)) return undefined;
+  return marketNumber(hour24 as JsonRecord, ['priceChange']);
 }
 
 function okxBaseUrl(): string {
@@ -382,7 +409,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           warnings.push(error instanceof Error ? error.message : 'Market metrics unavailable');
         }
 
-        let price = Number(market?.price ?? 0);
+        let price = marketNumber(market, ['price', 'priceInUsd']) ?? 0;
         let priceSource = market ? 'blockvision' : 'unavailable';
         if ((!price || !Number.isFinite(price)) && coinType !== USDC_COIN && ctx.senderAddress) {
           try {
@@ -411,10 +438,10 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           scamFlag: meta.scamFlag,
           price,
           priceSource,
-          priceChange24H: market?.priceChangePercentage24H,
-          marketCap: market?.marketCap,
-          volume24H: market?.volume24H,
-          liquidity: market?.liquidity,
+          priceChange24H: market24hChange(market),
+          marketCap: marketNumber(market, ['marketCap']),
+          volume24H: marketNumber(market, ['volume24H']),
+          liquidity: marketNumber(market, ['liquidity', 'liquidityInUsd']),
           window: input.window,
           warnings,
         };
@@ -573,9 +600,47 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
       description: "Fetch trending Sui pools/tokens.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(20).default(10) }),
       async execute(input) {
+        const coinType = normalizeCoinType(SUI_MARKET_COIN);
         try {
-          const data = await bvGet<JsonRecord>('/coin/dex/pools', { pageSize: input.limit }, 120);
-          return { kind: 'trending-card', source: 'blockvision', items: data };
+          const [market, pools, trades] = await Promise.all([
+            bvGet<JsonRecord>('/coin/market/pro', { coinType }, 60),
+            bvGet<JsonRecord[]>('/coin/dex/pools', { coinType }, 120),
+            bvGet<{ data?: JsonRecord[] }>('/coin/trades', { coinType, limit: input.limit }, 60),
+          ]);
+          const items = [
+            {
+              kind: 'market',
+              symbol: 'SUI',
+              name: 'SUI 24h market',
+              coinType,
+              price: marketNumber(market, ['price', 'priceInUsd']),
+              volume24H: marketNumber(market, ['volume24H']),
+              liquidity: marketNumber(market, ['liquidity', 'liquidityInUsd']),
+            },
+            ...pools
+              .slice()
+              .sort((a, b) => (marketNumber(b, ['volume24H', 'tvl']) ?? 0) - (marketNumber(a, ['volume24H', 'tvl']) ?? 0))
+              .slice(0, input.limit)
+              .map((pool) => {
+                const coins = Array.isArray(pool.coinList) ? pool.coinList.map(String) : [];
+                return {
+                  kind: 'pool',
+                  pair: coins.map((coin) => coin.split('::').at(-1) ?? coin).join('/'),
+                  poolId: pool.poolId,
+                  dex: pool.dex,
+                  tvl: pool.tvl,
+                  volume24H: pool.volume24H,
+                  apr: pool.apr,
+                };
+              }),
+          ];
+          return {
+            kind: 'trending-card',
+            source: 'blockvision',
+            coinType,
+            items,
+            recentTrades: (trades.data ?? []).slice(0, input.limit),
+          };
         } catch (error) {
           return {
             kind: 'trending-card',

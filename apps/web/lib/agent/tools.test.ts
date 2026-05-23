@@ -2,9 +2,13 @@ import 'dotenv/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { buildAgentTools } from './tools';
-import { loadMcpTools } from './explorer';
+import { loadMcpTools, resetExplorerMemoryCacheForTests } from './explorer';
+
+const FULL_SUI_COIN =
+  '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
 
 afterEach(() => {
+  resetExplorerMemoryCacheForTests();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   delete process.env.MCP_SERVERS;
@@ -92,6 +96,124 @@ describe('buildAgentTools', () => {
     expect(output).toMatchObject({
       kind: 'mandate-intent',
       href: '/agent/new?intent=Harvest%20Earn%20rewards%20daily',
+    });
+  });
+
+  it('maps SuiVision Pro market fields into token metrics', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const requestUrl = new URL(String(url));
+        if (requestUrl.pathname.endsWith('/coin/detail')) {
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: {
+                coinType: FULL_SUI_COIN,
+                symbol: 'SUI',
+                name: 'Sui',
+                decimals: 9,
+                verified: true,
+              },
+            }),
+          );
+        }
+        if (requestUrl.pathname.endsWith('/coin/market/pro')) {
+          expect(requestUrl.searchParams.get('coinType')).toBe(FULL_SUI_COIN);
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: {
+                priceInUsd: '3.25',
+                marketCap: '1000000',
+                liquidityInUsd: '250000',
+                volume24H: 12500,
+                market: { hour24: { priceChange: '-1.5' } },
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error(`unexpected URL ${requestUrl.pathname}`));
+      }),
+    );
+
+    const tool = buildAgentTools({ xUserId: 'test-user' }).get_token_metrics as unknown as {
+      execute: (input: { coinType: string; window: '24H' }) => Promise<Record<string, unknown>>;
+    };
+    const output = await tool.execute({ coinType: 'sui', window: '24H' });
+
+    expect(output).toMatchObject({
+      kind: 'token-card',
+      coinType: FULL_SUI_COIN,
+      symbol: 'SUI',
+      price: 3.25,
+      priceChange24H: -1.5,
+      marketCap: 1_000_000,
+      volume24H: 12_500,
+      liquidity: 250_000,
+    });
+  });
+
+  it('requests SuiVision trending pools with the required canonical coinType', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    const requested = new Map<string, URL>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const requestUrl = new URL(String(url));
+        requested.set(requestUrl.pathname, requestUrl);
+        if (requestUrl.pathname.endsWith('/coin/market/pro')) {
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: { priceInUsd: '3.25', liquidityInUsd: '250000', volume24H: 12500 },
+            }),
+          );
+        }
+        if (requestUrl.pathname.endsWith('/coin/dex/pools')) {
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: [
+                {
+                  dex: 'cetus',
+                  poolId: '0xpool',
+                  coinList: [
+                    '0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP',
+                    FULL_SUI_COIN,
+                  ],
+                  tvl: '100000',
+                  apr: '12.5',
+                },
+              ],
+            }),
+          );
+        }
+        if (requestUrl.pathname.endsWith('/coin/trades')) {
+          return Promise.resolve(Response.json({ code: 200, result: { data: [{ txDigest: 'abc' }] } }));
+        }
+        return Promise.reject(new Error(`unexpected URL ${requestUrl.pathname}`));
+      }),
+    );
+
+    const tool = buildAgentTools({ xUserId: 'test-user' }).get_trending as unknown as {
+      execute: (input: { limit: number }) => Promise<Record<string, unknown>>;
+    };
+    const output = await tool.execute({ limit: 5 });
+
+    const poolsUrl = requested.get('/v2/sui/coin/dex/pools');
+    expect(poolsUrl?.searchParams.get('coinType')).toBe(FULL_SUI_COIN);
+    expect(poolsUrl?.searchParams.has('pageSize')).toBe(false);
+    expect(output).toMatchObject({
+      kind: 'trending-card',
+      source: 'blockvision',
+      coinType: FULL_SUI_COIN,
+      items: [
+        expect.objectContaining({ kind: 'market', symbol: 'SUI', volume24H: 12_500 }),
+        expect.objectContaining({ kind: 'pool', pair: 'DEEP/SUI', dex: 'cetus' }),
+      ],
+      recentTrades: [{ txDigest: 'abc' }],
     });
   });
 
