@@ -101,4 +101,26 @@ describe('SuiToolCard result formatting', () => {
     expect(markup).toContain('Provider data is unavailable right now.');
     expect(markup).not.toContain('/nft/collection/detail');
   });
+
+  it('falls back to the coin type symbol on swap cards', () => {
+    const markup = renderToStaticMarkup(
+      <SuiToolCard
+        output={{
+          kind: 'write-card',
+          action: 'swap',
+          status: 'unavailable',
+          tokenIn: { symbol: 'SUI' },
+          tokenOut: {
+            symbol: '?',
+            coinType: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+          },
+          amountInHuman: '1',
+          message: 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('Unavailable USDC');
+    expect(markup).not.toContain('Unavailable ?');
+  });
 });

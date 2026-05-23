@@ -273,8 +273,8 @@ function WriteCard({ data }: { data: AnyRecord }) {
           </>
         ) : action === 'swap' ? (
           <>
-            <Stat label="Input" value={`${stringValue(data.amountInHuman)} ${stringValue((data.tokenIn as AnyRecord)?.symbol)}`} />
-            <Stat label="Est. output" value={`${stringValue(data.amountOutHuman, 'Unavailable')} ${stringValue((data.tokenOut as AnyRecord)?.symbol)}`} />
+            <Stat label="Input" value={`${stringValue(data.amountInHuman)} ${coinSymbol(data.tokenIn)}`} />
+            <Stat label="Est. output" value={`${stringValue(data.amountOutHuman, 'Unavailable')} ${coinSymbol(data.tokenOut)}`} />
           </>
         ) : (
           <>
@@ -408,6 +408,14 @@ function Warnings({ warnings }: { warnings: string[] }) {
 
 function stringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' && value ? value : fallback;
+}
+
+function coinSymbol(value: unknown): string {
+  const record = recordValue(value);
+  const symbol = stringValue(record.symbol);
+  if (symbol && symbol !== '?') return symbol;
+  const coinType = stringValue(record.coinType);
+  return coinType.split('::').pop() || 'Token';
 }
 
 function numberValue(value: unknown): number | null {
