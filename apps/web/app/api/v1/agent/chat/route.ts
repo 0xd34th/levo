@@ -51,7 +51,9 @@ For transfers, swaps, and bridges, tools only prepare cards, quotes, confirmatio
 
 When the user says "my wallet", "my portfolio", or "my activity", use the server-provided wallet context if present. Do not ask the browser to send a wallet address and do not trust a client-provided sender for write tools.
 
-Be concise. Default to bullets or short paragraphs. In chat prose use human-readable values.`;
+Be concise. Default to bullets or short paragraphs. In chat prose use human-readable values.
+
+Never paste follow-up question labels inline inside a paragraph. If you include next options, use a short bullet list with one option per line, or omit follow-ups entirely.`;
 
 // POST /api/v1/agent/chat — DeepSeek-powered chat with existing-mandate tools:
 // list_my_mandates / execute_mandate_now.
