@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AgentResponseText, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
+import { AgentResponseText, MessageBubble, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
 
 describe('AgentChatPanel error formatting', () => {
   it('formats unauthenticated chat failures as user-facing copy', () => {
@@ -68,5 +68,27 @@ describe('ToolPartView', () => {
     expect(markup).toContain('Tool unavailable');
     expect(markup).toContain('BlockVision timed out');
     expect(markup).not.toContain('Running tool-get_trending');
+  });
+});
+
+describe('MessageBubble', () => {
+  it('keeps assistant text and tool parts in chronological order', () => {
+    const markup = renderToStaticMarkup(
+      <MessageBubble
+        message={{
+          id: 'message-1',
+          role: 'assistant',
+          parts: [
+            { type: 'text', text: 'Checking market data.' },
+            { type: 'tool-get_token', state: 'output-error', errorText: 'Provider unavailable' },
+            { type: 'text', text: 'Fallback summary.' },
+          ],
+        }}
+        onMandateCreated={() => {}}
+      />,
+    );
+
+    expect(markup.indexOf('Checking market data.')).toBeLessThan(markup.indexOf('Tool unavailable'));
+    expect(markup.indexOf('Tool unavailable')).toBeLessThan(markup.indexOf('Fallback summary.'));
   });
 });

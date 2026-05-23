@@ -220,7 +220,7 @@ interface MessagePartsBase {
   parts: Array<{ type: string; [k: string]: unknown }>;
 }
 
-function MessageBubble({
+export function MessageBubble({
   message,
   onMandateCreated,
 }: {
@@ -228,33 +228,46 @@ function MessageBubble({
   onMandateCreated: () => void | Promise<void>;
 }) {
   const isUser = message.role === 'user';
-  const text = message.parts
-    .filter((p) => p.type === 'text')
-    .map((p) => (p as { text?: string }).text ?? '')
-    .join('');
-
-  const toolParts = message.parts.filter((p) => p.type.startsWith('tool-'));
 
   return (
-    <div className={isUser ? 'flex justify-end' : 'flex flex-col gap-2'}>
-      {text && (
-        <div
-          className={
-            isUser
-              ? 'max-w-[85%] rounded-[12px] bg-foreground px-3 py-2 text-[13px] text-background'
-              : 'max-w-[85%] rounded-[12px] bg-[color:var(--surface)] px-3 py-2 text-[13px] leading-5'
-          }
-        >
-          {isUser ? text : <AgentResponseText text={text} />}
-        </div>
-      )}
-      {toolParts.map((part, i) => (
-        <ToolPartView
-          key={`${message.id}-tool-${i}`}
-          part={part}
-          onMandateCreated={onMandateCreated}
-        />
-      ))}
+    <div className={isUser ? 'flex flex-col items-end gap-2' : 'flex flex-col gap-2'}>
+      {message.parts.map((part, i) => {
+        if (part.type === 'text') {
+          const text = (part as { text?: string }).text ?? '';
+          if (!text) return null;
+          return <MessageTextBubble key={`${message.id}-text-${i}`} text={text} isUser={isUser} />;
+        }
+        if (part.type.startsWith('tool-')) {
+          return (
+            <ToolPartView
+              key={`${message.id}-tool-${i}`}
+              part={part}
+              onMandateCreated={onMandateCreated}
+            />
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
+
+function MessageTextBubble({
+  text,
+  isUser,
+}: {
+  text: string;
+  isUser: boolean;
+}) {
+  return (
+    <div
+      className={
+        isUser
+          ? 'max-w-[85%] rounded-[12px] bg-foreground px-3 py-2 text-[13px] text-background'
+          : 'max-w-[85%] rounded-[12px] bg-[color:var(--surface)] px-3 py-2 text-[13px] leading-5'
+      }
+    >
+      {isUser ? text : <AgentResponseText text={text} />}
     </div>
   );
 }
