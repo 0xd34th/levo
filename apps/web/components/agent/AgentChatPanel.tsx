@@ -242,10 +242,10 @@ function MessageBubble({
           className={
             isUser
               ? 'max-w-[85%] rounded-[12px] bg-foreground px-3 py-2 text-[13px] text-background'
-              : 'max-w-[85%] rounded-[12px] bg-[color:var(--surface)] px-3 py-2 text-[13px]'
+              : 'max-w-[85%] rounded-[12px] bg-[color:var(--surface)] px-3 py-2 text-[13px] leading-5'
           }
         >
-          {text}
+          {isUser ? text : <AgentResponseText text={text} />}
         </div>
       )}
       {toolParts.map((part, i) => (
@@ -300,4 +300,80 @@ function ToolPartView({
   }
 
   return null;
+}
+
+export function AgentResponseText({ text }: { text: string }) {
+  const blocks = parseAgentResponseBlocks(text);
+
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, index) => {
+        if (block.type === 'list') {
+          return (
+            <ul key={`${block.items.join('|')}-${index}`} className="ml-4 list-disc space-y-1">
+              {block.items.map((line, lineIndex) => (
+                <li key={`${line}-${lineIndex}`}>{renderInlineMarkdown(line)}</li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={`${block.text}-${index}`} className="whitespace-pre-wrap">
+            {renderInlineMarkdown(block.text)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+type AgentResponseBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; items: string[] };
+
+function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
+  const blocks: AgentResponseBlock[] = [];
+  let paragraph: string[] = [];
+  let list: string[] = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push({ type: 'paragraph', text: paragraph.join('\n') });
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list.length) return;
+    blocks.push({ type: 'list', items: list });
+    list = [];
+  };
+
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    if (/^[-*]\s+/.test(line)) {
+      flushParagraph();
+      list.push(line.replace(/^[-*]\s+/, ''));
+      continue;
+    }
+    flushList();
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  return blocks;
+}
+
+function renderInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
 }
