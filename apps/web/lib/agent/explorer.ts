@@ -38,6 +38,27 @@ function okxConfigured(): boolean {
   );
 }
 
+function providerTimeoutMs(): number {
+  const timeout = Number(env('AGENT_TOOL_FETCH_TIMEOUT_MS', '8000'));
+  return Number.isFinite(timeout) && timeout > 0 ? timeout : 8000;
+}
+
+async function fetchWithTimeout(input: string | URL, init: RequestInit = {}): Promise<Response> {
+  const timeoutMs = providerTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`provider request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function blockvisionUrl(): string {
   return env('BLOCKVISION_API_URL', 'https://api.blockvision.org/v2/sui');
 }
@@ -97,7 +118,7 @@ async function bvGet<T>(
   return cached(cacheKey, ttlSec, async () => {
     const url = new URL(`${blockvisionUrl()}${endpoint}`);
     for (const [key, value] of cleaned) url.searchParams.set(key, value);
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: { accept: 'application/json', 'x-api-key': apiKey },
       cache: 'no-store',
     });
@@ -228,7 +249,7 @@ async function okxHeaders(method: 'GET', path: string, query: string): Promise<R
 
 async function okxGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const query = `?${new URLSearchParams(params).toString()}`;
-  const res = await fetch(`${okxBaseUrl()}${path}${query}`, {
+  const res = await fetchWithTimeout(`${okxBaseUrl()}${path}${query}`, {
     headers: await okxHeaders('GET', path, query),
     cache: 'no-store',
   });
@@ -552,8 +573,17 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
       description: "Fetch trending Sui pools/tokens.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(20).default(10) }),
       async execute(input) {
-        const data = await bvGet<JsonRecord>('/coin/dex/pools', { pageSize: input.limit }, 120);
-        return { kind: 'trending-card', source: 'blockvision', items: data };
+        try {
+          const data = await bvGet<JsonRecord>('/coin/dex/pools', { pageSize: input.limit }, 120);
+          return { kind: 'trending-card', source: 'blockvision', items: data };
+        } catch (error) {
+          return {
+            kind: 'trending-card',
+            source: 'unavailable',
+            items: [],
+            warning: `Trending markets unavailable: ${error instanceof Error ? error.message : 'provider unavailable'}`,
+          };
+        }
       },
     }),
 
@@ -561,8 +591,18 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
       description: "Fetch NFT collection stats from BlockVision.",
       inputSchema: z.object({ collection: z.string().min(1) }),
       async execute(input) {
-        const data = await bvGet<JsonRecord>('/nft/collection/detail', { collection: input.collection }, 300);
-        return { kind: 'nft-card', source: 'blockvision', collection: input.collection, data };
+        try {
+          const data = await bvGet<JsonRecord>('/nft/collection/detail', { collection: input.collection }, 300);
+          return { kind: 'nft-card', source: 'blockvision', collection: input.collection, data };
+        } catch (error) {
+          return {
+            kind: 'nft-card',
+            source: 'unavailable',
+            collection: input.collection,
+            data: {},
+            warning: `NFT collection unavailable: ${error instanceof Error ? error.message : 'provider unavailable'}`,
+          };
+        }
       },
     }),
 

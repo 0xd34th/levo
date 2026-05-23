@@ -28,6 +28,22 @@ describe('SuiToolCard result formatting', () => {
     expect(markup).not.toContain('JSON');
   });
 
+  it('renders provider fallback warnings on empty trending cards', () => {
+    const markup = renderToStaticMarkup(
+      <SuiToolCard
+        output={{
+          kind: 'trending-card',
+          source: 'unavailable',
+          items: [],
+          warning: 'Trending markets unavailable: provider request timed out',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('No trending markets returned.');
+    expect(markup).toContain('Trending markets unavailable');
+  });
+
   it('renders NFT collection summary fields instead of raw JSON', () => {
     const markup = renderToStaticMarkup(
       <SuiToolCard

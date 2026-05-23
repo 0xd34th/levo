@@ -6,6 +6,7 @@ import { loadMcpTools } from './explorer';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   delete process.env.MCP_SERVERS;
 });
 
@@ -92,6 +93,38 @@ describe('buildAgentTools', () => {
       kind: 'mandate-intent',
       href: '/agent/new?intent=Harvest%20Earn%20rewards%20daily',
     });
+  });
+
+  it('returns a readable trending fallback when the market provider times out', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    vi.stubEnv('AGENT_TOOL_FETCH_TIMEOUT_MS', '5');
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string | URL, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        }),
+      ),
+    );
+
+    const tool = buildAgentTools({ xUserId: 'test-user' }).get_trending as unknown as {
+      execute: (input: { limit: number }) => Promise<unknown>;
+    };
+    const result = tool.execute({ limit: 5 });
+    const timed = Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 20)),
+    ]);
+    await vi.advanceTimersByTimeAsync(20);
+
+    await expect(timed).resolves.toMatchObject({
+      kind: 'trending-card',
+      source: 'unavailable',
+      items: [],
+      warning: expect.stringContaining('unavailable'),
+    });
+    vi.useRealTimers();
   });
 });
 

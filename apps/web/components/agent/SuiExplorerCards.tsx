@@ -231,6 +231,7 @@ function TrendingCard({ data }: { data: AnyRecord }) {
       ) : (
         <EmptyResult text="No trending markets returned." />
       )}
+      {typeof data.warning === 'string' ? <Warnings warnings={[data.warning]} /> : null}
     </Shell>
   );
 }
@@ -253,6 +254,7 @@ function NftCollectionCard({ data }: { data: AnyRecord }) {
           ['Verified', booleanLabel(firstDefined(detail, ['verified', 'isVerified']))],
         ]}
       />
+      {typeof data.warning === 'string' ? <Warnings warnings={[data.warning]} /> : null}
     </Shell>
   );
 }

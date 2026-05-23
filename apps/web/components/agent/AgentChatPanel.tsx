@@ -259,7 +259,7 @@ function MessageBubble({
   );
 }
 
-function ToolPartView({
+export function ToolPartView({
   part,
   onMandateCreated,
 }: {
@@ -269,6 +269,18 @@ function ToolPartView({
   // AI SDK v5 names tool parts `tool-<name>` with a `state` lifecycle (input-streaming,
   // input-available, output-available, output-error). We render `output-available`.
   const state = (part as { state?: string }).state;
+  if (state === 'output-error') {
+    const errorText = toolErrorText(part);
+    return (
+      <div
+        className="max-w-[85%] rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)]"
+        style={{ color: 'var(--down)' }}
+      >
+        <p className="font-medium">Tool unavailable</p>
+        <p className="mt-1">{errorText}</p>
+      </div>
+    );
+  }
   if (state !== 'output-available') {
     return (
       <p className="text-[11px]" style={{ color: 'var(--text-soft)' }}>
@@ -300,6 +312,19 @@ function ToolPartView({
   }
 
   return null;
+}
+
+function toolErrorText(part: { [k: string]: unknown }): string {
+  for (const key of ['errorText', 'errorMessage', 'message']) {
+    const value = part[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  const error = part.error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'The data provider did not return a usable result. Try again shortly.';
 }
 
 export function AgentResponseText({ text }: { text: string }) {

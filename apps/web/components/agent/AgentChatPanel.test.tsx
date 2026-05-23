@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AgentResponseText, formatAgentChatHttpError } from './AgentChatPanel';
+import { AgentResponseText, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
 
 describe('AgentChatPanel error formatting', () => {
   it('formats unauthenticated chat failures as user-facing copy', () => {
@@ -38,5 +38,20 @@ describe('AgentResponseText', () => {
     expect(markup).toContain('<ul');
     expect(markup).toContain('<strong>Token</strong>');
     expect(markup).not.toContain('- <strong>Token</strong>');
+  });
+});
+
+describe('ToolPartView', () => {
+  it('renders tool errors as terminal user-facing messages instead of running forever', () => {
+    const markup = renderToStaticMarkup(
+      <ToolPartView
+        part={{ type: 'tool-get_trending', state: 'output-error', errorText: 'BlockVision timed out' }}
+        onMandateCreated={() => {}}
+      />,
+    );
+
+    expect(markup).toContain('Tool unavailable');
+    expect(markup).toContain('BlockVision timed out');
+    expect(markup).not.toContain('Running tool-get_trending');
   });
 });
