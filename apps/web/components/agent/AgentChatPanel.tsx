@@ -538,15 +538,16 @@ function normalizeTableRow(row: string[], size: number): string[] {
 }
 
 function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(`[^`\n]+`|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
+  const parts = text.split(/(\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
   return parts.map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
+    if (/^\\?`+[^`\n]+\\?`+$/.test(part)) {
+      const codeText = part.replace(/^\\?`+/, '').replace(/\\?`+$/, '');
       return (
         <code
           key={`${part}-${index}`}
           className="rounded bg-[color:var(--raise)] px-1 py-0.5 font-mono text-[0.92em] break-all text-[color:var(--foreground)]"
         >
-          {part.slice(1, -1)}
+          {codeText}
         </code>
       );
     }
