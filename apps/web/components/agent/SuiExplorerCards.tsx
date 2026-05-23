@@ -401,7 +401,7 @@ function Warnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
   return (
     <div className="mt-3 rounded-[8px] bg-[color:var(--down-soft)] px-3 py-2 text-[12px]">
-      {warnings.slice(0, 3).join(' ')}
+      {warnings.slice(0, 3).map(formatProviderWarning).join(' ')}
     </div>
   );
 }
@@ -441,7 +441,7 @@ function arrayOfStrings(value: unknown): string[] {
 }
 
 function formatProviderWarning(warning: string): string {
-  if (/^BlockVision \d{3}\b/.test(warning)) return 'Provider data is unavailable right now.';
+  if (/\bBlockVision \d{3}\b/.test(warning)) return 'Provider data is unavailable right now.';
   return warning;
 }
 

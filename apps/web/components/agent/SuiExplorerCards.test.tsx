@@ -84,4 +84,21 @@ describe('SuiToolCard result formatting', () => {
     expect(markup).toContain('Provider data is unavailable right now.');
     expect(markup).not.toContain('BlockVision 404 /account/defi/positions');
   });
+
+  it('sanitizes provider endpoint errors on NFT cards', () => {
+    const markup = renderToStaticMarkup(
+      <SuiToolCard
+        output={{
+          kind: 'nft-card',
+          collection: 'suipanda',
+          source: 'unavailable',
+          data: {},
+          warning: 'NFT collection unavailable: BlockVision 404 /nft/collection/detail',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('Provider data is unavailable right now.');
+    expect(markup).not.toContain('/nft/collection/detail');
+  });
 });
