@@ -122,6 +122,16 @@ describe('AgentResponseText', () => {
     expect(markup).toContain('the data provider returned an error');
     expect(markup).not.toContain('BlockVision');
   });
+
+  it('hides internal quote-provider configuration details from assistant fallback copy', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'Both OKX and 7K routes are disabled/not configured on this server.'} />,
+    );
+
+    expect(markup).toContain('live quote routes are unavailable right now');
+    expect(markup).not.toContain('disabled/not configured');
+    expect(markup).not.toContain('on this server');
+  });
 });
 
 describe('ToolPartView', () => {
