@@ -54,6 +54,21 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('| Metric | Value |');
     expect(markup).not.toContain('|---|---|');
   });
+
+  it('renders ordered lists and emphasis from model fallback copy', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={'Here is what I *can* help you explore:\n1. **Your wallet portfolio** — see holdings\n2. **A specific pool** — fetch data'}
+      />,
+    );
+
+    expect(markup).toContain('<em>can</em>');
+    expect(markup).toContain('<ol');
+    expect(markup).toContain('<li');
+    expect(markup).toContain('<strong>Your wallet portfolio</strong>');
+    expect(markup).not.toContain('1. <strong>Your wallet portfolio</strong>');
+    expect(markup).not.toContain('*can*');
+  });
 });
 
 describe('ToolPartView', () => {

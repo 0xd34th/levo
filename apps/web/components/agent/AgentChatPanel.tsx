@@ -382,12 +382,16 @@ export function AgentResponseText({ text }: { text: string }) {
           );
         }
         if (block.type === 'list') {
+          const ListTag = block.ordered ? 'ol' : 'ul';
           return (
-            <ul key={`${block.items.join('|')}-${index}`} className="ml-4 list-disc space-y-1">
+            <ListTag
+              key={`${block.items.join('|')}-${index}`}
+              className={`ml-4 space-y-1 ${block.ordered ? 'list-decimal' : 'list-disc'}`}
+            >
               {block.items.map((line, lineIndex) => (
                 <li key={`${line}-${lineIndex}`}>{renderInlineMarkdown(line)}</li>
               ))}
-            </ul>
+            </ListTag>
           );
         }
         return (
@@ -402,13 +406,14 @@ export function AgentResponseText({ text }: { text: string }) {
 
 type AgentResponseBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'list'; items: string[] }
+  | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] };
 
 function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
   const blocks: AgentResponseBlock[] = [];
   let paragraph: string[] = [];
   let list: string[] = [];
+  let listOrdered = false;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -417,8 +422,14 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
   };
   const flushList = () => {
     if (!list.length) return;
-    blocks.push({ type: 'list', items: list });
+    blocks.push({ type: 'list', ordered: listOrdered, items: list });
     list = [];
+  };
+  const pushListItem = (ordered: boolean, item: string) => {
+    flushParagraph();
+    if (list.length && listOrdered !== ordered) flushList();
+    listOrdered = ordered;
+    list.push(item);
   };
 
   const lines = text.split('\n');
@@ -450,8 +461,11 @@ function parseAgentResponseBlocks(text: string): AgentResponseBlock[] {
       continue;
     }
     if (/^[-*]\s+/.test(line)) {
-      flushParagraph();
-      list.push(line.replace(/^[-*]\s+/, ''));
+      pushListItem(false, line.replace(/^[-*]\s+/, ''));
+      continue;
+    }
+    if (/^\d+[.)]\s+/.test(line)) {
+      pushListItem(true, line.replace(/^\d+[.)]\s+/, ''));
       continue;
     }
     flushList();
@@ -486,10 +500,13 @@ function normalizeTableRow(row: string[], size: number): string[] {
 }
 
 function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
   return parts.map((part, index) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>;
     }
     return part;
   });
