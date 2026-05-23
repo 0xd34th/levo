@@ -330,18 +330,18 @@ export function ToolPartView({
 function toolErrorText(part: { [k: string]: unknown }): string {
   for (const key of ['errorText', 'errorMessage', 'message']) {
     const value = part[key];
-    if (typeof value === 'string' && value.trim()) return value;
+    if (typeof value === 'string' && value.trim()) return sanitizeProviderDiagnostics(value);
   }
   const error = part.error;
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
+    if (typeof message === 'string' && message.trim()) return sanitizeProviderDiagnostics(message);
   }
   return 'The data provider did not return a usable result. Try again shortly.';
 }
 
 export function AgentResponseText({ text }: { text: string }) {
-  const blocks = parseAgentResponseBlocks(text);
+  const blocks = parseAgentResponseBlocks(sanitizeProviderDiagnostics(text));
 
   return (
     <div className="space-y-2">
@@ -421,6 +421,15 @@ export function AgentResponseText({ text }: { text: string }) {
       })}
     </div>
   );
+}
+
+function sanitizeProviderDiagnostics(text: string): string {
+  return text
+    .replace(/\bBlockVision\s+\d{3}\s+\/[^\s).,;]+/gi, 'the data provider returned an unavailable response')
+    .replace(/\bBlockVision\s+\d{3}\b/gi, 'the data provider returned an unavailable response')
+    .replace(/\bBlockVision returned an error\b/gi, 'the data provider returned an error')
+    .replace(/\bBlockVision timed out\b/gi, 'the data provider timed out')
+    .replace(/\bBlockVision\b/gi, 'the data provider');
 }
 
 type AgentResponseBlock =

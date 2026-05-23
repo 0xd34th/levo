@@ -113,6 +113,15 @@ describe('AgentResponseText', () => {
     expect(markup).toContain('timestamp_ms');
     expect(markup).not.toContain('`timestamp_ms`');
   });
+
+  it('hides provider diagnostics from assistant fallback copy', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText text={'BlockVision returned an error while loading NFT stats.'} />,
+    );
+
+    expect(markup).toContain('the data provider returned an error');
+    expect(markup).not.toContain('BlockVision');
+  });
 });
 
 describe('ToolPartView', () => {
@@ -125,7 +134,8 @@ describe('ToolPartView', () => {
     );
 
     expect(markup).toContain('Tool unavailable');
-    expect(markup).toContain('BlockVision timed out');
+    expect(markup).toContain('the data provider timed out');
+    expect(markup).not.toContain('BlockVision');
     expect(markup).not.toContain('Running tool-get_trending');
   });
 });
