@@ -1,6 +1,199 @@
+/**
+ * @vitest-environment happy-dom
+ */
+
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import { AgentResponseText, MessageBubble, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  sendMessageMock,
+  useChatMock,
+  getAccessTokenMock,
+} = vi.hoisted(() => ({
+  sendMessageMock: vi.fn(),
+  useChatMock: vi.fn(),
+  getAccessTokenMock: vi.fn(async () => 'access-token'),
+}));
+
+vi.mock('@ai-sdk/react', () => ({
+  useChat: (...args: unknown[]) => useChatMock(...args),
+}));
+
+vi.mock('ai', () => ({
+  DefaultChatTransport: class DefaultChatTransport {
+    constructor(readonly options: unknown) {}
+  },
+}));
+
+vi.mock('@privy-io/react-auth', () => ({
+  useIdentityToken: () => ({ identityToken: null }),
+  usePrivy: () => ({ getAccessToken: getAccessTokenMock }),
+}));
+
+vi.mock('@/components/send-button', () => ({
+  SendButton: ({
+    amount,
+    username,
+    recipientType,
+  }: {
+    amount: string;
+    username: string;
+    recipientType: string | null;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-send-button"
+      data-amount={amount}
+      data-username={username}
+      data-recipient-type={recipientType ?? ''}
+    >
+      Review recipient
+    </button>
+  ),
+}));
+
+vi.mock('@/lib/use-embedded-wallet', () => ({
+  useEmbeddedWallet: () => ({
+    suiAddress: '0xowner',
+    loading: false,
+    error: null,
+  }),
+}));
+
+vi.mock('@/lib/use-coin-balance', () => ({
+  useCoinBalance: () => ({ balance: '10000000000', loading: false, error: null }),
+}));
+
+import { AgentChatPanel, AgentResponseText, MessageBubble, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
+
+function clickByText(host: HTMLElement, text: string) {
+  const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
+    candidate.textContent?.includes(text),
+  );
+  if (!button) throw new Error(`Button not found: ${text}`);
+  button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+function inputByLabel(host: HTMLElement, label: string) {
+  const field = Array.from(host.querySelectorAll('input')).find((candidate) =>
+    candidate.getAttribute('aria-label') === label,
+  );
+  if (!field) throw new Error(`Input not found: ${label}`);
+  return field;
+}
+
+async function typeInto(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+describe('AgentChatPanel preset gates', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    vi.clearAllMocks();
+    useChatMock.mockReturnValue({
+      messages: [],
+      sendMessage: sendMessageMock,
+      status: 'ready',
+      error: null,
+    });
+    sendMessageMock.mockResolvedValue(undefined);
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+  });
+
+  it('opens an Object input gate instead of sending the on-chain preset immediately', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+
+    await act(async () => {
+      clickByText(host, 'Object');
+    });
+
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('Enter object ID');
+    expect(host.textContent).toContain('Ask agent');
+  });
+
+  it('requires valid object input before submitting the generated on-chain prompt', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+    await act(async () => {
+      clickByText(host, 'Object');
+    });
+
+    const objectInput = inputByLabel(host, 'Object ID');
+    await typeInto(objectInput, 'not-an-object');
+    expect(Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.includes('Ask agent'))).toHaveProperty('disabled', true);
+
+    await typeInto(objectInput, '0x6');
+    await act(async () => {
+      clickByText(host, 'Ask agent');
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledWith({ text: 'What is the Sui object 0x6?' });
+  });
+
+  it('opens the Trade send form with amount and .sui recipient fields without sending chat', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+
+    await act(async () => {
+      clickByText(host, 'Send');
+    });
+
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('Send to Sui');
+    expect(inputByLabel(host, 'Amount')).toBeTruthy();
+    expect(inputByLabel(host, 'Recipient address or .sui')).toBeTruthy();
+  });
+
+  it('opens the official Sui Bridge only after bridge handoff review', async () => {
+    const openMock = vi.spyOn(window, 'open').mockImplementation(() => null);
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+
+    await act(async () => {
+      clickByText(host, 'Bridge');
+    });
+
+    expect(openMock).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('Review bridge handoff');
+
+    await act(async () => {
+      clickByText(host, 'Review handoff');
+    });
+
+    expect(openMock).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('Handoff review');
+
+    await act(async () => {
+      clickByText(host, 'Open Sui Bridge');
+    });
+
+    expect(openMock).toHaveBeenCalledWith('https://bridge.sui.io/', '_blank', 'noopener,noreferrer');
+    openMock.mockRestore();
+  });
+});
 
 describe('AgentChatPanel error formatting', () => {
   it('formats unauthenticated chat failures as user-facing copy', () => {

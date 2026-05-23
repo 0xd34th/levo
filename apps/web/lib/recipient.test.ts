@@ -25,4 +25,10 @@ describe('recipient helpers', () => {
     expect(detectRecipientType('@0xBEEF')).toBe('X_HANDLE');
     expect(detectRecipientType('@0x')).toBe('X_HANDLE');
   });
+
+  it('treats .sui names as direct Sui recipients', () => {
+    expect(detectRecipientType('alice.sui')).toBe('SUI_ADDRESS');
+    expect(isValidSuiAddressInput('alice.sui')).toBe(true);
+    expect(isValidSuiAddressInput('alice')).toBe(false);
+  });
 });

@@ -22,6 +22,7 @@ import {
   isRecipientWalletConflictError,
 } from '@/lib/recipient-wallet';
 import { acquireRedisLock } from '@/lib/redis-lock';
+import { getSuiClient } from '@/lib/sui';
 import { getXLookupErrorDetails, resolveFreshXUser } from '@/lib/x-user-lookup';
 import { X_USERNAME_INPUT_RE } from '@/lib/twitter';
 
@@ -38,6 +39,44 @@ const RequestSchema = z.object({
 
 const QUOTE_EXPIRY_SECONDS = 5 * 60; // 5 minutes
 const MAX_PENDING_QUOTES = 10;
+const SUI_NS_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.sui$/i;
+
+type DirectRecipientResolution =
+  | { ok: true; address: string }
+  | { ok: false; response: Response };
+
+async function resolveDirectRecipientAddress(input: string): Promise<DirectRecipientResolution> {
+  const trimmed = input.trim();
+  const normalizedAddress = parseSuiAddress(trimmed);
+  if (normalizedAddress) return { ok: true, address: normalizedAddress };
+
+  if (!SUI_NS_RE.test(trimmed)) {
+    return { ok: false, response: noStoreJson({ error: 'Invalid Sui address' }, { status: 400 }) };
+  }
+
+  let resolvedAddress: string | null;
+  try {
+    const client = getSuiClient() as unknown as {
+      resolveNameServiceAddress: (input: { name: string }) => Promise<string | null>;
+    };
+    resolvedAddress = await client.resolveNameServiceAddress({ name: trimmed.toLowerCase() });
+  } catch (error) {
+    console.error('Failed to resolve SuiNS recipient', error);
+    return { ok: false, response: noStoreJson({ error: 'Failed to resolve SuiNS name' }, { status: 503 }) };
+  }
+
+  if (!resolvedAddress) {
+    return { ok: false, response: noStoreJson({ error: 'SuiNS name not found' }, { status: 404 }) };
+  }
+
+  const normalizedResolvedAddress = parseSuiAddress(resolvedAddress);
+  if (!normalizedResolvedAddress) {
+    console.error('SuiNS recipient resolved to an invalid Sui address', { name: trimmed });
+    return { ok: false, response: noStoreJson({ error: 'Invalid SuiNS address' }, { status: 502 }) };
+  }
+
+  return { ok: true, address: normalizedResolvedAddress };
+}
 
 export async function POST(req: NextRequest) {
   const sameOrigin = verifySameOrigin(req);
@@ -160,10 +199,10 @@ export async function POST(req: NextRequest) {
 
   // ── SUI_ADDRESS branch: direct transfer to a Sui address ──
   if (isDirectAddressSend) {
-    const normalizedRecipientAddress = parseSuiAddress(recipientAddress!);
-    if (!normalizedRecipientAddress) {
-      return noStoreJson({ error: 'Invalid Sui address' }, { status: 400 });
-    }
+    const directRecipient = await resolveDirectRecipientAddress(recipientAddress!);
+    if (!directRecipient.ok) return directRecipient.response;
+
+    const normalizedRecipientAddress = directRecipient.address;
 
     if (normalizedRecipientAddress === senderAddress) {
       return noStoreJson({ error: 'Cannot send to yourself' }, { status: 400 });

@@ -10,6 +10,7 @@ const {
   rateLimitMock,
   ensureRecipientWalletMock,
   resolveFreshXUserMock,
+  resolveNameServiceAddressMock,
   signQuoteTokenMock,
   updateManyMock,
   verifyPrivyXAuthMock,
@@ -23,6 +24,7 @@ const {
   rateLimitMock: vi.fn(),
   ensureRecipientWalletMock: vi.fn(),
   resolveFreshXUserMock: vi.fn(),
+  resolveNameServiceAddressMock: vi.fn(),
   signQuoteTokenMock: vi.fn(),
   updateManyMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
@@ -66,6 +68,12 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: rateLimitMock,
+}));
+
+vi.mock('@/lib/sui', () => ({
+  getSuiClient: () => ({
+    resolveNameServiceAddress: resolveNameServiceAddressMock,
+  }),
 }));
 
 vi.mock('@/lib/redis-lock', () => ({
@@ -121,6 +129,7 @@ describe('POST /api/v1/payments/quote', () => {
       profilePicture: 'https://pbs.twimg.com/profile_images/avatar.jpg',
       isBlueVerified: false,
     });
+    resolveNameServiceAddressMock.mockResolvedValue(`0x${'0'.repeat(63)}4`);
     verifyPrivyXAuthMock.mockResolvedValue({
       ok: true,
       identity: {
@@ -333,6 +342,91 @@ describe('POST /api/v1/payments/quote', () => {
       quoteToken: 'signed-quote-token',
       expiresAt: expect.any(String),
     });
+  });
+
+  it('resolves .sui direct recipients into canonical SUI_ADDRESS quotes', async () => {
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientAddress: 'alice.sui',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(resolveNameServiceAddressMock).toHaveBeenCalledWith({ name: 'alice.sui' });
+    expect(res.status).toBe(200);
+    expect(signQuoteTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientType: 'SUI_ADDRESS',
+        xUserId: '',
+        derivationVersion: 0,
+        vaultAddress: `0x${'0'.repeat(63)}4`,
+      }),
+      'x'.repeat(32),
+    );
+    expect(createMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recipientType: 'SUI_ADDRESS',
+        xUserId: null,
+        usernameAtQuote: null,
+        vaultAddress: `0x${'0'.repeat(63)}4`,
+      }),
+    });
+    await expect(res.json()).resolves.toEqual({
+      recipientType: 'SUI_ADDRESS',
+      recipientAddress: `0x${'0'.repeat(63)}4`,
+      coinType: '0x2::sui::SUI',
+      amount: '1000000000',
+      quoteToken: 'signed-quote-token',
+      expiresAt: expect.any(String),
+    });
+  });
+
+  it('rejects unresolved .sui direct recipients', async () => {
+    resolveNameServiceAddressMock.mockResolvedValueOnce(null);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientAddress: 'missing.sui',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(404);
+    expect(createMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ error: 'SuiNS name not found' });
+  });
+
+  it('rejects .sui direct recipients that resolve to the sender address', async () => {
+    resolveNameServiceAddressMock.mockResolvedValueOnce(`0x${'0'.repeat(63)}2`);
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientAddress: 'sender.sui',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    expect(createMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({ error: 'Cannot send to yourself' });
   });
 
   it('rejects self-sends after resolving the target X account', async () => {

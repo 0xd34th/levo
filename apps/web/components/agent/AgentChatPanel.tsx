@@ -1,25 +1,111 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
+import dynamic from 'next/dynamic';
 import {
   useIdentityToken,
   usePrivy,
 } from '@privy-io/react-auth';
-import { Loader2, Send } from 'lucide-react';
+import { ArrowUpRight, Loader2, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SendButton } from '@/components/send-button';
+import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
 import { ExecuteResultCard } from './ExecuteResultCard';
 import { MandateListCard } from './MandateListCard';
 import { ExecuteConfirmationCard } from './ExecuteConfirmationCard';
 import { SuiToolCard } from './SuiExplorerCards';
+import { SUI_COIN_TYPE } from '@/lib/coins';
+import { detectRecipientType } from '@/lib/recipient';
+import { useCoinBalance } from '@/lib/use-coin-balance';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 interface Props {
   onMandateCreated: () => void | Promise<void>;
 }
 
-const COMMAND_GROUPS = [
+const CetusTerminalPanel = dynamic(
+  () => import('./CetusTerminalPanel').then((mod) => mod.CetusTerminalPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-[12px] border border-[color:var(--border)] bg-background px-3 py-4 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+        Loading Cetus terminal…
+      </div>
+    ),
+  },
+);
+
+type OnChainPresetKind = 'object' | 'digest' | 'collection';
+type TradeSurface = 'swap' | 'send' | 'bridge';
+
+type PromptCommand = {
+  label: string;
+  prompt: string;
+};
+
+type InputCommand = {
+  label: string;
+  preset: OnChainPresetDescriptor;
+};
+
+type SurfaceCommand = {
+  label: string;
+  surface: TradeSurface;
+};
+
+type Command = PromptCommand | InputCommand | SurfaceCommand;
+
+type OnChainPresetDescriptor = {
+  kind: OnChainPresetKind;
+  label: string;
+  title: string;
+  inputLabel: string;
+  placeholder: string;
+  error: string;
+  validate: (value: string) => boolean;
+  buildPrompt: (value: string) => string;
+};
+
+const SUI_ID_RE = /^0x[a-fA-F0-9]{1,64}$/;
+const SUI_DIGEST_RE = /^[1-9A-HJ-NP-Za-km-z]{32,88}$/;
+
+const ON_CHAIN_PRESETS: Record<OnChainPresetKind, OnChainPresetDescriptor> = {
+  object: {
+    kind: 'object',
+    label: 'Object',
+    title: 'Enter object ID',
+    inputLabel: 'Object ID',
+    placeholder: '0x6',
+    error: 'Enter a Sui object ID such as 0x6.',
+    validate: (value) => SUI_ID_RE.test(value.trim()),
+    buildPrompt: (value) => `What is the Sui object ${value.trim()}?`,
+  },
+  digest: {
+    kind: 'digest',
+    label: 'Transaction digest',
+    title: 'Enter transaction digest',
+    inputLabel: 'Transaction digest',
+    placeholder: 'Digest',
+    error: 'Enter a valid Sui transaction digest.',
+    validate: (value) => SUI_DIGEST_RE.test(value.trim()),
+    buildPrompt: (value) => `Explain this Sui transaction digest: ${value.trim()}`,
+  },
+  collection: {
+    kind: 'collection',
+    label: 'NFT collection',
+    title: 'Enter NFT collection',
+    inputLabel: 'NFT collection',
+    placeholder: 'Suipanda',
+    error: 'Enter a collection name or collection object ID.',
+    validate: (value) => value.trim().length >= 2,
+    buildPrompt: (value) => `Show me the ${value.trim()} NFT collection on Sui.`,
+  },
+};
+
+const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
   {
     label: 'Markets',
     commands: [
@@ -40,17 +126,17 @@ const COMMAND_GROUPS = [
   {
     label: 'On-chain',
     commands: [
-      { label: 'Object 0x6', prompt: 'What is the Sui object 0x6 (clock)?' },
-      { label: 'Explain a digest', prompt: 'Explain this Sui transaction digest' },
-      { label: 'NFT collection', prompt: 'Show me the Suipanda NFT collection' },
+      { label: ON_CHAIN_PRESETS.object.label, preset: ON_CHAIN_PRESETS.object },
+      { label: ON_CHAIN_PRESETS.digest.label, preset: ON_CHAIN_PRESETS.digest },
+      { label: ON_CHAIN_PRESETS.collection.label, preset: ON_CHAIN_PRESETS.collection },
     ],
   },
   {
     label: 'Trade',
     commands: [
-      { label: 'Swap 1 SUI to USDC', prompt: 'Quote me a swap of 1 SUI to USDC' },
-      { label: 'Send to .sui', prompt: 'Prepare a transfer of 1 SUI to alice.sui' },
-      { label: 'Bridge to Sui', prompt: 'Prepare a bridge of 0.1 ETH from Ethereum to Sui' },
+      { label: 'Swap', surface: 'swap' },
+      { label: 'Send', surface: 'send' },
+      { label: 'Bridge', surface: 'bridge' },
     ],
   },
   {
@@ -72,6 +158,8 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
 
   const [input, setInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [activePreset, setActivePreset] = useState<OnChainPresetDescriptor | null>(null);
+  const [activeSurface, setActiveSurface] = useState<TradeSurface | null>(null);
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
@@ -110,13 +198,44 @@ export function AgentChatPanel({ onMandateCreated }: Props) {
     }
   };
 
+  const pickCommand = async (command: Command) => {
+    if (busy) return;
+    if ('prompt' in command) {
+      await submitPrompt(command.prompt);
+      return;
+    }
+    if ('preset' in command) {
+      setActiveSurface(null);
+      setActivePreset(command.preset);
+      return;
+    }
+    setActivePreset(null);
+    setActiveSurface(command.surface);
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div
         ref={listRef}
         className="flex-1 space-y-3 overflow-y-auto pb-3"
       >
-        {messages.length === 0 && <EmptyState onPick={submitPrompt} disabled={busy} />}
+        {messages.length === 0 && (
+          <>
+            <EmptyState onPick={pickCommand} disabled={busy} />
+            <PresetSurface
+              activePreset={activePreset}
+              activeSurface={activeSurface}
+              onClose={() => {
+                setActivePreset(null);
+                setActiveSurface(null);
+              }}
+              onSubmitPreset={async (prompt) => {
+                setActivePreset(null);
+                await submitPrompt(prompt);
+              }}
+            />
+          </>
+        )}
         {messages.map((m) => (
           <MessageBubble
             key={m.id}
@@ -178,7 +297,7 @@ function EmptyState({
   onPick,
   disabled,
 }: {
-  onPick: (prompt: string) => void | Promise<void>;
+  onPick: (command: Command) => void | Promise<void>;
   disabled: boolean;
 }) {
   return (
@@ -199,7 +318,7 @@ function EmptyState({
                   key={command.label}
                   type="button"
                   disabled={disabled}
-                  onClick={() => onPick(command.prompt)}
+                  onClick={() => onPick(command)}
                   className="rounded-full border border-[color:var(--border)] bg-background px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--raise)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {command.label}
@@ -209,6 +328,268 @@ function EmptyState({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PresetSurface({
+  activePreset,
+  activeSurface,
+  onClose,
+  onSubmitPreset,
+}: {
+  activePreset: OnChainPresetDescriptor | null;
+  activeSurface: TradeSurface | null;
+  onClose: () => void;
+  onSubmitPreset: (prompt: string) => void | Promise<void>;
+}) {
+  if (activePreset) {
+    return (
+      <OnChainPresetCard
+        preset={activePreset}
+        onClose={onClose}
+        onSubmit={onSubmitPreset}
+      />
+    );
+  }
+  if (activeSurface === 'swap') {
+    return (
+      <SurfaceShell onClose={onClose}>
+        <CetusTerminalPanel />
+      </SurfaceShell>
+    );
+  }
+  if (activeSurface === 'send') {
+    return (
+      <SurfaceShell onClose={onClose}>
+        <AgentSendCard />
+      </SurfaceShell>
+    );
+  }
+  if (activeSurface === 'bridge') {
+    return (
+      <SurfaceShell onClose={onClose}>
+        <BridgeHandoffCard />
+      </SurfaceShell>
+    );
+  }
+  return null;
+}
+
+function SurfaceShell({
+  children,
+  onClose,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="mt-3">
+      <div className="mb-2 flex justify-end">
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close panel">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function OnChainPresetCard({
+  preset,
+  onClose,
+  onSubmit,
+}: {
+  preset: OnChainPresetDescriptor;
+  onClose: () => void;
+  onSubmit: (prompt: string) => void | Promise<void>;
+}) {
+  const [value, setValue] = useState('');
+  const trimmed = value.trim();
+  const hasValue = trimmed.length > 0;
+  const isValid = preset.validate(trimmed);
+
+  return (
+    <div className="mt-3 rounded-[12px] border border-[color:var(--border)] bg-background p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-semibold">{preset.title}</p>
+          <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+            The agent will use this value to build the on-chain query.
+          </p>
+        </div>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close preset">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="mt-3">
+        <Input
+          aria-label={preset.inputLabel}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={preset.placeholder}
+        />
+        {hasValue && !isValid ? (
+          <p className="mt-2 text-[12px]" style={{ color: 'var(--down)' }}>
+            {preset.error}
+          </p>
+        ) : null}
+      </div>
+      <Button
+        type="button"
+        className="mt-3 h-10 w-full rounded-[10px] text-[13px]"
+        disabled={!isValid}
+        onClick={() => onSubmit(preset.buildPrompt(trimmed))}
+      >
+        Ask agent
+      </Button>
+    </div>
+  );
+}
+
+function AgentSendCard() {
+  const { suiAddress: embeddedWalletAddress, loading: walletLoading, error: walletError } = useEmbeddedWallet();
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [txResult, setTxResult] = useState<TransactionResultData | null>(null);
+  const { balance: availableBalance } = useCoinBalance(embeddedWalletAddress, SUI_COIN_TYPE);
+
+  return (
+    <div className="rounded-[12px] border border-[color:var(--border)] bg-background p-3">
+      <p className="text-[13px] font-semibold">Send to Sui</p>
+      <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+        Enter an amount and a Sui address or .sui name. Levo will show the normal recipient review before signing.
+      </p>
+      <div className="mt-3 grid gap-2">
+        <Input
+          aria-label="Amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(event) => {
+            setAmount(event.target.value);
+            setSendError(null);
+          }}
+          placeholder="1"
+        />
+        <Input
+          aria-label="Recipient address or .sui"
+          value={recipient}
+          onChange={(event) => {
+            setRecipient(event.target.value);
+            setSendError(null);
+          }}
+          placeholder="alice.sui or 0x..."
+        />
+      </div>
+      {walletLoading ? (
+        <p className="mt-3 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+          Preparing your embedded wallet…
+        </p>
+      ) : null}
+      {walletError ? (
+        <p className="mt-3 text-[12px]" style={{ color: 'var(--down)' }}>
+          {walletError}
+        </p>
+      ) : null}
+      {sendError ? (
+        <p className="mt-3 text-[12px]" style={{ color: 'var(--down)' }}>
+          {sendError}
+        </p>
+      ) : null}
+      <div className="mt-3">
+        <SendButton
+          amount={amount}
+          coinType={SUI_COIN_TYPE}
+          recipientType={detectRecipientType(recipient)}
+          embeddedWalletAddress={embeddedWalletAddress}
+          availableBalance={availableBalance}
+          onConfirm={(data) => {
+            setSendError(null);
+            setTxResult(data);
+          }}
+          onError={setSendError}
+          username={recipient}
+        />
+      </div>
+      <TransactionResult
+        data={txResult}
+        network={process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet'}
+        onReset={() => {
+          setTxResult(null);
+          setAmount('');
+          setRecipient('');
+          setSendError(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function BridgeHandoffCard() {
+  const [amount, setAmount] = useState('');
+  const [sourceToken, setSourceToken] = useState('ETH');
+  const [reviewing, setReviewing] = useState(false);
+
+  const openBridge = () => {
+    window.open('https://bridge.sui.io/', '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div className="rounded-[12px] border border-[color:var(--border)] bg-background p-3">
+      <p className="text-[13px] font-semibold">Review bridge handoff</p>
+      <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+        Official Sui Bridge opens in a new tab. Route selection and wallet confirmation happen there.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Input
+          aria-label="Bridge amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(event) => {
+            setAmount(event.target.value);
+            setReviewing(false);
+          }}
+          placeholder="Amount optional"
+        />
+        <Input
+          aria-label="Source token"
+          value={sourceToken}
+          onChange={(event) => {
+            setSourceToken(event.target.value);
+            setReviewing(false);
+          }}
+          placeholder="ETH"
+        />
+      </div>
+      {reviewing ? (
+        <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--raise)] p-3">
+          <p className="text-[12px] font-semibold">Handoff review</p>
+          <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+            {amount.trim() ? `${amount.trim()} ` : 'Amount not set '}
+            {sourceToken.trim() || 'source token'} to Sui. Confirm the final route, fees, destination, and wallet
+            signature on the official bridge.
+          </p>
+          <Button
+            type="button"
+            className="mt-3 h-10 w-full rounded-[10px] text-[13px]"
+            onClick={openBridge}
+          >
+            <span className="inline-flex items-center gap-2">
+              Open Sui Bridge
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </Button>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          className="mt-3 h-10 w-full rounded-[10px] text-[13px]"
+          onClick={() => setReviewing(true)}
+        >
+          Review handoff
+        </Button>
+      )}
     </div>
   );
 }
