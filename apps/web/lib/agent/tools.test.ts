@@ -279,10 +279,11 @@ describe('buildAgentTools', () => {
     }).prepare_swap as unknown as {
       execute: (input: { tokenIn: string; tokenOut: string; amountIn: string; slippageBps: number }) => Promise<Record<string, unknown>>;
     };
-    const output = await tool.execute({ tokenIn: 'SUI', tokenOut: 'USDC', amountIn: '1', slippageBps: 50 });
+    const output = await tool.execute({ tokenIn: 'SUI', tokenOut: 'USDC', amountIn: '1000000000', slippageBps: 50 });
 
     expect(output).toMatchObject({
       kind: 'write-card',
+      amountInHuman: '1',
       tokenOut: { coinType: MAINNET_USDC_COIN, symbol: 'USDC', decimals: 6 },
       message: 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
     });

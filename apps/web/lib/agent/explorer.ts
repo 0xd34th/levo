@@ -237,6 +237,14 @@ function fromBaseUnits(raw: string | number | undefined, decimals: number): stri
   return frac ? `${whole}.${frac}` : whole;
 }
 
+function normalizeHumanAmountInput(amount: string, decimals: number): string {
+  const cleaned = amount.trim().replace(/_/g, '');
+  if (!/^\d+$/.test(cleaned) || cleaned.length < decimals) return cleaned;
+  const asHuman = fromBaseUnits(cleaned, decimals);
+  const numeric = Number(asHuman);
+  return Number.isFinite(numeric) && numeric > 0 && numeric < 1_000_000 ? asHuman : cleaned;
+}
+
 function marketNumber(record: JsonRecord | null, keys: string[]): number | undefined {
   if (!record) return undefined;
   for (const key of keys) {
@@ -762,7 +770,8 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           resolveCoinMetadata(tokenIn),
           resolveCoinMetadata(tokenOut),
         ]);
-        const amountInRaw = toBaseUnits(input.amountIn, inMeta.decimals);
+        const amountInHuman = normalizeHumanAmountInput(input.amountIn, inMeta.decimals);
+        const amountInRaw = toBaseUnits(amountInHuman, inMeta.decimals);
         const attempts: Array<JsonRecord> = [];
         let quote: Awaited<ReturnType<typeof getOkxSwapQuote>> | null = null;
 
@@ -796,7 +805,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           sourceLabel: quote?.sourceLabel,
           tokenIn: { coinType: tokenIn, symbol: inMeta.symbol, decimals: inMeta.decimals },
           tokenOut: { coinType: tokenOut, symbol: outMeta.symbol, decimals: outMeta.decimals },
-          amountInHuman: input.amountIn,
+          amountInHuman,
           amountOutHuman: quote ? fromBaseUnits(quote.amountOut, outMeta.decimals) : undefined,
           amountOutMinHuman: quote ? fromBaseUnits(quote.amountOutMin, outMeta.decimals) : undefined,
           priceImpactPct: quote?.priceImpactPct,
