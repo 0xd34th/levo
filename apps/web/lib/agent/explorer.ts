@@ -794,7 +794,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           attempts,
           message: quote
             ? 'Quote prepared only. Explicit wallet approval is required before signing.'
-            : 'Swap quote unavailable with current server flags or providers.',
+            : 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
         };
       },
     }),
@@ -824,7 +824,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           deeplink,
           message: enabled
             ? 'Bridge preparation is enabled, but signing remains outside chat.'
-            : 'Bridge execution is disabled on this server; use the OKX deeplink to inspect routes.',
+            : 'Live bridge execution is not available in Levo right now. You can inspect routes with the external bridge link.',
         };
       },
     }),
