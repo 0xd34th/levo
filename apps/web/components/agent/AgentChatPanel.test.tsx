@@ -173,6 +173,21 @@ describe('AgentResponseText', () => {
     expect(markup).not.toContain('[guided form]');
   });
 
+  it('renders bare-domain bridge markdown links from assistant bridge copy', () => {
+    const markup = renderToStaticMarkup(
+      <AgentResponseText
+        text={
+          "Live bridge execution isn't available in Levo at the moment. You can check routes and complete the bridge on OKX Bridge: 👉 [Open OKX Bridge](okx.com/web3/dex-swap/bridge?fromChain=ethereum&toChain=sui&token=ETH)"
+        }
+      />,
+    );
+
+    expect(markup).toContain('<a');
+    expect(markup).toContain('href="https://okx.com/web3/dex-swap/bridge?fromChain=ethereum&amp;toChain=sui&amp;token=ETH"');
+    expect(markup).toContain('Open OKX Bridge');
+    expect(markup).not.toContain('[Open OKX Bridge]');
+  });
+
   it('strips stray backticks from plain text fallback segments', () => {
     const markup = renderToStaticMarkup(<AgentResponseText text={'Stores a `timestamp_ms` field'} />);
 
