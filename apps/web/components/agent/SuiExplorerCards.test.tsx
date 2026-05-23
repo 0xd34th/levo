@@ -66,4 +66,22 @@ describe('SuiToolCard result formatting', () => {
     expect(markup).toContain('Verified');
     expect(markup).not.toContain('&quot;kind&quot;');
   });
+
+  it('renders empty DeFi results without repeating raw provider errors', () => {
+    const markup = renderToStaticMarkup(
+      <SuiToolCard
+        output={{
+          kind: 'defi-card',
+          address: '0x1234567890abcdef',
+          source: 'unavailable',
+          positions: [],
+          warning: 'BlockVision 404 /account/defi/positions',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('No DeFi positions returned.');
+    expect(markup).toContain('Provider data is unavailable right now.');
+    expect(markup).not.toContain('BlockVision 404 /account/defi/positions');
+  });
 });

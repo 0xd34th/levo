@@ -186,6 +186,7 @@ function TxCard({ data }: { data: AnyRecord }) {
 
 function DeFiCard({ data }: { data: AnyRecord }) {
   const positions = extractRecordList(data.positions);
+  const warning = typeof data.warning === 'string' ? data.warning : undefined;
   return (
     <Shell
       icon={<Landmark className="size-4" />}
@@ -205,9 +206,9 @@ function DeFiCard({ data }: { data: AnyRecord }) {
           }))}
         />
       ) : (
-        <EmptyResult text={stringValue(data.warning, 'No DeFi positions returned.')} />
+        <EmptyResult text="No DeFi positions returned." />
       )}
-      {typeof data.warning === 'string' ? <Warnings warnings={[data.warning]} /> : null}
+      {warning ? <Warnings warnings={[formatProviderWarning(warning)]} /> : null}
     </Shell>
   );
 }
@@ -437,6 +438,11 @@ function metricValue(value: unknown): string {
 
 function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function formatProviderWarning(warning: string): string {
+  if (/^BlockVision \d{3}\b/.test(warning)) return 'Provider data is unavailable right now.';
+  return warning;
 }
 
 function capitalize(value: string): string {
