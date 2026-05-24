@@ -610,6 +610,9 @@ importers:
       ai:
         specifier: ^5.0.185
         version: 5.0.185(zod@4.3.6)
+      bn.js:
+        specifier: ^5.2.3
+        version: 5.2.3
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -656,6 +659,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.2.1
+      '@types/bn.js':
+        specifier: ^5.2.0
+        version: 5.2.0
       '@types/node':
         specifier: ^20
         version: 20.19.37

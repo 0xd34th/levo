@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import BN from 'bn.js';
 import { getRedis } from '@/lib/rate-limit';
 
 export interface StoredSwapQuote {
@@ -22,6 +23,7 @@ export interface StoredSwapAuthorization {
 const swapQuoteMemory = new Map<string, { expiresAtMs: number; payload: StoredSwapQuote }>();
 const swapAuthorizationMemory = new Map<string, { expiresAtMs: number; payload: StoredSwapAuthorization }>();
 const JSON_MAP_MARKER = '__levoJsonMap';
+const JSON_BN_MARKER = '__levoJsonBn';
 
 function swapQuoteKey(token: string) {
   return `swap-quote:${token}`;
@@ -41,16 +43,44 @@ function cleanupExpiredMemory() {
   }
 }
 
+function isBnValue(value: unknown): value is BN {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { constructor?: { isBN?: (candidate: unknown) => boolean } }).constructor?.isBN === 'function' &&
+    (value as { constructor: { isBN: (candidate: unknown) => boolean } }).constructor.isBN(value)
+  );
+}
+
+function encodeJsonValue(value: unknown): unknown {
+  if (isBnValue(value)) {
+    return {
+      [JSON_BN_MARKER]: true,
+      value: value.toString(10),
+    };
+  }
+  if (value instanceof Map) {
+    return {
+      [JSON_MAP_MARKER]: true,
+      entries: Array.from(value.entries(), ([key, entry]) => [
+        encodeJsonValue(key),
+        encodeJsonValue(entry),
+      ]),
+    };
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => encodeJsonValue(entry));
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, encodeJsonValue(entry)]),
+    );
+  }
+  return value;
+}
+
 function serializeJson(value: unknown): string {
-  return JSON.stringify(value, (_key, entry) => {
-    if (entry instanceof Map) {
-      return {
-        [JSON_MAP_MARKER]: true,
-        entries: Array.from(entry.entries()),
-      };
-    }
-    return entry;
-  });
+  return JSON.stringify(encodeJsonValue(value));
 }
 
 function deserializeJson<T>(raw: string): T {
@@ -62,6 +92,14 @@ function deserializeJson<T>(raw: string): T {
       Array.isArray((entry as Record<string, unknown>).entries)
     ) {
       return new Map((entry as { entries: Array<[unknown, unknown]> }).entries);
+    }
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>)[JSON_BN_MARKER] === true &&
+      typeof (entry as Record<string, unknown>).value === 'string'
+    ) {
+      return new BN((entry as { value: string }).value, 10);
     }
     return entry;
   }) as T;

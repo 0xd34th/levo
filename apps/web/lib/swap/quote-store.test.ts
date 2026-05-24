@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import BN from 'bn.js';
 
 const {
   redisStore,
@@ -70,6 +71,51 @@ describe('swap quote store', () => {
     expect(redisSetMock).toHaveBeenCalledWith(
       `swap-quote:${token}`,
       expect.stringContaining('__levoJsonMap'),
+      'EX',
+      90,
+    );
+  });
+
+  it('preserves BN values inside staged 7K quotes stored in Redis', async () => {
+    const amountIn = new BN('10000', 10);
+    const amountOut = new BN('9715559', 10);
+
+    const { token } = await stageSwapQuote({
+      senderAddress: '0xsender',
+      coinTypeIn: '0xusdc::usdc::USDC',
+      coinTypeOut: '0x2::sui::SUI',
+      amountIn: '10000',
+      amountOut: '9715559',
+      minAmountOut: '9618403',
+      slippageBps: 100,
+      provider: 'cetus',
+      quote: {
+        provider: 'cetus',
+        quote: {
+          amountIn,
+          amountOut,
+          paths: [{ amountIn, amountOut }],
+        },
+      },
+    }, 90);
+
+    const loaded = await loadSwapQuote(token);
+    const quote = loaded?.quote as {
+      quote?: {
+        amountIn?: unknown;
+        amountOut?: unknown;
+        paths?: Array<{ amountIn?: unknown; amountOut?: unknown }>;
+      };
+    } | undefined;
+    const loadedAmountOut = quote?.quote?.amountOut as BN | undefined;
+
+    expect(BN.isBN(quote?.quote?.amountIn)).toBe(true);
+    expect(BN.isBN(loadedAmountOut)).toBe(true);
+    expect(loadedAmountOut?.mul(new BN(2)).toString(10)).toBe('19431118');
+    expect(BN.isBN(quote?.quote?.paths?.[0]?.amountIn)).toBe(true);
+    expect(redisSetMock).toHaveBeenCalledWith(
+      `swap-quote:${token}`,
+      expect.stringContaining('__levoJsonBn'),
       'EX',
       90,
     );
