@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getConfiguredLevoUsdCoinType,
   getCoinDecimals,
   getInputDecimals,
   getCoinLabel,
+  getSelectableCoinOptions,
   getExplorerTransactionUrl,
   getTestUsdcCoinType,
   getSettlementCoinType,
@@ -123,5 +124,74 @@ describe('coin helpers', () => {
     expect(formatAmount('15000', MAINNET_USDC_TYPE)).toBe('0.01');
     expect(formatAmount('19999', MAINNET_USDC_TYPE)).toBe('0.01');
     expect(formatAmount('20000', MAINNET_USDC_TYPE)).toBe('0.02');
+  });
+
+  it('builds send coin options from built-ins plus configured allowlist entries', () => {
+    const options = getSelectableCoinOptions({
+      network: 'mainnet',
+      configuredCoinsJson: JSON.stringify([
+        {
+          coinType: '0x123::foo::FOO',
+          label: 'FOO',
+          decimals: 8,
+          inputDecimals: 3,
+          caption: 'Foo token',
+          iconSrc: '/foo.svg',
+        },
+      ]),
+    });
+
+    expect(options.map((option) => option.coinType)).toEqual([
+      MAINNET_USDC_TYPE,
+      SUI_COIN_TYPE,
+      '0x0000000000000000000000000000000000000000000000000000000000000123::foo::FOO',
+    ]);
+    expect(getCoinLabel('0x123::foo::FOO', undefined, undefined, undefined, options)).toBe('FOO');
+    expect(getCoinDecimals('0x123::foo::FOO', undefined, undefined, undefined, options)).toBe(8);
+    expect(getInputDecimals('0x123::foo::FOO', undefined, undefined, undefined, options)).toBe(3);
+  });
+
+  it('keeps built-ins first and ignores configured duplicate coin types', () => {
+    const options = getSelectableCoinOptions({
+      network: 'mainnet',
+      configuredCoinsJson: JSON.stringify([
+        {
+          coinType: MAINNET_USDC_TYPE,
+          label: 'Fake USDC',
+          decimals: 9,
+        },
+        {
+          coinType: SUI_COIN_TYPE,
+          label: 'Fake SUI',
+          decimals: 6,
+        },
+      ]),
+    });
+
+    expect(options).toHaveLength(2);
+    expect(options[0]).toMatchObject({ coinType: MAINNET_USDC_TYPE, label: 'USDC' });
+    expect(options[1]).toMatchObject({ coinType: SUI_COIN_TYPE, label: 'SUI' });
+  });
+
+  it('ignores malformed configured coin entries and keeps unsupported coins rejected', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const options = getSelectableCoinOptions({
+      network: 'mainnet',
+      configuredCoinsJson: JSON.stringify([
+        { coinType: 'not-a-coin', label: 'BAD', decimals: 6 },
+        { coinType: '0x456::bar::BAR', label: '', decimals: 6 },
+        { coinType: '0x789::baz::BAZ', label: 'BAZ', decimals: 42 },
+      ]),
+    });
+
+    expect(options.map((option) => option.coinType)).toEqual([
+      MAINNET_USDC_TYPE,
+      SUI_COIN_TYPE,
+    ]);
+    expect(warn).toHaveBeenCalled();
+    expect(() => getCoinLabel('0x456::bar::BAR', undefined, undefined, undefined, options)).toThrow(
+      'Unsupported coin type',
+    );
+    warn.mockRestore();
   });
 });

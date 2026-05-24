@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import dynamic from 'next/dynamic';
 import {
   useIdentityToken,
   usePrivy,
 } from '@privy-io/react-auth';
 import { ArrowUpRight, Loader2, Send, X } from 'lucide-react';
+import { CoinSelector } from '@/components/coin-selector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SendButton } from '@/components/send-button';
@@ -17,26 +17,15 @@ import { ExecuteResultCard } from './ExecuteResultCard';
 import { MandateListCard } from './MandateListCard';
 import { ExecuteConfirmationCard } from './ExecuteConfirmationCard';
 import { SuiToolCard } from './SuiExplorerCards';
-import { SUI_COIN_TYPE } from '@/lib/coins';
+import { SUI_COIN_TYPE, getSelectableCoinOptions } from '@/lib/coins';
 import { detectRecipientType } from '@/lib/recipient';
 import { useCoinBalance } from '@/lib/use-coin-balance';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+import { SevenKSwapPanel } from './SevenKSwapPanel';
 
 interface Props {
   onMandateCreated: () => void | Promise<void>;
 }
-
-const CetusTerminalPanel = dynamic(
-  () => import('./CetusTerminalPanel').then((mod) => mod.CetusTerminalPanel),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="rounded-[12px] border border-[color:var(--border)] bg-background px-3 py-4 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-        Loading Cetus terminal…
-      </div>
-    ),
-  },
-);
 
 type OnChainPresetKind = 'object' | 'digest' | 'collection';
 type TradeSurface = 'swap' | 'send' | 'bridge';
@@ -355,7 +344,7 @@ function PresetSurface({
   if (activeSurface === 'swap') {
     return (
       <SurfaceShell onClose={onClose}>
-        <CetusTerminalPanel />
+        <SevenKSwapPanel />
       </SurfaceShell>
     );
   }
@@ -449,11 +438,13 @@ function OnChainPresetCard({
 
 function AgentSendCard() {
   const { suiAddress: embeddedWalletAddress, loading: walletLoading, error: walletError } = useEmbeddedWallet();
+  const defaultCoinType = getSelectableCoinOptions()[0]?.coinType ?? SUI_COIN_TYPE;
+  const [coinType, setCoinType] = useState(defaultCoinType);
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [txResult, setTxResult] = useState<TransactionResultData | null>(null);
-  const { balance: availableBalance } = useCoinBalance(embeddedWalletAddress, SUI_COIN_TYPE);
+  const { balance: availableBalance } = useCoinBalance(embeddedWalletAddress, coinType);
 
   return (
     <div className="rounded-[12px] border border-[color:var(--border)] bg-background p-3">
@@ -462,6 +453,13 @@ function AgentSendCard() {
         Enter an amount and a Sui address or .sui name. Levo will show the normal recipient review before signing.
       </p>
       <div className="mt-3 grid gap-2">
+        <CoinSelector
+          value={coinType}
+          onValueChange={(value) => {
+            setCoinType(value);
+            setSendError(null);
+          }}
+        />
         <Input
           aria-label="Amount"
           inputMode="decimal"
@@ -500,7 +498,7 @@ function AgentSendCard() {
       <div className="mt-3">
         <SendButton
           amount={amount}
-          coinType={SUI_COIN_TYPE}
+          coinType={coinType}
           recipientType={detectRecipientType(recipient)}
           embeddedWalletAddress={embeddedWalletAddress}
           availableBalance={availableBalance}

@@ -9,7 +9,7 @@ import { SendButton } from '@/components/send-button';
 import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
 import { UsernameInput } from '@/components/username-input';
 import { Button } from '@/components/ui/button';
-import { SUI_COIN_TYPE, getUserFacingUsdcCoinType } from '@/lib/coins';
+import { SUI_COIN_TYPE, getSelectableCoinOptions } from '@/lib/coins';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import { detectRecipientType } from '@/lib/recipient';
 import { sanitizeAmountForCoinType } from '@/lib/send-form';
@@ -17,7 +17,7 @@ import { useCoinBalance } from '@/lib/use-coin-balance';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
-const defaultCoinType = getUserFacingUsdcCoinType() ?? SUI_COIN_TYPE;
+const defaultCoinType = getSelectableCoinOptions()[0]?.coinType ?? SUI_COIN_TYPE;
 
 export default function SendPage() {
   const {

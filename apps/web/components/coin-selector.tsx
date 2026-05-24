@@ -1,12 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import {
-  MAINNET_USDC_TYPE,
-  SUI_COIN_TYPE,
-  getCoinLabel,
-  getUserFacingUsdcCoinType,
-} from '@/lib/coins';
+import { getSelectableCoinOptions } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 
 interface CoinOption {
@@ -26,34 +21,15 @@ interface CoinSelectorProps {
 }
 
 function getCoinOptions(): CoinOption[] {
-  const userFacingUsdcCoinType = getUserFacingUsdcCoinType();
-  const stablecoinLabel =
-    userFacingUsdcCoinType === MAINNET_USDC_TYPE ? 'USDC' : 'TEST USDC';
-
-  return [
-    {
-      value: userFacingUsdcCoinType ?? SUI_COIN_TYPE,
-      label: userFacingUsdcCoinType ? stablecoinLabel : 'SUI',
-      caption: userFacingUsdcCoinType ? 'Stablecoin' : 'Native',
-      icon: {
-        alt: `${userFacingUsdcCoinType ? stablecoinLabel : 'SUI'} icon`,
-        src: userFacingUsdcCoinType ? '/USDC.svg' : '/sui.svg',
-      },
+  return getSelectableCoinOptions().map((option) => ({
+    value: option.coinType,
+    label: option.label,
+    caption: option.caption,
+    icon: {
+      alt: `${option.label} icon`,
+      src: option.iconSrc,
     },
-    ...(userFacingUsdcCoinType
-      ? [
-          {
-            value: SUI_COIN_TYPE,
-            label: getCoinLabel(SUI_COIN_TYPE),
-            caption: 'Native',
-            icon: {
-              alt: 'SUI icon',
-              src: '/sui.svg',
-            },
-          },
-        ]
-      : []),
-  ];
+  }));
 }
 
 /**

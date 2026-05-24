@@ -4,11 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  getCoinLabelMock,
-  getUserFacingUsdcCoinTypeMock,
+  getSelectableCoinOptionsMock,
 } = vi.hoisted(() => ({
-  getCoinLabelMock: vi.fn(),
-  getUserFacingUsdcCoinTypeMock: vi.fn(),
+  getSelectableCoinOptionsMock: vi.fn(),
 }));
 
 vi.mock('next/image', () => ({
@@ -23,10 +21,7 @@ vi.mock('next/image', () => ({
 }));
 
 vi.mock('@/lib/coins', () => ({
-  MAINNET_USDC_TYPE: 'mainnet-usdc',
-  SUI_COIN_TYPE: '0x2::sui::SUI',
-  getCoinLabel: getCoinLabelMock,
-  getUserFacingUsdcCoinType: getUserFacingUsdcCoinTypeMock,
+  getSelectableCoinOptions: getSelectableCoinOptionsMock,
 }));
 
 import { CoinSelector } from './coin-selector';
@@ -34,12 +29,23 @@ import { CoinSelector } from './coin-selector';
 describe('CoinSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getCoinLabelMock.mockReturnValue('SUI');
+    getSelectableCoinOptionsMock.mockReturnValue([
+      {
+        coinType: 'mainnet-usdc',
+        label: 'USDC',
+        caption: 'Stablecoin',
+        iconSrc: '/USDC.svg',
+      },
+      {
+        coinType: '0x2::sui::SUI',
+        label: 'SUI',
+        caption: 'Native',
+        iconSrc: '/sui.svg',
+      },
+    ]);
   });
 
   it('renders the public USDC and SUI svg assets for the selectable coins', () => {
-    getUserFacingUsdcCoinTypeMock.mockReturnValue('mainnet-usdc');
-
     const markup = renderToStaticMarkup(
       <CoinSelector value="mainnet-usdc" onValueChange={vi.fn()} />,
     );
@@ -50,15 +56,36 @@ describe('CoinSelector', () => {
     expect(markup).toContain('alt="SUI icon"');
   });
 
-  it('keeps the SUI svg when no stablecoin option is available', () => {
-    getUserFacingUsdcCoinTypeMock.mockReturnValue(null);
+  it('renders configured allowlist coins after built-ins', () => {
+    getSelectableCoinOptionsMock.mockReturnValue([
+      {
+        coinType: 'mainnet-usdc',
+        label: 'USDC',
+        caption: 'Stablecoin',
+        iconSrc: '/USDC.svg',
+      },
+      {
+        coinType: '0x2::sui::SUI',
+        label: 'SUI',
+        caption: 'Native',
+        iconSrc: '/sui.svg',
+      },
+      {
+        coinType: '0x123::foo::FOO',
+        label: 'FOO',
+        caption: 'Foo token',
+        iconSrc: '/foo.svg',
+      },
+    ]);
 
     const markup = renderToStaticMarkup(
-      <CoinSelector value="0x2::sui::SUI" onValueChange={vi.fn()} />,
+      <CoinSelector value="0x123::foo::FOO" onValueChange={vi.fn()} />,
     );
 
-    expect(markup).not.toContain('src="/USDC.svg"');
+    expect(markup.indexOf('USDC')).toBeLessThan(markup.indexOf('SUI'));
+    expect(markup.indexOf('SUI')).toBeLessThan(markup.indexOf('FOO'));
     expect(markup).toContain('src="/sui.svg"');
-    expect(markup).toContain('alt="SUI icon"');
+    expect(markup).toContain('src="/foo.svg"');
+    expect(markup).toContain('alt="FOO icon"');
   });
 });

@@ -27,7 +27,7 @@ vi.mock('@/components/username-input', () => ({
 
 vi.mock('@/lib/coins', () => ({
   SUI_COIN_TYPE: '0x2::sui::SUI',
-  getUserFacingUsdcCoinType: () => '0x2::usdc::USDC',
+  getSelectableCoinOptions: () => [{ coinType: '0x2::usdc::USDC' }],
 }));
 
 vi.mock('@/lib/received-dashboard-client', () => ({

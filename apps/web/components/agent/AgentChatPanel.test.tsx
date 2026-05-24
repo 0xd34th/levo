@@ -35,23 +35,52 @@ vi.mock('@privy-io/react-auth', () => ({
 vi.mock('@/components/send-button', () => ({
   SendButton: ({
     amount,
+    coinType,
     username,
     recipientType,
+    availableBalance,
   }: {
     amount: string;
+    coinType: string;
     username: string;
     recipientType: string | null;
+    availableBalance?: string | null;
   }) => (
     <button
       type="button"
       data-testid="mock-send-button"
       data-amount={amount}
+      data-coin-type={coinType}
       data-username={username}
       data-recipient-type={recipientType ?? ''}
+      data-available-balance={availableBalance ?? ''}
     >
       Review recipient
     </button>
   ),
+}));
+
+vi.mock('@/components/coin-selector', () => ({
+  CoinSelector: ({
+    value,
+    onValueChange,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-coin-selector"
+      data-value={value}
+      onClick={() => onValueChange('0x123::foo::FOO')}
+    >
+      Select coin
+    </button>
+  ),
+}));
+
+vi.mock('./SevenKSwapPanel', () => ({
+  SevenKSwapPanel: () => <div>Powered by 7K Aggregator</div>,
 }));
 
 vi.mock('@/lib/use-embedded-wallet', () => ({
@@ -63,7 +92,11 @@ vi.mock('@/lib/use-embedded-wallet', () => ({
 }));
 
 vi.mock('@/lib/use-coin-balance', () => ({
-  useCoinBalance: () => ({ balance: '10000000000', loading: false, error: null }),
+  useCoinBalance: (_address: string | null, coinType: string) => ({
+    balance: coinType === '0x123::foo::FOO' ? '2500' : '10000000000',
+    loading: false,
+    error: null,
+  }),
 }));
 
 import { AgentChatPanel, AgentResponseText, MessageBubble, ToolPartView, formatAgentChatHttpError } from './AgentChatPanel';
@@ -162,8 +195,40 @@ describe('AgentChatPanel preset gates', () => {
 
     expect(sendMessageMock).not.toHaveBeenCalled();
     expect(host.textContent).toContain('Send to Sui');
+    expect(host.querySelector('[data-testid="mock-coin-selector"]')).toBeTruthy();
     expect(inputByLabel(host, 'Amount')).toBeTruthy();
     expect(inputByLabel(host, 'Recipient address or .sui')).toBeTruthy();
+  });
+
+  it('passes the selected send coin and its balance into SendButton', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+
+    await act(async () => {
+      clickByText(host, 'Send');
+    });
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[data-testid="mock-coin-selector"]')?.click();
+    });
+
+    const sendButton = host.querySelector<HTMLButtonElement>('[data-testid="mock-send-button"]');
+    expect(sendButton?.dataset.coinType).toBe('0x123::foo::FOO');
+    expect(sendButton?.dataset.availableBalance).toBe('2500');
+  });
+
+  it('opens the 7K swap panel instead of the Cetus terminal', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} />);
+    });
+
+    await act(async () => {
+      clickByText(host, 'Swap');
+    });
+
+    expect(host.textContent).toContain('Powered by 7K Aggregator');
+    expect(host.textContent).not.toContain('Cetus');
   });
 
   it('opens the official Sui Bridge only after bridge handoff review', async () => {

@@ -1,4 +1,4 @@
-import { fromBase58, normalizeSuiAddress } from '@mysten/sui/utils';
+import { fromBase58, isValidSuiAddress, normalizeSuiAddress } from '@mysten/sui/utils';
 
 const TEST_USDC_SUFFIX = '::test_usdc::TEST_USDC';
 const LEVO_USD_SUFFIX = '::levo_usd::LEVO_USD';
@@ -6,12 +6,28 @@ const SUI_DECIMALS = 9;
 const TEST_USDC_DECIMALS = 6;
 const USDC_DECIMALS = 6;
 const USER_FACING_USDC_DECIMALS = 2;
+const MAX_CONFIGURED_DECIMALS = 18;
 
 export const SUI_COIN_TYPE = '0x2::sui::SUI';
 export const MAINNET_USDC_TYPE =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
 type SuiNetwork = 'testnet' | 'mainnet' | 'devnet';
+
+export interface SelectableCoinOption {
+  coinType: string;
+  label: string;
+  decimals: number;
+  inputDecimals: number;
+  caption: string;
+  iconSrc: string;
+}
+
+interface SelectableCoinOptionsInput {
+  network?: string;
+  packageId?: string;
+  configuredCoinsJson?: string;
+}
 
 /**
  * Normalize the address portion of a coin type to the full 64-char hex format.
@@ -27,6 +43,27 @@ export function normalizeCoinType(coinType: string): string {
   } catch {
     return coinType;
   }
+}
+
+function isCoinTypeShape(coinType: string): boolean {
+  const parts = coinType.split('::');
+  if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
+    return false;
+  }
+  try {
+    return isValidSuiAddress(normalizeSuiAddress(parts[0]));
+  } catch {
+    return false;
+  }
+}
+
+function isValidDecimals(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= MAX_CONFIGURED_DECIMALS
+  );
 }
 
 function getConfiguredNetwork(
@@ -72,6 +109,128 @@ export function getUserFacingUsdcCoinType(
   return getConfiguredNetwork(network) === 'mainnet'
     ? MAINNET_USDC_TYPE
     : getTestUsdcCoinType(packageId);
+}
+
+function getBuiltInUsdcOption(network?: string, packageId?: string): SelectableCoinOption {
+  const userFacingUsdcCoinType = getUserFacingUsdcCoinType(network, packageId);
+  const coinType = userFacingUsdcCoinType ?? MAINNET_USDC_TYPE;
+  const label = coinType === MAINNET_USDC_TYPE ? 'USDC' : 'TEST_USDC';
+
+  return {
+    coinType,
+    label,
+    decimals: USDC_DECIMALS,
+    inputDecimals: USER_FACING_USDC_DECIMALS,
+    caption: 'Stablecoin',
+    iconSrc: '/USDC.svg',
+  };
+}
+
+function getBuiltInSuiOption(): SelectableCoinOption {
+  return {
+    coinType: SUI_COIN_TYPE,
+    label: 'SUI',
+    decimals: SUI_DECIMALS,
+    inputDecimals: SUI_DECIMALS,
+    caption: 'Native',
+    iconSrc: '/sui.svg',
+  };
+}
+
+function parseConfiguredCoinOptions(rawJson: string | undefined): SelectableCoinOption[] {
+  const trimmed = rawJson?.trim();
+  if (!trimmed) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    console.warn('Ignoring NEXT_PUBLIC_SEND_COIN_OPTIONS because it is not valid JSON', error);
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('Ignoring NEXT_PUBLIC_SEND_COIN_OPTIONS because it is not a JSON array');
+    return [];
+  }
+
+  const options: SelectableCoinOption[] = [];
+  for (const entry of parsed) {
+    if (typeof entry !== 'object' || entry === null) {
+      console.warn('Ignoring malformed configured send coin', entry);
+      continue;
+    }
+    const candidate = entry as Record<string, unknown>;
+    const rawCoinType = typeof candidate.coinType === 'string' ? candidate.coinType.trim() : '';
+    const label = typeof candidate.label === 'string' ? candidate.label.trim() : '';
+    const decimals = candidate.decimals;
+    const inputDecimals = candidate.inputDecimals ?? decimals;
+    const caption =
+      typeof candidate.caption === 'string' && candidate.caption.trim()
+        ? candidate.caption.trim()
+        : 'Token';
+    const iconSrc =
+      typeof candidate.iconSrc === 'string' && candidate.iconSrc.trim()
+        ? candidate.iconSrc.trim()
+        : '/sui.svg';
+
+    if (
+      !rawCoinType ||
+      !isCoinTypeShape(rawCoinType) ||
+      !label ||
+      !isValidDecimals(decimals) ||
+      !isValidDecimals(inputDecimals) ||
+      inputDecimals > decimals
+    ) {
+      console.warn('Ignoring malformed configured send coin', entry);
+      continue;
+    }
+
+    options.push({
+      coinType: normalizeCoinType(rawCoinType),
+      label,
+      decimals,
+      inputDecimals,
+      caption,
+      iconSrc,
+    });
+  }
+
+  return options;
+}
+
+export function getSelectableCoinOptions({
+  network = process.env.NEXT_PUBLIC_SUI_NETWORK,
+  packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
+  configuredCoinsJson = process.env.NEXT_PUBLIC_SEND_COIN_OPTIONS,
+}: SelectableCoinOptionsInput = {}): SelectableCoinOption[] {
+  const options: SelectableCoinOption[] = [
+    getBuiltInUsdcOption(network, packageId),
+    getBuiltInSuiOption(),
+  ];
+  const seen = new Set(options.map((option) => normalizeCoinType(option.coinType)));
+
+  for (const configuredOption of parseConfiguredCoinOptions(configuredCoinsJson)) {
+    const normalized = normalizeCoinType(configuredOption.coinType);
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    options.push({ ...configuredOption, coinType: normalized });
+  }
+
+  return options;
+}
+
+function findSelectableCoinOption(
+  coinType: string,
+  options: SelectableCoinOption[] | undefined,
+  packageId: string | undefined,
+  network: string | undefined,
+): SelectableCoinOption | null {
+  const normalized = normalizeCoinType(coinType);
+  const candidates = options ?? getSelectableCoinOptions({ network, packageId });
+  return candidates.find((option) => normalizeCoinType(option.coinType) === normalized) ?? null;
 }
 
 export function isStableLayerEnabled(
@@ -127,11 +286,9 @@ export function isSupportedCoinType(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
+  options?: SelectableCoinOption[],
 ): boolean {
-  const normalized = normalizeCoinType(coinType);
-  const userFacingUsdcCoinType = getUserFacingUsdcCoinType(network, packageId);
-  return normalized === normalizeCoinType(SUI_COIN_TYPE) ||
-    (userFacingUsdcCoinType !== null && normalized === normalizeCoinType(userFacingUsdcCoinType));
+  return findSelectableCoinOption(coinType, options, packageId, network) !== null;
 }
 
 function isConfiguredTestUsdcCoinType(
@@ -147,6 +304,7 @@ export function getCoinLabel(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  options?: SelectableCoinOption[],
 ): string {
   const displayCoinType = normalizeCoinTypeForDisplay(
     coinType,
@@ -154,6 +312,11 @@ export function getCoinLabel(
     packageId,
     levoUsdCoinType,
   );
+
+  const selectableOption = findSelectableCoinOption(displayCoinType, options, packageId, network);
+  if (selectableOption) {
+    return selectableOption.label;
+  }
 
   if (displayCoinType === MAINNET_USDC_TYPE) {
     return 'USDC';
@@ -175,6 +338,7 @@ export function isDisplaySupportedCoinType(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  options?: SelectableCoinOption[],
 ): boolean {
   const displayCoinType = normalizeCoinTypeForDisplay(
     coinType,
@@ -185,7 +349,8 @@ export function isDisplaySupportedCoinType(
   return (
     normalizeCoinType(displayCoinType) === normalizeCoinType(SUI_COIN_TYPE) ||
     displayCoinType === MAINNET_USDC_TYPE ||
-    isConfiguredTestUsdcCoinType(displayCoinType, packageId)
+    isConfiguredTestUsdcCoinType(displayCoinType, packageId) ||
+    findSelectableCoinOption(displayCoinType, options, packageId, network) !== null
   );
 }
 
@@ -194,6 +359,7 @@ export function getCoinDecimals(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  options?: SelectableCoinOption[],
 ): number {
   const displayCoinType = normalizeCoinTypeForDisplay(
     coinType,
@@ -201,6 +367,11 @@ export function getCoinDecimals(
     packageId,
     levoUsdCoinType,
   );
+
+  const selectableOption = findSelectableCoinOption(displayCoinType, options, packageId, network);
+  if (selectableOption) {
+    return selectableOption.decimals;
+  }
 
   if (normalizeCoinType(displayCoinType) === normalizeCoinType(SUI_COIN_TYPE)) {
     return SUI_DECIMALS;
@@ -222,6 +393,7 @@ export function getInputDecimals(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  options?: SelectableCoinOption[],
 ): number {
   const displayCoinType = normalizeCoinTypeForDisplay(
     coinType,
@@ -229,6 +401,11 @@ export function getInputDecimals(
     packageId,
     levoUsdCoinType,
   );
+
+  const selectableOption = findSelectableCoinOption(displayCoinType, options, packageId, network);
+  if (selectableOption) {
+    return selectableOption.inputDecimals;
+  }
 
   if (
     displayCoinType === MAINNET_USDC_TYPE ||

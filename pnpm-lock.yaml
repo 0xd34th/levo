@@ -571,6 +571,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@7kprotocol/sdk-ts':
+        specifier: 4.0.0
+        version: 4.0.0(patch_hash=0d32c0310726142bd14f9817124c7e0862762a913ef6cbe2c529dd394684eda1)(@mysten/sui@2.7.0(typescript@5.9.3))(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))(axios@1.13.6)(graphql@16.13.2)(typescript@5.9.3)
       '@ai-sdk/deepseek':
         specifier: 1.0.39
         version: 1.0.39(zod@4.3.6)
@@ -601,6 +604,9 @@ importers:
       '@privy-io/react-auth':
         specifier: ^3.17.0
         version: 3.17.0(deb9c463c3c44fa0d2fc8f2a8762d408)
+      '@pythnetwork/pyth-sui-js':
+        specifier: 2.4.0
+        version: 2.4.0(axios@1.13.6)(typescript@5.9.3)
       ai:
         specifier: ^5.0.185
         version: 5.0.185(zod@4.3.6)
@@ -13040,6 +13046,23 @@ snapshots:
       - graphql
       - typescript
 
+  '@7kprotocol/sdk-ts@4.0.0(patch_hash=0d32c0310726142bd14f9817124c7e0862762a913ef6cbe2c529dd394684eda1)(@mysten/sui@2.7.0(typescript@5.9.3))(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))(axios@1.13.6)(graphql@16.13.2)(typescript@5.9.3)':
+    dependencies:
+      '@mysten/sui': 2.7.0(typescript@5.9.3)
+      '@pythnetwork/pyth-sui-js': 2.4.0(axios@1.13.6)(typescript@5.9.3)
+      uuid: 13.0.0
+    optionalDependencies:
+      '@bluefin-exchange/bluefin7k-aggregator-sdk': 5.5.1(patch_hash=5cdb74ad430e34503876f99f9b12ac9aef2edce47d4ece8fdb436d25b3c51870)(@mysten/sui@2.7.0(typescript@5.9.3))(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))
+      '@cetusprotocol/aggregator-sdk': 1.5.3(axios@1.13.6)(typescript@5.9.3)
+      '@flowx-finance/sdk': 1.15.0(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))(axios@1.13.6)(graphql@16.13.2)(typescript@5.9.3)
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - axios
+      - encoding
+      - graphql
+      - typescript
+
   '@abstract-foundation/agw-client@1.12.3(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))':
     dependencies:
       viem: 2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)
@@ -14282,6 +14305,13 @@ snapshots:
   '@bluefin-exchange/bluefin7k-aggregator-sdk@5.5.1(patch_hash=5cdb74ad430e34503876f99f9b12ac9aef2edce47d4ece8fdb436d25b3c51870)(@mysten/sui@2.16.0(typescript@5.9.3))(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))':
     dependencies:
       '@mysten/sui': 2.16.0(typescript@5.9.3)
+      '@pythnetwork/pyth-sui-js': 2.4.0(axios@1.13.6)(typescript@5.9.3)
+      uuid: 13.0.0
+    optional: true
+
+  '@bluefin-exchange/bluefin7k-aggregator-sdk@5.5.1(patch_hash=5cdb74ad430e34503876f99f9b12ac9aef2edce47d4ece8fdb436d25b3c51870)(@mysten/sui@2.7.0(typescript@5.9.3))(@pythnetwork/pyth-sui-js@2.4.0(axios@1.13.6)(typescript@5.9.3))':
+    dependencies:
+      '@mysten/sui': 2.7.0(typescript@5.9.3)
       '@pythnetwork/pyth-sui-js': 2.4.0(axios@1.13.6)(typescript@5.9.3)
       uuid: 13.0.0
     optional: true
@@ -22026,10 +22056,10 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/parser': 8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/scope-manager': 5.62.0
       '@typescript-eslint/type-utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
@@ -27135,14 +27165,14 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/eslint-parser': 7.28.6(@babel/core@7.29.0)(eslint@9.39.2(jiti@2.6.1))
       '@rushstack/eslint-patch': 1.16.1
-      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       '@typescript-eslint/parser': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       babel-preset-react-app: 10.1.0
       confusing-browser-globals: 1.0.11
       eslint: 9.39.2(jiti@2.6.1)
       eslint-plugin-flowtype: 8.0.3(@babel/plugin-syntax-flow@7.28.6(@babel/core@7.29.0))(@babel/plugin-transform-react-jsx@7.28.6(@babel/core@7.29.0))(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-import: 2.32.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))
-      eslint-plugin-jest: 25.7.0(@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      eslint-plugin-jest: 25.7.0(@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.39.2(jiti@2.6.1))
       eslint-plugin-react-hooks: 4.6.2(eslint@9.39.2(jiti@2.6.1))
@@ -27349,12 +27379,12 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-jest@25.7.0(@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3):
+  eslint-plugin-jest@25.7.0(@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3):
     dependencies:
       '@typescript-eslint/experimental-utils': 5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       eslint: 9.39.2(jiti@2.6.1)
     optionalDependencies:
-      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@5.62.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 5.62.0(@typescript-eslint/parser@8.58.2(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
     transitivePeerDependencies:
       - supports-color
       - typescript

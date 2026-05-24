@@ -387,6 +387,45 @@ describe('POST /api/v1/payments/quote', () => {
     });
   });
 
+  it('accepts configured allowlist coins for direct send quotes', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SEND_COIN_OPTIONS', JSON.stringify([
+      {
+        coinType: '0x123::foo::FOO',
+        label: 'FOO',
+        decimals: 8,
+        inputDecimals: 3,
+      },
+    ]));
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientAddress: '0x4',
+        coinType: '0x123::foo::FOO',
+        amount: '100000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(signQuoteTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coinType: '0x123::foo::FOO',
+        amount: '100000000',
+      }),
+      'x'.repeat(32),
+    );
+    expect(createMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        coinType: '0x123::foo::FOO',
+        amount: 100000000n,
+      }),
+    });
+  });
+
   it('rejects unresolved .sui direct recipients', async () => {
     resolveNameServiceAddressMock.mockResolvedValueOnce(null);
 
