@@ -33,6 +33,18 @@ vi.mock('@/lib/use-embedded-wallet', () => ({
 
 import { SevenKSwapPanel } from './SevenKSwapPanel';
 
+const quotePayload = {
+  swapQuoteToken: 'swap-token',
+  provider: 'bluefin7k',
+  coinTypeIn: SUI_COIN_TYPE,
+  coinTypeOut: MAINNET_USDC_TYPE,
+  amountIn: '1000000000',
+  amountOut: '2500000',
+  minAmountOut: '2475000',
+  slippageBps: 100,
+  expiresAt: '2026-01-01T00:05:00.000Z',
+};
+
 function inputByLabel(host: HTMLElement, label: string) {
   const field = Array.from(host.querySelectorAll('input,select')).find((candidate) =>
     candidate.getAttribute('aria-label') === label,
@@ -150,17 +162,7 @@ describe('SevenKSwapPanel', () => {
   });
 
   it('auto renders quote review fields from the swap quote response', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      swapQuoteToken: 'swap-token',
-      provider: 'bluefin7k',
-      coinTypeIn: SUI_COIN_TYPE,
-      coinTypeOut: MAINNET_USDC_TYPE,
-      amountIn: '1000000000',
-      amountOut: '2500000',
-      minAmountOut: '2475000',
-      slippageBps: 100,
-      expiresAt: '2026-01-01T00:05:00.000Z',
-    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(quotePayload), { status: 200, headers: { 'content-type': 'application/json' } }));
 
     await act(async () => {
       root.render(<SevenKSwapPanel />);
@@ -174,19 +176,35 @@ describe('SevenKSwapPanel', () => {
     expect(host.textContent).toContain('1.00%');
   });
 
+  it('opens confirmation before submitting swap execution', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(quotePayload), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    await act(async () => {
+      root.render(<SevenKSwapPanel />);
+    });
+    await typeInto(inputByLabel(host, 'Swap amount') as HTMLInputElement, '1');
+    await flushAutoQuote();
+
+    await act(async () => {
+      buttonByText(host, 'Execute swap').click();
+    });
+
+    expect(document.body.textContent).toContain('Confirm swap');
+    expect(document.body.textContent).toContain('1 SUI');
+    expect(document.body.textContent).toContain('2.50 USDC');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      buttonByText(document.body, 'Cancel').click();
+    });
+
+    expect(document.body.textContent).not.toContain('Confirm swap');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not submit swap execution before Privy authorization completes', async () => {
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        swapQuoteToken: 'swap-token',
-        provider: 'bluefin7k',
-        coinTypeIn: SUI_COIN_TYPE,
-        coinTypeOut: MAINNET_USDC_TYPE,
-        amountIn: '1000000000',
-        amountOut: '2500000',
-        minAmountOut: '2475000',
-        slippageBps: 100,
-        expiresAt: '2026-01-01T00:05:00.000Z',
-      }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(quotePayload), { status: 200, headers: { 'content-type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         status: 'authorization_required',
         authorizationRequest: {
@@ -210,6 +228,11 @@ describe('SevenKSwapPanel', () => {
     await flushAutoQuote();
     await act(async () => {
       buttonByText(host, 'Execute swap').click();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      buttonByText(document.body, 'Confirm swap').click();
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(

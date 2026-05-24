@@ -8,6 +8,14 @@ import {
 } from '@privy-io/react-auth';
 import { ArrowUpDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   MAINNET_USDC_TYPE,
@@ -115,6 +123,7 @@ export function SevenKSwapPanel() {
   const [txDigest, setTxDigest] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<SwapStage>('idle');
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const quoteRequestIdRef = useRef(0);
 
   const amountNum = amount === '' ? Number.NaN : Number(amount);
@@ -135,6 +144,7 @@ export function SevenKSwapPanel() {
 
   const clearReview = useCallback(() => {
     quoteRequestIdRef.current += 1;
+    setConfirmOpen(false);
     setQuote(null);
     setTxDigest(null);
     setError(null);
@@ -213,6 +223,7 @@ export function SevenKSwapPanel() {
 
   const executeSwap = async () => {
     if (!quote || busy) return;
+    setConfirmOpen(false);
     setError(null);
     setTxDigest(null);
     setStage('executing');
@@ -406,7 +417,7 @@ export function SevenKSwapPanel() {
           type="button"
           className="h-10 rounded-[10px] text-[13px]"
           disabled={!quote || busy}
-          onClick={executeSwap}
+          onClick={() => setConfirmOpen(true)}
         >
           {stage === 'authorizing' || stage === 'executing' ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -418,6 +429,63 @@ export function SevenKSwapPanel() {
       <p className="mt-2 text-[11px]" style={{ color: 'var(--text-mute)' }}>
         Slippage is fixed at {slippageText} for this version.
       </p>
+
+      <Dialog open={confirmOpen && Boolean(quote)} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Confirm swap</DialogTitle>
+            <DialogDescription>
+              Review this quote before authorizing the transaction.
+            </DialogDescription>
+          </DialogHeader>
+          {quote ? (
+            <div className="rounded-[10px] bg-surface p-3 text-[12px]">
+              <div className="flex items-center justify-between gap-3">
+                <span style={{ color: 'var(--text-soft)' }}>From</span>
+                <span className="font-medium">
+                  {formatAmount(quote.amountIn, quote.coinTypeIn)} {getCoinLabel(quote.coinTypeIn)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span style={{ color: 'var(--text-soft)' }}>To</span>
+                <span className="font-medium">
+                  {formatAmount(quote.amountOut, quote.coinTypeOut)} {getCoinLabel(quote.coinTypeOut)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span style={{ color: 'var(--text-soft)' }}>Minimum out</span>
+                <span className="font-medium">
+                  {formatAmount(quote.minAmountOut, quote.coinTypeOut)} {getCoinLabel(quote.coinTypeOut)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span style={{ color: 'var(--text-soft)' }}>Provider</span>
+                <span className="font-medium">{quote.provider}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span style={{ color: 'var(--text-soft)' }}>Slippage</span>
+                <span className="font-medium">{slippageText}</span>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={executeSwap} disabled={!quote || busy}>
+              {stage === 'authorizing' || stage === 'executing' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Confirm swap
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
