@@ -21,6 +21,7 @@ export interface StoredSwapAuthorization {
 
 const swapQuoteMemory = new Map<string, { expiresAtMs: number; payload: StoredSwapQuote }>();
 const swapAuthorizationMemory = new Map<string, { expiresAtMs: number; payload: StoredSwapAuthorization }>();
+const JSON_MAP_MARKER = '__levoJsonMap';
 
 function swapQuoteKey(token: string) {
   return `swap-quote:${token}`;
@@ -40,13 +41,39 @@ function cleanupExpiredMemory() {
   }
 }
 
+function serializeJson(value: unknown): string {
+  return JSON.stringify(value, (_key, entry) => {
+    if (entry instanceof Map) {
+      return {
+        [JSON_MAP_MARKER]: true,
+        entries: Array.from(entry.entries()),
+      };
+    }
+    return entry;
+  });
+}
+
+function deserializeJson<T>(raw: string): T {
+  return JSON.parse(raw, (_key, entry) => {
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>)[JSON_MAP_MARKER] === true &&
+      Array.isArray((entry as Record<string, unknown>).entries)
+    ) {
+      return new Map((entry as { entries: Array<[unknown, unknown]> }).entries);
+    }
+    return entry;
+  }) as T;
+}
+
 export async function stageSwapQuote(payload: StoredSwapQuote, ttlSec: number) {
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + ttlSec * 1000);
   const redis = getRedis();
 
   if (redis.status === 'ready') {
-    await redis.set(swapQuoteKey(token), JSON.stringify(payload), 'EX', ttlSec);
+    await redis.set(swapQuoteKey(token), serializeJson(payload), 'EX', ttlSec);
   } else {
     cleanupExpiredMemory();
     swapQuoteMemory.set(token, { expiresAtMs: expiresAt.getTime(), payload });
@@ -61,7 +88,7 @@ export async function loadSwapQuote(token: string): Promise<StoredSwapQuote | nu
     const raw = await redis.get(swapQuoteKey(token));
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as StoredSwapQuote;
+      return deserializeJson<StoredSwapQuote>(raw);
     } catch {
       return null;
     }
@@ -86,7 +113,7 @@ export async function stageSwapAuthorization(
   const redis = getRedis();
 
   if (redis.status === 'ready') {
-    await redis.set(swapAuthorizationKey(token), JSON.stringify(payload), 'EX', ttlSec);
+    await redis.set(swapAuthorizationKey(token), serializeJson(payload), 'EX', ttlSec);
     return;
   }
 
@@ -103,7 +130,7 @@ export async function loadSwapAuthorization(token: string): Promise<StoredSwapAu
     const raw = await redis.get(swapAuthorizationKey(token));
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as StoredSwapAuthorization;
+      return deserializeJson<StoredSwapAuthorization>(raw);
     } catch {
       return null;
     }
