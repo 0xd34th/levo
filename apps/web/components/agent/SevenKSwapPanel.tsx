@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useAuthorizationSignature,
   useIdentityToken,
@@ -115,6 +115,7 @@ export function SevenKSwapPanel() {
   const [txDigest, setTxDigest] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<SwapStage>('idle');
+  const quoteRequestIdRef = useRef(0);
 
   const amountNum = amount === '' ? Number.NaN : Number(amount);
   const validAmount =
@@ -125,23 +126,27 @@ export function SevenKSwapPanel() {
   const mainnet = isMainnet();
   const sameCoin = coinTypeIn === coinTypeOut;
   const busy = stage === 'quoting' || stage === 'authorizing' || stage === 'executing';
-  const quoteDisabled =
-    !mainnet ||
-    !embeddedWalletAddress ||
-    walletLoading ||
-    sameCoin ||
-    !validAmount ||
-    busy;
+  const canRequestQuote =
+    mainnet &&
+    Boolean(embeddedWalletAddress) &&
+    !walletLoading &&
+    !sameCoin &&
+    validAmount;
 
-  const clearReview = () => {
+  const clearReview = useCallback(() => {
+    quoteRequestIdRef.current += 1;
     setQuote(null);
     setTxDigest(null);
     setError(null);
-    if (stage === 'confirmed') setStage('idle');
-  };
+    setStage((currentStage) =>
+      currentStage === 'quoting' || currentStage === 'confirmed' ? 'idle' : currentStage,
+    );
+  }, []);
 
-  const requestQuote = async () => {
-    if (quoteDisabled || !embeddedWalletAddress) return;
+  const requestQuote = useCallback(async () => {
+    if (!canRequestQuote || !embeddedWalletAddress) return;
+    const requestId = quoteRequestIdRef.current + 1;
+    quoteRequestIdRef.current = requestId;
     setStage('quoting');
     setError(null);
     setTxDigest(null);
@@ -165,23 +170,46 @@ export function SevenKSwapPanel() {
       );
 
       if (!response.ok) {
-        setError(await getResponseError(response, 'Swap quote failed'));
+        if (quoteRequestIdRef.current === requestId) {
+          setError(await getResponseError(response, 'Swap quote failed'));
+        }
         return;
       }
 
       const payload = await response.json().catch(() => null);
       const review = parseQuoteReview(payload);
+      if (quoteRequestIdRef.current !== requestId) return;
       if (!review) {
         setError('Invalid swap quote response');
         return;
       }
       setQuote(review);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Swap quote failed');
+      if (quoteRequestIdRef.current === requestId) {
+        setError(requestError instanceof Error ? requestError.message : 'Swap quote failed');
+      }
     } finally {
-      setStage('idle');
+      if (quoteRequestIdRef.current === requestId) {
+        setStage('idle');
+      }
     }
-  };
+  }, [
+    amount,
+    canRequestQuote,
+    coinTypeIn,
+    coinTypeOut,
+    embeddedWalletAddress,
+    getAccessToken,
+    identityToken,
+  ]);
+
+  useEffect(() => {
+    if (!canRequestQuote) return;
+    const timer = window.setTimeout(() => {
+      void requestQuote();
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [canRequestQuote, requestQuote]);
 
   const executeSwap = async () => {
     if (!quote || busy) return;
@@ -335,6 +363,12 @@ export function SevenKSwapPanel() {
           {error}
         </p>
       ) : null}
+      {stage === 'quoting' ? (
+        <p className="mt-3 flex items-center gap-2 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Getting quote
+        </p>
+      ) : null}
 
       {quote ? (
         <div className="mt-3 rounded-[10px] bg-surface p-3 text-[12px]">
@@ -367,17 +401,7 @@ export function SevenKSwapPanel() {
         </p>
       ) : null}
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Button
-          type="button"
-          className="h-10 rounded-[10px] text-[13px]"
-          variant="outline"
-          disabled={quoteDisabled}
-          onClick={requestQuote}
-        >
-          {stage === 'quoting' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Get quote
-        </Button>
+      <div className="mt-3 grid gap-2">
         <Button
           type="button"
           className="h-10 rounded-[10px] text-[13px]"
