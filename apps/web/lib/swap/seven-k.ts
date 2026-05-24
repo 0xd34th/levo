@@ -6,6 +6,7 @@ import {
 import { getSuiClient } from '@/lib/sui';
 
 const DEFAULT_SLIPPAGE_BPS = 100;
+const QUOTE_TIMEOUT_MS = 7_000;
 const BPS_DENOMINATOR = 10_000n;
 
 export interface SevenKQuoteReview {
@@ -43,6 +44,11 @@ async function createMetaAg(slippageBps = DEFAULT_SLIPPAGE_BPS) {
   const sdk = await import('@7kprotocol/sdk-ts') as unknown as { MetaAg: MetaAgConstructor };
   return new sdk.MetaAg({
     fullnodeUrl: process.env.SUI_RPC_URL,
+    providers: {
+      bluefin7k: { disabled: true },
+      flowx: {},
+      cetus: {},
+    },
     slippageBps,
   });
 }
@@ -68,15 +74,14 @@ export async function getBestSevenKQuote({
   senderAddress,
 }: SevenKQuoteRequest): Promise<SevenKQuoteReview> {
   const metaAg = await createMetaAg(DEFAULT_SLIPPAGE_BPS);
-  const quotes = await metaAg.quote(
-    {
-      amountIn: amount,
-      coinTypeIn,
-      coinTypeOut,
-      signer: senderAddress,
-    },
-    { sender: senderAddress },
-  );
+  const quoteOptions = {
+    amountIn: amount,
+    coinTypeIn,
+    coinTypeOut,
+    signer: senderAddress,
+    timeout: QUOTE_TIMEOUT_MS,
+  };
+  const quotes = await metaAg.quote(quoteOptions);
   const bestQuote = quotes
     .filter((quote) => quoteOutputAmount(quote) > 0n)
     .sort((a, b) => {
