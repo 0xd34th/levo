@@ -252,7 +252,7 @@ export default function Home() {
           </>
         ) : (
           <>
-            <div className="flex-1 space-y-2 pt-4">
+            <div className="flex-1 space-y-2 pt-4 pb-40">
               <MessageList
                 messages={messages}
                 isStreaming={status === "streaming" || status === "submitted"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Wallet, AlertTriangle, Layers } from "lucide-react";
 import Image from "next/image";
 import type { PortfolioResult } from "@/lib/tools/get-portfolio";
@@ -199,32 +200,7 @@ export function PortfolioCard({ data }: { data: PortfolioResult }) {
           <div className="pf-nft-grid">
             {data.topNfts.slice(0, 4).map((n) => (
               <div key={n.objectId} className="pf-nft">
-                <div
-                  className="pf-nft-img"
-                  style={{
-                    background: n.image
-                      ? "transparent"
-                      : `oklch(72% 0.10 ${hueFromCoinType(n.objectId)})`,
-                  }}
-                >
-                  {n.image ? (
-                    <Image
-                      src={n.image}
-                      alt={n.name ?? "NFT"}
-                      fill
-                      className="pf-nft-img-fill"
-                      unoptimized
-                      sizes="(max-width: 640px) 50vw, 25vw"
-                    />
-                  ) : (
-                    <span
-                      className="mono"
-                      style={{ fontSize: 11, color: "var(--on-accent)" }}
-                    >
-                      {(n.name ?? "?")[0]}
-                    </span>
-                  )}
-                </div>
+                <NftThumb objectId={n.objectId} name={n.name} image={n.image} />
                 <div className="pf-nft-name">{n.name ?? shortAddr(n.objectId)}</div>
                 {n.estimatedValueUsd ? (
                   <div className="pf-nft-floor mono">{formatUsd(n.estimatedValueUsd)}</div>
@@ -343,5 +319,42 @@ export function PortfolioCard({ data }: { data: PortfolioResult }) {
         .pf-nft-floor { font-size: 10.5px; color: var(--fg-muted); }
       `}</style>
     </Card>
+  );
+}
+
+function NftThumb({
+  objectId,
+  name,
+  image,
+}: {
+  objectId: string;
+  name?: string;
+  image?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const fallbackColor = `oklch(72% 0.10 ${hueFromCoinType(objectId)})`;
+  const label = (name ?? "?").slice(0, 1).toUpperCase();
+
+  return (
+    <div
+      className="pf-nft-img"
+      style={{ background: image && !failed ? "var(--bg-soft)" : fallbackColor }}
+    >
+      {image && !failed ? (
+        <Image
+          src={image}
+          alt={name ?? "NFT"}
+          fill
+          className="pf-nft-img-fill"
+          unoptimized
+          sizes="(max-width: 640px) 50vw, 25vw"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="mono" style={{ fontSize: 11, color: "var(--on-accent)" }}>
+          {label}
+        </span>
+      )}
+    </div>
   );
 }
