@@ -106,6 +106,25 @@ describe("Home preset panels", () => {
     expect(chatMocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("accepts a full Move NFT collection type before seeding the prompt", async () => {
+    render(<Home />);
+
+    fireEvent.click(screen.getByRole("button", { name: /NFT collection/i }));
+
+    const ask = screen.getByRole("button", { name: /Ask AI/i }) as HTMLButtonElement;
+    expect(ask.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(/Collection type/i), {
+      target: { value: "0x2::display::Display" },
+    });
+    expect(ask.disabled).toBe(false);
+    fireEvent.click(ask);
+
+    const textarea = screen.getByPlaceholderText(/Ask anything about Sui/i) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Show me the NFT collection 0x2::display::Display");
+    expect(chatMocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("does not advertise the removed free-message quota", async () => {
     render(<Home />);
 
@@ -139,6 +158,11 @@ describe("Home preset panels", () => {
 
     render(<Home />);
     fireEvent.click(screen.getByRole("button", { name: /Swap 1 SUI/i }));
+
+    const review = screen.getByRole("button", { name: /Review swap/i }) as HTMLButtonElement;
+    expect(review.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: "1" } });
+
     fireEvent.click(screen.getByRole("button", { name: /Review swap/i }));
 
     expect((await screen.findByTestId("swap-card")).textContent).toContain("SwapCard 1 to USDC");
@@ -172,6 +196,10 @@ describe("Home preset panels", () => {
 
     render(<Home />);
     fireEvent.click(screen.getByRole("button", { name: /Send to a \.sui name/i }));
+
+    const review = screen.getByRole("button", { name: /Review send/i }) as HTMLButtonElement;
+    expect(review.disabled).toBe(true);
+    expect((screen.getByLabelText(/Amount/i) as HTMLInputElement).value).toBe("");
     fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: "1.25" } });
     fireEvent.change(screen.getByLabelText(/Recipient/i), { target: { value: recipient } });
     fireEvent.click(screen.getByRole("button", { name: /Review send/i }));
@@ -186,8 +214,11 @@ describe("Home preset panels", () => {
     render(<Home />);
 
     fireEvent.click(screen.getByRole("button", { name: /Bridge to Sui/i }));
+    const review = screen.getByRole("button", { name: /Review handoff/i }) as HTMLButtonElement;
+    expect(review.disabled).toBe(true);
     expect(window.open).not.toHaveBeenCalled();
 
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: "0.5" } });
     fireEvent.click(screen.getByRole("button", { name: /Review handoff/i }));
     fireEvent.click(screen.getByRole("button", { name: /Open Sui Bridge/i }));
 

@@ -108,15 +108,19 @@ const ONCHAIN_META: Record<
   },
   collection: {
     title: "NFT collection lookup",
-    inputLabel: "Collection ID",
-    placeholder: "0x...",
-    validate: (value) => /^0x[0-9a-fA-F]+$/.test(value),
+    inputLabel: "Collection type",
+    placeholder: "0x...::module::Collection",
+    validate: isMoveType,
     prompt: (value) => `Show me the NFT collection ${value}`,
   },
 };
 
+function isMoveType(value: string) {
+  return /^0x[0-9a-fA-F]+::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(?:<.+>)?$/.test(value);
+}
+
 function SwapPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void }) {
-  const [amountIn, setAmountIn] = useState("1");
+  const [amountIn, setAmountIn] = useState("");
   const [slippageBps, setSlippageBps] = useState("50");
   const [data, setData] = useState<PrepareSwapResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -190,7 +194,7 @@ function SwapPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void })
 }
 
 function SendPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void }) {
-  const [amount, setAmount] = useState("1");
+  const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [data, setData] = useState<PrepareTransferResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -266,8 +270,9 @@ function BridgePresetPanel() {
   const [amount, setAmount] = useState("");
   const [sourceToken, setSourceToken] = useState("ETH");
   const [reviewed, setReviewed] = useState(false);
+  const canReview = Number(amount) > 0 && sourceToken.trim() !== "";
   const summary = useMemo(
-    () => `${amount.trim() || "Any amount"} ${sourceToken.trim() || "ETH"} via official Sui Bridge`,
+    () => `${amount.trim() || "Amount"} ${sourceToken.trim() || "ETH"} via official Sui Bridge`,
     [amount, sourceToken],
   );
 
@@ -275,7 +280,7 @@ function BridgePresetPanel() {
     <PanelShell title="Bridge handoff" icon={<ExternalLink className="size-4" />}>
       <div className="preset-grid">
         <label className="preset-label">
-          <span>Amount optional</span>
+          <span>Amount</span>
           <input
             value={amount}
             onChange={(e) => {
@@ -284,7 +289,7 @@ function BridgePresetPanel() {
             }}
             className="preset-input"
             inputMode="decimal"
-            placeholder="Optional"
+            placeholder="0.5"
           />
         </label>
         <label className="preset-label">
@@ -302,7 +307,12 @@ function BridgePresetPanel() {
       <div className="preset-summary">{summary}</div>
       <div className="preset-actions">
         {!reviewed ? (
-          <button type="button" className="preset-primary" onClick={() => setReviewed(true)}>
+          <button
+            type="button"
+            className="preset-primary"
+            disabled={!canReview}
+            onClick={() => setReviewed(true)}
+          >
             Review handoff
           </button>
         ) : (
