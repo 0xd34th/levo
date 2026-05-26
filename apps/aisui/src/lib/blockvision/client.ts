@@ -1,6 +1,6 @@
 /**
  * BlockVision Sui Indexing API client.
- * Free trial = 30 calls/day —— always wrap with cache/stale fallback.
+ * Free trial = 30 calls/day —— always wrap with cache + quota.
  */
 import { env } from "@/lib/env";
 import { getStale, hashKey, withCache } from "@/lib/cache/store";

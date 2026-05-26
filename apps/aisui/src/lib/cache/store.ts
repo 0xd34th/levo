@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 interface KVAdapter {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttlSeconds?: number): Promise<void>;
+  incrBy(key: string, by: number, ttlSeconds?: number): Promise<number>;
   del(key: string): Promise<void>;
 }
 
@@ -29,6 +30,13 @@ class MemoryAdapter implements KVAdapter {
     this.map.set(key, { value, expiresAt });
   }
 
+  async incrBy(key: string, by: number, ttlSeconds?: number): Promise<number> {
+    const cur = (await this.get<number>(key)) ?? 0;
+    const next = cur + by;
+    await this.set(key, next, ttlSeconds);
+    return next;
+  }
+
   async del(key: string): Promise<void> {
     this.map.delete(key);
   }
@@ -47,6 +55,14 @@ class RedisAdapter implements KVAdapter {
     } else {
       await this.redis.set(key, value);
     }
+  }
+
+  async incrBy(key: string, by: number, ttlSeconds?: number): Promise<number> {
+    const next = await this.redis.incrby(key, by);
+    if (ttlSeconds && next === by) {
+      await this.redis.expire(key, ttlSeconds);
+    }
+    return next;
   }
 
   async del(key: string): Promise<void> {

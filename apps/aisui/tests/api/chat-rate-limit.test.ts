@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const chatMocks = vi.hoisted(() => ({
   streamText: vi.fn(),
+  consumeCredits: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -26,6 +27,9 @@ vi.mock("@/lib/mcp", () => ({ loadMcpTools: async () => ({ tools: {}, entries: [
 vi.mock("@/lib/auth/fingerprint", () => ({
   getOrCreateFingerprint: async () => "test-fingerprint",
 }));
+vi.mock("@/lib/credits/tracker", () => ({
+  consumeCredits: chatMocks.consumeCredits,
+}));
 vi.mock("@/lib/security/turnstile", () => ({
   turnstileEnabled: () => false,
   verifyTurnstile: async () => true,
@@ -46,20 +50,47 @@ function postChat() {
 describe("chat route rate limit", () => {
   beforeEach(() => {
     chatMocks.streamText.mockReset();
+    chatMocks.consumeCredits.mockReset();
+    chatMocks.consumeCredits.mockResolvedValue({
+      ok: true,
+      freeRemaining: 9,
+      paidRemaining: 0,
+      usedFree: true,
+    });
     chatMocks.streamText.mockReturnValue({
       toUIMessageStreamResponse: ({ headers }: { headers: HeadersInit }) =>
         new Response("stream", { status: 200, headers }),
     });
   });
 
-  it("does not consume or reject chat requests based on free-message quota", async () => {
+  it("consumes daily free quota and returns usage headers", async () => {
     const { POST } = await import("@/app/api/chat/route");
 
     const res = await POST(postChat());
 
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("stream");
-    expect(res.headers.get("x-aisui-credits-free")).toBeNull();
-    expect(res.headers.get("x-aisui-credits-paid")).toBeNull();
+    expect(chatMocks.consumeCredits).toHaveBeenCalledWith("test-fingerprint", "fast");
+    expect(res.headers.get("x-aisui-credits-free")).toBe("9");
+    expect(res.headers.get("x-aisui-credits-paid")).toBe("0");
+  });
+
+  it("returns 402 before calling the model when free quota is exhausted", async () => {
+    chatMocks.consumeCredits.mockResolvedValueOnce({
+      ok: false,
+      reason: "free_exhausted",
+      freeRemaining: 0,
+      paidRemaining: 0,
+    });
+    const { POST } = await import("@/app/api/chat/route");
+
+    const res = await POST(postChat());
+
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: "Free quota exhausted for today. Switch to a paid pack or come back tomorrow.",
+      usage: { freeRemaining: 0, paidRemaining: 0 },
+    });
+    expect(chatMocks.streamText).not.toHaveBeenCalled();
   });
 });

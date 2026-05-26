@@ -125,11 +125,11 @@ describe("Home preset panels", () => {
     expect(chatMocks.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("does not advertise the removed free-message quota", async () => {
+  it("advertises the restored free-message quota", async () => {
     render(<Home />);
 
-    expect(screen.queryByText(/10 free messages/i)).toBeNull();
-    expect(screen.queryByText(/^Free$/i)).toBeNull();
+    expect(screen.getByText(/10 free messages/i)).toBeTruthy();
+    expect(screen.getByText(/^Free$/i)).toBeTruthy();
   });
 
   it("opens the direct swap panel and prepares a SwapCard without sending chat", async () => {

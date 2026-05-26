@@ -31,7 +31,7 @@ describe("Header", () => {
     );
   });
 
-  it("does not show or fetch the old free-message usage quota", async () => {
+  it("shows the free-message usage quota", async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
 
     render(<Header />);
@@ -39,7 +39,8 @@ describe("Header", () => {
     await waitFor(() => {
       expect(screen.getByText("$1.23")).toBeTruthy();
     });
-    expect(screen.queryByText(/free/i)).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/auth/usage");
+    expect(screen.getByText("0")).toBeTruthy();
+    expect(screen.getByText("/10 free")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/usage");
   });
 });

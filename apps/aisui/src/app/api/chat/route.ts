@@ -4,6 +4,8 @@ import { tools as localTools } from "@/lib/tools";
 import { loadMcpTools } from "@/lib/mcp";
 import { SYSTEM_PROMPT } from "@/lib/llm/system-prompt";
 import { isModelMode, pickModel, type ModelMode } from "@/lib/llm/model-router";
+import { getOrCreateFingerprint } from "@/lib/auth/fingerprint";
+import { consumeCredits } from "@/lib/credits/tracker";
 import { verifyTurnstile, turnstileEnabled } from "@/lib/security/turnstile";
 import { env } from "@/lib/env";
 
@@ -45,6 +47,21 @@ export async function POST(req: Request) {
     }
   }
 
+  const fp = await getOrCreateFingerprint();
+  const credits = await consumeCredits(fp, mode);
+  if (!credits.ok) {
+    return NextResponse.json(
+      {
+        error:
+          credits.reason === "free_exhausted"
+            ? "Free quota exhausted for today. Switch to a paid pack or come back tomorrow."
+            : "Insufficient credits for the selected mode.",
+        usage: credits,
+      },
+      { status: 402 },
+    );
+  }
+
   const picked = pickModel(mode);
 
   // Pull MCP tools (cached). Failures are isolated; we always get an object.
@@ -71,6 +88,8 @@ export async function POST(req: Request) {
     sendReasoning: picked.reasoning,
     headers: {
       "x-aisui-mode": mode,
+      "x-aisui-credits-free": String(credits.freeRemaining),
+      "x-aisui-credits-paid": String(credits.paidRemaining),
       "x-aisui-mcp-tools": String(mcpRegistry?.entries.length ?? 0),
     },
   });

@@ -27,6 +27,9 @@ export const env = {
   upstashUrl: () => maybe("UPSTASH_REDIS_REST_URL"),
   upstashToken: () => maybe("UPSTASH_REDIS_REST_TOKEN"),
 
+  dailyFreeMessages: () => Number.parseInt(maybe("DAILY_FREE_MESSAGES", "10")!, 10),
+  dailyFreeBvCalls: () => Number.parseInt(maybe("DAILY_FREE_BV_CALLS", "200")!, 10),
+
   publicSuiNetwork: () => maybe("NEXT_PUBLIC_SUI_NETWORK", "mainnet")!,
 
   mcpServers: () => maybe("MCP_SERVERS"),
