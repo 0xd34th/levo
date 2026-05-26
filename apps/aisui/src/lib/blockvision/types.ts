@@ -15,16 +15,27 @@ export interface BVCoinDetail {
 }
 
 export interface BVCoinMarket {
-  coinType: string;
-  price: number;
+  coinType?: string;
+  price?: number;
+  priceInUsd?: string | number;
   priceChangePercentage24H?: number;
   priceChangePercentage1H?: number;
   priceChangePercentage7D?: number;
   priceChangePercentage30D?: number;
-  marketCap?: number;
-  fullyDilutedValue?: number;
-  volume24H?: number;
-  liquidity?: number;
+  marketCap?: string | number;
+  fullyDilutedValue?: string | number;
+  fdvInUsd?: string | number;
+  volume24H?: string | number;
+  liquidity?: string | number;
+  liquidityInUsd?: string | number;
+  circulating?: string;
+  supply?: string;
+  market?: {
+    hour1?: { priceChange?: string | number };
+    hour24?: { priceChange?: string | number };
+    day7?: { priceChange?: string | number };
+    day30?: { priceChange?: string | number };
+  };
   high24H?: number;
   low24H?: number;
 }

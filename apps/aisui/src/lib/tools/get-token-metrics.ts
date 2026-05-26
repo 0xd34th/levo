@@ -89,9 +89,11 @@ export async function runGetTokenMetrics(
     warnings.push(`OHLCV chart from BlockVision unavailable.`);
   }
 
+  const marketPrice = market ? readNumber(market.price, market.priceInUsd) : 0;
+
   // 3. Spot price — sourced from BlockVision; if unavailable, surface
   //    `priceSource: "partial"` so the LLM does not hallucinate a number.
-  const price = market?.price ?? 0;
+  const price = marketPrice;
   const priceSource: TokenMetricsSource = market && Number.isFinite(price) && price > 0
     ? "blockvision"
     : "partial";
@@ -108,17 +110,29 @@ export async function runGetTokenMetrics(
     scamFlag: meta.scamFlag,
     price,
     priceSource,
-    priceChange24H: market?.priceChangePercentage24H,
-    priceChange1H: market?.priceChangePercentage1H,
-    priceChange7D: market?.priceChangePercentage7D,
-    priceChange30D: market?.priceChangePercentage30D,
-    marketCap: market?.marketCap,
-    fdv: market?.fullyDilutedValue,
-    volume24H: market?.volume24H,
-    liquidity: market?.liquidity,
+    priceChange24H: readOptionalNumber(
+      market?.priceChangePercentage24H,
+      market?.market?.hour24?.priceChange,
+    ),
+    priceChange1H: readOptionalNumber(
+      market?.priceChangePercentage1H,
+      market?.market?.hour1?.priceChange,
+    ),
+    priceChange7D: readOptionalNumber(
+      market?.priceChangePercentage7D,
+      market?.market?.day7?.priceChange,
+    ),
+    priceChange30D: readOptionalNumber(
+      market?.priceChangePercentage30D,
+      market?.market?.day30?.priceChange,
+    ),
+    marketCap: readOptionalNumber(market?.marketCap),
+    fdv: readOptionalNumber(market?.fullyDilutedValue, market?.fdvInUsd),
+    volume24H: readOptionalNumber(market?.volume24H),
+    liquidity: readOptionalNumber(market?.liquidity, market?.liquidityInUsd),
     holders: undefined,
-    totalSupply: undefined,
-    circulatingSupply: undefined,
+    totalSupply: market?.supply,
+    circulatingSupply: market?.circulating,
     window: input.window,
     unavailable:
       marketUnavailable || ohlcvUnavailable
@@ -135,6 +149,19 @@ export async function runGetTokenMetrics(
       v: p.volume,
     })),
   };
+}
+
+function readNumber(...values: Array<number | string | undefined>): number {
+  return readOptionalNumber(...values) ?? 0;
+}
+
+function readOptionalNumber(...values: Array<number | string | undefined>): number | undefined {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 export const getTokenMetricsTool = tool({

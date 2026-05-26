@@ -60,6 +60,57 @@ describe("get_token_metrics", () => {
     expect(out.ohlcv[0]).toMatchObject({ o: 4.0, c: 4.21 });
   });
 
+  it("normalises the current BlockVision market/pro response shape", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/coin/detail")) {
+        return new Response(JSON.stringify({ code: 200, result: FIXTURE_DETAIL }), { status: 200 });
+      }
+      if (url.includes("/coin/market/pro")) {
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            message: "OK",
+            result: {
+              priceInUsd: "4.21",
+              marketCap: "12000000000",
+              liquidityInUsd: "450000000",
+              fdvInUsd: "13000000000",
+              circulating: "10000000000",
+              supply: "10000000000",
+              volume24H: 350000000,
+              market: {
+                hour24: { priceChange: "2.7" },
+                hour1: { priceChange: "0.4" },
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/coin/ohlcv")) {
+        return new Response(JSON.stringify({ code: 200, result: FIXTURE_OHLCV }), { status: 200 });
+      }
+      throw new Error("unexpected URL " + url);
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const out = await runGetTokenMetrics({
+      coinType: "0x2::sui::SUI:current-shape-" + Math.random(),
+      window: "24H",
+    });
+
+    expect(out.price).toBeCloseTo(4.21);
+    expect(out.priceSource).toBe("blockvision");
+    expect(out.priceChange24H).toBeCloseTo(2.7);
+    expect(out.priceChange1H).toBeCloseTo(0.4);
+    expect(out.marketCap).toBeCloseTo(12_000_000_000);
+    expect(out.fdv).toBeCloseTo(13_000_000_000);
+    expect(out.liquidity).toBeCloseTo(450_000_000);
+    expect(out.volume24H).toBeCloseTo(350_000_000);
+    expect(out.totalSupply).toBe("10000000000");
+    expect(out.circulatingSupply).toBe("10000000000");
+  });
+
   it("returns priceSource=partial (no fabricated number) when BV market data is unavailable", async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.includes("/coin/detail")) {
