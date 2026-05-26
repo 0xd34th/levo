@@ -28,7 +28,7 @@ export async function runGetRecentActivity(
 
   const data = await bvGet<{ data?: BVAccountActivity[]; items?: BVAccountActivity[] }>(
     "/account/activities",
-    { account: resolved, pageSize: input.limit },
+    { address: resolved, limit: input.limit },
     { ttl: 30, swr: 60 },
   );
   const activities = data.items ?? data.data ?? [];

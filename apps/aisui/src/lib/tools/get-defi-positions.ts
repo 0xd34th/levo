@@ -17,6 +17,7 @@ export type GetDefiPositionsInput = z.infer<typeof getDefiPositionsParams>;
 
 export interface DefiPositionsResult {
   address: string;
+  protocol?: string;
   totalValueUsd: number;
   positions: BVDefiPosition[];
   protocols: number;
@@ -35,9 +36,10 @@ export async function runGetDefiPositions(
   // to an empty payload with `unavailable: true` so the LLM can tell the user
   // honestly instead of throwing.
   try {
+    const protocol = input.protocol ?? "cetus";
     const data = await bvGet<{ protocols?: BVDefiPosition[]; data?: BVDefiPosition[] }>(
       "/account/defiPortfolio",
-      { account: resolved, protocol: input.protocol },
+      { address: resolved, protocol },
       { ttl: 60, swr: 180 },
     );
     const positions = data.protocols ?? data.data ?? [];
@@ -47,6 +49,7 @@ export async function runGetDefiPositions(
     );
     return {
       address: resolved,
+      protocol,
       totalValueUsd,
       positions,
       protocols: positions.length,
@@ -56,6 +59,7 @@ export async function runGetDefiPositions(
     if (decision.ok) {
       return {
         address: resolved,
+        protocol: input.protocol ?? "cetus",
         totalValueUsd: 0,
         positions: [],
         protocols: 0,

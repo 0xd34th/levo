@@ -14,6 +14,11 @@ function installFetch(opts: { bvStatus?: number }) {
     const u = String(url);
     if (u.includes("/account/activities")) {
       counters.bv++;
+      const parsed = new URL(u);
+      expect(parsed.searchParams.get("address")).toBeTruthy();
+      expect(parsed.searchParams.get("account")).toBeNull();
+      expect(parsed.searchParams.get("limit")).toBeTruthy();
+      expect(parsed.searchParams.get("pageSize")).toBeNull();
       if ((opts.bvStatus ?? 200) >= 400) return new Response("err", { status: opts.bvStatus });
       return new Response(
         JSON.stringify({
