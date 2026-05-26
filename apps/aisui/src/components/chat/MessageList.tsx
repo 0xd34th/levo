@@ -167,34 +167,397 @@ function AssistantAvatar() {
 }
 
 function AssistantText({
-  children,
+  text,
   streaming,
 }: {
-  children: ReactNode;
+  text: string;
   streaming?: boolean;
 }) {
   return (
     <div className={"ai-text" + (streaming ? " caret" : "")}>
-      {children}
+      <AisuiResponseText text={text} />
       <style>{`
         .ai-text {
           font-size: 14.5px;
           line-height: 1.6;
           color: var(--fg);
-          white-space: pre-wrap;
         }
-        .ai-text :global(strong) { color: var(--fg); font-weight: 600; }
-        .ai-text :global(code) {
-          font-family: var(--font-mono);
-          font-size: 0.9em;
+        .md-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .md-paragraph {
+          margin: 0;
+          color: var(--fg-mid);
+          white-space: pre-wrap;
+          max-width: 78ch;
+        }
+        .md-heading {
+          margin: 4px 0 0;
+          color: var(--fg);
+          font-weight: 650;
+          line-height: 1.35;
+          max-width: 78ch;
+        }
+        .md-heading.h2 { font-size: 15.5px; }
+        .md-heading.h3 { font-size: 14.5px; }
+        .md-list {
+          margin: 0;
+          padding-left: 20px;
+          color: var(--fg-mid);
+          max-width: 78ch;
+        }
+        .md-list li + li { margin-top: 4px; }
+        .md-separator {
+          width: min(100%, 78ch);
+          border: 0;
+          border-top: 1px solid var(--border);
+          margin: 2px 0;
+        }
+        .md-blockquote {
+          margin: 0;
+          max-width: 78ch;
+          border: 1px solid var(--border);
+          border-radius: 8px;
           background: var(--bg-soft);
-          padding: 1px 5px;
+          padding: 8px 10px;
+          color: var(--fg-muted);
+        }
+        .md-table-wrap {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+        .md-table {
+          width: 100%;
+          min-width: 460px;
+          border-collapse: separate;
+          border-spacing: 0;
+          font-size: 12px;
+          line-height: 1.45;
+        }
+        .md-table th,
+        .md-table td {
+          padding: 6px 8px;
+          border-bottom: 1px solid var(--border);
+          text-align: left;
+          vertical-align: top;
+        }
+        .md-table th:first-child,
+        .md-table td:first-child { padding-left: 0; }
+        .md-table th:last-child,
+        .md-table td:last-child { padding-right: 0; }
+        .md-table th {
+          color: var(--fg-muted);
+          font-weight: 600;
+        }
+        .md-table tr:last-child td { border-bottom: 0; }
+        .md-table td { color: var(--fg-mid); }
+        .ai-text strong { color: var(--fg); font-weight: 650; }
+        .ai-text em { color: var(--fg); font-style: italic; }
+        .ai-text code {
+          font-family: var(--font-mono);
+          font-size: 0.92em;
+          background: var(--bg-soft);
+          padding: 1px 4px;
           border-radius: 4px;
           color: var(--accent);
+          overflow-wrap: anywhere;
+        }
+        .ai-text a {
+          color: var(--accent);
+          font-weight: 600;
+          text-decoration: underline;
+          text-underline-offset: 2px;
         }
       `}</style>
     </div>
   );
+}
+
+export function AisuiResponseText({ text }: { text: string }) {
+  const blocks = parseAisuiResponseBlocks(text);
+
+  return (
+    <div className="md-stack">
+      {blocks.map((block, index) => renderAisuiResponseBlock(block, index))}
+    </div>
+  );
+}
+
+function renderAisuiResponseBlock(block: AisuiResponseBlock, index: number) {
+  if (block.type === "table") {
+    return (
+      <div key={`${block.headers.join("|")}-${index}`} className="md-table-wrap">
+        <table className="md-table">
+          <thead>
+            <tr>
+              {block.headers.map((cell, cellIndex) => (
+                <th key={`${cell}-${cellIndex}`}>{renderInlineMarkdown(cell)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, rowIndex) => (
+              <tr key={`${row.join("|")}-${rowIndex}`}>
+                {row.map((cell, cellIndex) => (
+                  <td key={`${cell}-${cellIndex}`}>{renderInlineMarkdown(cell)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  if (block.type === "list") {
+    const ListTag = block.ordered ? "ol" : "ul";
+    return (
+      <ListTag key={`${block.items.join("|")}-${index}`} className="md-list">
+        {block.items.map((line, lineIndex) => (
+          <li key={`${line}-${lineIndex}`}>{renderInlineMarkdown(line)}</li>
+        ))}
+      </ListTag>
+    );
+  }
+  if (block.type === "heading") {
+    const HeadingTag = block.level === 3 ? "h3" : "h2";
+    return (
+      <HeadingTag key={`${block.text}-${index}`} className={`md-heading h${block.level}`}>
+        {renderInlineMarkdown(block.text)}
+      </HeadingTag>
+    );
+  }
+  if (block.type === "separator") {
+    return <hr key={`separator-${index}`} className="md-separator" />;
+  }
+  if (block.type === "blockquote") {
+    return (
+      <div key={`${block.text}-${index}`} className="md-blockquote">
+        {renderInlineMarkdown(block.text)}
+      </div>
+    );
+  }
+  return (
+    <p key={`${block.text}-${index}`} className="md-paragraph">
+      {renderInlineMarkdown(block.text)}
+    </p>
+  );
+}
+
+type AisuiResponseBlock =
+  | { type: "paragraph"; text: string }
+  | { type: "heading"; level: 2 | 3; text: string }
+  | { type: "separator" }
+  | { type: "blockquote"; text: string }
+  | { type: "list"; ordered: boolean; items: string[] }
+  | { type: "table"; headers: string[]; rows: string[][] };
+
+function parseAisuiResponseBlocks(text: string): AisuiResponseBlock[] {
+  const blocks: AisuiResponseBlock[] = [];
+  let paragraph: string[] = [];
+  let list: string[] = [];
+  let listOrdered = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push({ type: "paragraph", text: paragraph.join("\n") });
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list.length) return;
+    blocks.push({ type: "list", ordered: listOrdered, items: list });
+    list = [];
+  };
+  const pushListItem = (ordered: boolean, item: string) => {
+    flushParagraph();
+    if (list.length && listOrdered !== ordered) flushList();
+    listOrdered = ordered;
+    list.push(item);
+  };
+
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    if (/^[-*_]{3,}$/.test(line)) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: "separator" });
+      continue;
+    }
+    if (/^>\s+/.test(line)) {
+      flushParagraph();
+      flushList();
+      blocks.push({ type: "blockquote", text: line.replace(/^>\s+/, "") });
+      continue;
+    }
+    const nextLine = lines[i + 1]?.trim() ?? "";
+    const headingMatch = line.match(/^(#{2,3})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length === 3 ? 3 : 2,
+        text: headingMatch[2],
+      });
+      continue;
+    }
+    if (isMarkdownTableLine(line) && isMarkdownTableSeparator(nextLine)) {
+      flushParagraph();
+      flushList();
+      const headers = parseMarkdownTableRow(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length) {
+        const rowLine = lines[i].trim();
+        if (!isMarkdownTableLine(rowLine)) {
+          i -= 1;
+          break;
+        }
+        rows.push(normalizeTableRow(parseMarkdownTableRow(rowLine), headers.length));
+        i += 1;
+      }
+      blocks.push({ type: "table", headers, rows });
+      continue;
+    }
+    if (/^[-*]\s+/.test(line)) {
+      pushListItem(false, line.replace(/^[-*]\s+/, ""));
+      continue;
+    }
+    if (/^\d+[.)]\s+/.test(line)) {
+      pushListItem(true, line.replace(/^\d+[.)]\s+/, ""));
+      continue;
+    }
+    flushList();
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  return blocks;
+}
+
+function isMarkdownTableLine(line: string): boolean {
+  return line.startsWith("|") && line.endsWith("|") && line.includes("|", 1);
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  if (!isMarkdownTableLine(line)) return false;
+  return parseMarkdownTableRow(line).every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function parseMarkdownTableRow(line: string): string[] {
+  return line
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function normalizeTableRow(row: string[], size: number): string[] {
+  if (row.length === size) return row;
+  if (row.length > size) return row.slice(0, size);
+  return [...row, ...Array.from({ length: size - row.length }, () => "")];
+}
+
+function renderInlineMarkdown(text: string): ReactNode {
+  const parts = splitInlineMarkdownLinks(text);
+  if (parts.some((part) => typeof part !== "string")) {
+    return parts.map((part, index) => {
+      if (typeof part === "string") {
+        return <span key={`${part}-${index}`}>{renderInlineMarkdown(part)}</span>;
+      }
+      return (
+        <a
+          key={`${part.href}-${index}`}
+          href={normalizeMarkdownHref(part.href)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {part.label}
+        </a>
+      );
+    });
+  }
+  return renderInlineMarkdownWithoutLinks(text);
+}
+
+function renderInlineMarkdownWithoutLinks(text: string) {
+  const parts = text.split(/(\\?`+[^`\n]+\\?`+|\*\*[^*]+\*\*|\*[^*\n]+\*)/g).filter(Boolean);
+  return parts.map((part, index) => {
+    if (/^\\?`+[^`\n]+\\?`+$/.test(part)) {
+      const codeText = part.replace(/^\\?`+/, "").replace(/\\?`+$/, "");
+      return <code key={`${part}-${index}`}>{codeText}</code>;
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>;
+    }
+    return part.replace(/\\?`/g, "");
+  });
+}
+
+function splitInlineMarkdownLinks(text: string): Array<string | { label: string; href: string }> {
+  const parts: Array<string | { label: string; href: string }> = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const labelStart = text.indexOf("[", cursor);
+    if (labelStart === -1) break;
+    const labelEnd = text.indexOf("](", labelStart + 1);
+    if (labelEnd === -1) break;
+
+    const hrefStart = labelEnd + 2;
+    const hrefEnd = findMarkdownHrefEnd(text, hrefStart);
+    if (hrefEnd === -1) {
+      cursor = labelEnd + 2;
+      continue;
+    }
+
+    if (labelStart > cursor) parts.push(text.slice(cursor, labelStart));
+    parts.push({
+      label: text.slice(labelStart + 1, labelEnd),
+      href: text.slice(hrefStart, hrefEnd),
+    });
+    cursor = hrefEnd + 1;
+  }
+
+  if (!parts.length) return [text];
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts.filter((part) =>
+    typeof part === "string" ? part.length > 0 : part.label.length > 0 && part.href.length > 0,
+  );
+}
+
+function findMarkdownHrefEnd(text: string, start: number): number {
+  let nestedParens = 0;
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === "(") {
+      nestedParens += 1;
+      continue;
+    }
+    if (text[i] !== ")") continue;
+    if (nestedParens > 0) {
+      nestedParens -= 1;
+      continue;
+    }
+    return i;
+  }
+  return -1;
+}
+
+function normalizeMarkdownHref(href: string): string {
+  const trimmed = href.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/(?!\/)/.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
 }
 
 function ToolStatusRow({
@@ -274,9 +637,7 @@ function renderPart(
     const text = (part as ToolPart & { text?: string }).text ?? "";
     if (!text.trim()) return null;
     return (
-      <AssistantText key={key}>
-        {text}
-      </AssistantText>
+      <AssistantText key={key} text={text} />
     );
   }
 

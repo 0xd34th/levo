@@ -31,7 +31,9 @@ export function ActivityList({
             <div className="flex-1 min-w-0">
               <div className="truncate text-sm">{a.summary ?? a.type ?? "Transaction"}</div>
               <div className="text-xs text-[var(--color-fg-muted)]">
-                {shortAddr(a.digest, 8, 6)} · {a.timestamp ? new Date(a.timestamp).toLocaleString() : ""}
+                {[shortAddr(a.digest, 8, 6), formatActivityTime(a.timestamp)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
             </div>
           </button>
@@ -42,4 +44,12 @@ export function ActivityList({
       </div>
     </Card>
   );
+}
+
+function formatActivityTime(timestamp?: number) {
+  if (!timestamp) return "";
+  const ms = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
 }
