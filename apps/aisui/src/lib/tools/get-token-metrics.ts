@@ -6,6 +6,8 @@ import type { BVCoinMarket, BVOhlcvPoint } from "@/lib/blockvision/types";
 import { resolveCoinMetadata } from "@/lib/sui/coin-metadata";
 
 const SUI_COIN = "0x2::sui::SUI";
+const BV_NATIVE_SUI_COIN =
+  "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI";
 
 export const getTokenMetricsParams = z.object({
   coinType: z
@@ -63,13 +65,14 @@ export async function runGetTokenMetrics(
   // 1. Metadata — resolveCoinMetadata already cascades BV → Sui RPC, so this
   //    succeeds whenever the coin actually exists on-chain.
   const meta = await resolveCoinMetadata(coinType);
+  const bvCoinType = toBlockvisionCoinType(coinType);
 
   // 2. Market metrics + OHLCV — both come from BV; degrade gracefully on failure.
   const [marketSettled, ohlcvSettled] = await Promise.allSettled([
-    bvGet<BVCoinMarket>("/coin/market/pro", { coinType }, { ttl: 60, swr: 120 }),
+    bvGet<BVCoinMarket>("/coin/market/pro", { coinType: bvCoinType }, { ttl: 60, swr: 120 }),
     bvGet<BVOhlcvPoint[] | { items?: BVOhlcvPoint[] }>(
       "/coin/ohlcv",
-      { coinType, period: input.window },
+      { coinType: bvCoinType, period: input.window },
       { ttl: 120, swr: 300 },
     ),
   ]);
@@ -153,6 +156,10 @@ export async function runGetTokenMetrics(
 
 function readNumber(...values: Array<number | string | undefined>): number {
   return readOptionalNumber(...values) ?? 0;
+}
+
+function toBlockvisionCoinType(coinType: string): string {
+  return coinType === SUI_COIN ? BV_NATIVE_SUI_COIN : coinType;
 }
 
 function readOptionalNumber(...values: Array<number | string | undefined>): number | undefined {

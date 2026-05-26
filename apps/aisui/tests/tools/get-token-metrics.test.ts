@@ -61,11 +61,13 @@ describe("get_token_metrics", () => {
   });
 
   it("normalises the current BlockVision market/pro response shape", async () => {
+    const marketUrls: string[] = [];
     const fetchMock = vi.fn(async (url: string) => {
       if (url.includes("/coin/detail")) {
         return new Response(JSON.stringify({ code: 200, result: FIXTURE_DETAIL }), { status: 200 });
       }
       if (url.includes("/coin/market/pro")) {
+        marketUrls.push(url);
         return new Response(
           JSON.stringify({
             code: 200,
@@ -95,10 +97,13 @@ describe("get_token_metrics", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const out = await runGetTokenMetrics({
-      coinType: "0x2::sui::SUI:current-shape-" + Math.random(),
+      coinType: "0x2::sui::SUI",
       window: "24H",
     });
 
+    expect(decodeURIComponent(marketUrls[0])).toContain(
+      "coinType=0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+    );
     expect(out.price).toBeCloseTo(4.21);
     expect(out.priceSource).toBe("blockvision");
     expect(out.priceChange24H).toBeCloseTo(2.7);
