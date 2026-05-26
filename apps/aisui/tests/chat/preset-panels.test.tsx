@@ -210,6 +210,44 @@ describe("Home preset panels", () => {
     expect(chatMocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("lets the direct send panel prepare a USDC transfer", async () => {
+    const recipient = "0x" + "c".repeat(64);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/auth/fingerprint") return jsonResponse({ ok: true });
+      if (url === "/api/prepare-transfer") {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          toAddressOrName: recipient,
+          coinType: USDC,
+          amount: "2.50",
+        });
+        return jsonResponse({
+          recipient,
+          coinType: USDC,
+          symbol: "USDC",
+          decimals: 6,
+          amount: "2.50",
+          amountRaw: "2500000",
+          warnings: [],
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: /Send to a \.sui name/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /USDC/i }));
+    fireEvent.change(screen.getByLabelText(/Amount/i), { target: { value: "2.50" } });
+    fireEvent.change(screen.getByLabelText(/Recipient/i), { target: { value: recipient } });
+    fireEvent.click(screen.getByRole("button", { name: /Review send/i }));
+
+    expect((await screen.findByTestId("transfer-card")).textContent).toContain(
+      `TransferCard 2.50 USDC to ${recipient}`,
+    );
+    expect(chatMocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("requires bridge handoff review before opening the official Sui Bridge", async () => {
     render(<Home />);
 

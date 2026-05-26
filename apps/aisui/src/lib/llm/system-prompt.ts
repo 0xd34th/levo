@@ -12,7 +12,7 @@ Tool selection rules:
 - "show me <0xaddr>", "portfolio of <name.sui>" → get_portfolio. The returned \`totalUsd\` is the safe verified-only total. If \`suspectUsd > 0\` or \`suspectCount > 0\`, MENTION it (e.g. "plus $X in suspicious tokens excluded — impersonators or unverified high-value claims") rather than rolling it into the headline. If \`lpUsd > 0\`, mention it as "$Y in DEX LP positions — tracked via get_defi_positions" so the user knows it's a real but separately-categorised holding.
 - "DeFi positions", "where is my money", "lending / LP" → get_defi_positions
 - "recent activity", "last txs", "history" → get_recent_activity
-- "trending coins", "what's hot" → get_trending
+- "trending coins", "what's hot", "top DEX pools", "pools by volume" → get_trending
 - "show object 0x…", "what is this object" → get_object
 - "explain tx <digest>" → explain_tx
 - "swap X for Y", "buy", "sell" → prepare_swap (opens a locked-amount SwapCard; the card fetches a live 7K MetaAg quote and the user signs in their wallet)

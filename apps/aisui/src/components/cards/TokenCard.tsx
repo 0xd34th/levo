@@ -1,7 +1,7 @@
 "use client";
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
-import { ArrowLeftRight, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { TokenMetricsResult } from "@/lib/tools/get-token-metrics";
 import { Card, StatRow, TokenLogo, VerifiedTick } from "./Card";
 import { formatPct, formatUsd, formatNumber, cn } from "@/lib/utils";
@@ -120,11 +120,6 @@ export function TokenCard({ data }: { data: TokenMetricsResult }) {
       </div>
 
       <div className="tk-actions">
-        <button type="button" className="ai-btn primary">
-          <ArrowLeftRight size={12} /> Swap
-        </button>
-        <button type="button" className="ai-btn ghost">Holders</button>
-        <button type="button" className="ai-btn ghost">Pools</button>
         <a
           className="ai-btn link"
           href={`https://suivision.xyz/coin/${encodeURIComponent(data.coinType)}`}
@@ -187,14 +182,6 @@ export function TokenCard({ data }: { data: TokenMetricsResult }) {
           cursor: pointer;
           text-decoration: none;
         }
-        .ai-btn.primary {
-          background: var(--accent);
-          color: var(--on-accent);
-          border-color: transparent;
-          font-weight: 600;
-        }
-        .ai-btn.primary:hover { background: var(--accent-2); }
-        .ai-btn.ghost:hover { background: var(--bg-elev); }
         .ai-btn.link {
           background: transparent;
           border-color: transparent;

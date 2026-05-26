@@ -12,6 +12,10 @@ const SUI_COIN = "0x2::sui::SUI";
 const NATIVE_USDC =
   "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
 const SUI_BRIDGE_URL = "https://bridge.sui.io/";
+const SEND_COIN_OPTIONS = [
+  { symbol: "SUI", label: "SUI", coinType: SUI_COIN },
+  { symbol: "USDC", label: "USDC", coinType: NATIVE_USDC },
+] as const;
 
 export type OnchainPreset = "object" | "digest" | "collection";
 export type TradeSurface = "swap" | "send" | "bridge";
@@ -194,11 +198,13 @@ function SwapPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void })
 }
 
 function SendPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void }) {
+  const [coinType, setCoinType] = useState<string>(SUI_COIN);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [data, setData] = useState<PrepareTransferResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const selectedCoin = SEND_COIN_OPTIONS.find((coin) => coin.coinType === coinType) ?? SEND_COIN_OPTIONS[0];
 
   const canReview = amount.trim() !== "" && recipient.trim() !== "";
 
@@ -213,7 +219,7 @@ function SendPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void })
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           toAddressOrName: recipient.trim(),
-          coinType: SUI_COIN,
+          coinType,
           amount: amount.trim(),
         }),
       });
@@ -229,6 +235,27 @@ function SendPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void })
 
   return (
     <PanelShell title="Direct send review" icon={<Send className="size-4" />}>
+      <div className="preset-fieldset">
+        <div className="preset-label-text">Coin</div>
+        <div className="preset-segmented" role="radiogroup" aria-label="Coin">
+          {SEND_COIN_OPTIONS.map((coin) => (
+            <button
+              key={coin.coinType}
+              type="button"
+              role="radio"
+              aria-checked={coinType === coin.coinType}
+              className={coinType === coin.coinType ? "preset-segment active" : "preset-segment"}
+              onClick={() => {
+                setCoinType(coin.coinType);
+                setData(null);
+                setError(null);
+              }}
+            >
+              {coin.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="preset-grid">
         <label className="preset-label">
           <span>Amount</span>
@@ -249,7 +276,7 @@ function SendPresetPanel({ onReceipt }: { onReceipt: (digest: string) => void })
           />
         </label>
       </div>
-      <div className="preset-summary">Coin: SUI</div>
+      <div className="preset-summary">Coin: {selectedCoin.symbol}</div>
       <div className="preset-actions">
         <button type="button" className="preset-primary" disabled={!canReview || busy} onClick={review}>
           {busy ? "Reviewing..." : "Review send"}
@@ -384,6 +411,39 @@ function PresetStyles() {
         min-width: 0;
         font-size: 11.5px;
         color: var(--fg-muted);
+      }
+      .preset-fieldset {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .preset-label-text {
+        font-size: 11.5px;
+        color: var(--fg-muted);
+      }
+      .preset-segmented {
+        display: inline-flex;
+        width: fit-content;
+        gap: 2px;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-soft);
+      }
+      .preset-segment {
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--fg-muted);
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .preset-segment.active {
+        background: var(--card-hi);
+        color: var(--fg);
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
       }
       .preset-input {
         width: 100%;
