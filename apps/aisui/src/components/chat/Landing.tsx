@@ -1,33 +1,42 @@
 "use client";
 
 import { Zap, Box, ArrowLeftRight, Sparkles } from "lucide-react";
-import { ChipRow, FootStat, type Chip } from "./ChipBar";
+import { ChipRow, FootStat, type Chip, type PresetCommand } from "./ChipBar";
 
 interface LandingProps {
-  onPick: (prompt: string) => void;
+  onPick: (command: PresetCommand) => void;
 }
 
 const MARKETS: Chip[] = [
-  { emoji: "📈", label: "SUI price", prompt: "How is SUI performing today?" },
-  { emoji: "🔥", label: "Trending coins", prompt: "What coins are trending on Sui in the last 24 hours?" },
-  { emoji: "🏊", label: "Top DEX pools", prompt: "Show me the top DEX pools on Sui by volume." },
+  { emoji: "📈", label: "SUI price", command: { kind: "prompt", prompt: "How is SUI performing today?" } },
+  {
+    emoji: "🔥",
+    label: "Trending coins",
+    command: { kind: "prompt", prompt: "What coins are trending on Sui in the last 24 hours?" },
+  },
+  {
+    emoji: "🏊",
+    label: "Top DEX pools",
+    command: { kind: "prompt", prompt: "Show me the top DEX pools on Sui by volume." },
+  },
 ];
 
 const WALLET: Chip[] = [
-  { emoji: "💼", label: "My portfolio", prompt: "Show me my portfolio" },
-  { emoji: "📜", label: "Recent activity", prompt: "Show my recent activity" },
-  { emoji: "🌊", label: "DeFi positions", prompt: "Show my DeFi positions" },
+  { emoji: "💼", label: "My portfolio", command: { kind: "prompt", prompt: "Show me my portfolio" } },
+  { emoji: "📜", label: "Recent activity", command: { kind: "prompt", prompt: "Show my recent activity" } },
+  { emoji: "🌊", label: "DeFi positions", command: { kind: "prompt", prompt: "Show my DeFi positions" } },
 ];
 
 const ONCHAIN: Chip[] = [
-  { emoji: "🧊", label: "Object lookup", prompt: "What is the Sui object " },
-  { emoji: "🔍", label: "Explain a digest", prompt: "Explain transaction " },
-  { emoji: "🖼", label: "NFT collection", prompt: "Show me the NFT collection " },
+  { emoji: "🧊", label: "Object lookup", command: { kind: "onchain", preset: "object" } },
+  { emoji: "🔍", label: "Explain a digest", command: { kind: "onchain", preset: "digest" } },
+  { emoji: "🖼", label: "NFT collection", command: { kind: "onchain", preset: "collection" } },
 ];
 
 const TRADE: Chip[] = [
-  { emoji: "🔄", label: "Swap 1 SUI → USDC", prompt: "Quote me a swap of 1 SUI to USDC" },
-  { emoji: "✈️", label: "Send to a .sui name", prompt: "Send 1 SUI to alice.sui" },
+  { emoji: "🔄", label: "Swap 1 SUI → USDC", command: { kind: "surface", surface: "swap" } },
+  { emoji: "✈️", label: "Send to a .sui name", command: { kind: "surface", surface: "send" } },
+  { emoji: "🌉", label: "Bridge to Sui", command: { kind: "surface", surface: "bridge" } },
 ];
 
 export function Landing({ onPick }: LandingProps) {

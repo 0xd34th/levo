@@ -5,13 +5,18 @@ import type { ReactNode } from "react";
 
 export interface Chip {
   label: string;
-  prompt: string;
+  command: PresetCommand;
   emoji?: string;
 }
 
+export type PresetCommand =
+  | { kind: "prompt"; prompt: string }
+  | { kind: "onchain"; preset: "object" | "digest" | "collection" }
+  | { kind: "surface"; surface: "swap" | "send" | "bridge" };
+
 interface ChipBarProps {
   chips: Chip[];
-  onPick: (prompt: string) => void;
+  onPick: (command: PresetCommand) => void;
   className?: string;
 }
 
@@ -23,7 +28,7 @@ export function ChipBar({ chips, onPick, className }: ChipBarProps) {
           key={c.label}
           type="button"
           className="cr-chip"
-          onClick={() => onPick(c.prompt)}
+          onClick={() => onPick(c.command)}
         >
           {c.emoji ? <span className="cr-chip-emoji">{c.emoji}</span> : null}
           {c.label}
@@ -57,7 +62,7 @@ export function ChipBar({ chips, onPick, className }: ChipBarProps) {
 interface ChipRowProps {
   label: string;
   chips: Chip[];
-  onPick: (prompt: string) => void;
+  onPick: (command: PresetCommand) => void;
 }
 
 export function ChipRow({ label, chips, onPick }: ChipRowProps) {

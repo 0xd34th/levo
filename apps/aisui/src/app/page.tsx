@@ -8,6 +8,8 @@ import { Header } from "@/components/Header";
 import { Composer } from "@/components/chat/Composer";
 import { Landing } from "@/components/chat/Landing";
 import { MessageList } from "@/components/chat/MessageList";
+import { PresetPanel, type OnchainPreset, type TradeSurface } from "@/components/chat/PresetPanels";
+import type { PresetCommand } from "@/components/chat/ChipBar";
 import type { ModelMode } from "@/lib/llm/model-router";
 import type { ExplainedTx } from "@/lib/sui/ptb-explainer";
 import { useTurnstile } from "@/lib/security/use-turnstile";
@@ -18,6 +20,8 @@ export default function Home() {
   const account = useCurrentAccount();
   const [mode, setMode] = useState<ModelMode>("fast");
   const [composerSeed, setComposerSeed] = useState<string | undefined>(undefined);
+  const [activePreset, setActivePreset] = useState<OnchainPreset | null>(null);
+  const [activeSurface, setActiveSurface] = useState<TradeSurface | null>(null);
   const [challengeError, setChallengeError] = useState<string | null>(null);
   const [walletPromptOpen, setWalletPromptOpen] = useState(false);
   const { getToken: getTurnstileToken, containerRef: turnstileRef } = useTurnstile(TURNSTILE_SITEKEY);
@@ -81,10 +85,34 @@ export default function Home() {
 
   const onChipFromCard = useCallback(
     (text: string) => {
+      setActivePreset(null);
+      setActiveSurface(null);
       setComposerSeed(text);
     },
     [],
   );
+
+  const onPresetCommand = useCallback((command: PresetCommand) => {
+    if (command.kind === "prompt") {
+      setActivePreset(null);
+      setActiveSurface(null);
+      setComposerSeed(command.prompt);
+      return;
+    }
+    if (command.kind === "onchain") {
+      setActivePreset(command.preset);
+      setActiveSurface(null);
+      return;
+    }
+    setActiveSurface(command.surface);
+    setActivePreset(null);
+  }, []);
+
+  const onPresetPrompt = useCallback((prompt: string) => {
+    setActivePreset(null);
+    setActiveSurface(null);
+    setComposerSeed(prompt);
+  }, []);
 
   const onReceipt = useCallback(
     async (digest: string) => {
@@ -197,8 +225,16 @@ export default function Home() {
       <main className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-32 pt-2">
         {empty ? (
           <>
-            <Landing onPick={onChipFromCard} />
+            <Landing onPick={onPresetCommand} />
             <div className="mx-auto mt-2 w-full max-w-[600px]">
+              <div className={activePreset || activeSurface ? "mb-3" : ""}>
+                <PresetPanel
+                  onchainPreset={activePreset}
+                  tradeSurface={activeSurface}
+                  onPrompt={onPresetPrompt}
+                  onReceipt={onReceipt}
+                />
+              </div>
               <Composer
                 onSubmit={submit}
                 status={status}
