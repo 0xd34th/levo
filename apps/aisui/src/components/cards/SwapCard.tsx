@@ -66,7 +66,12 @@ export function SwapCard({
 
   // Quote: refetch on inputs / signer / refreshTick; auto-refresh every 30s.
   useEffect(() => {
-    if (!amountValid) return;
+    if (!amountValid || !account?.address) {
+      setQuoting(false);
+      setQuoteError(null);
+      setBestQuote(null);
+      return;
+    }
     const myReq = ++reqIdRef.current;
     let cancelled = false;
     setQuoting(true);
@@ -77,7 +82,7 @@ export function SwapCard({
           coinTypeIn: data.tokenIn.coinType,
           coinTypeOut: data.tokenOut.coinType,
           amountIn: amountInRaw,
-          signer: account?.address,
+          signer: account.address,
         });
         if (cancelled || myReq !== reqIdRef.current) return;
         const usable = quotes
