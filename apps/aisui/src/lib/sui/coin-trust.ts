@@ -120,8 +120,8 @@ export function classifyCoin(coin: BVAccountCoin): CoinTrustVerdict {
 
   if (coin.verified === true) return { trust: "verified" };
 
-  const usd = coin.usdValue ?? 0;
-  const change = coin.priceChangePercentage24H;
+  const usd = toFiniteNumber(coin.usdValue);
+  const change = toFiniteNumber(coin.priceChangePercentage24H);
   if (
     change !== undefined &&
     Number.isFinite(change) &&
@@ -141,4 +141,13 @@ export function classifyCoin(coin: BVAccountCoin): CoinTrustVerdict {
   }
 
   return { trust: "unverified" };
+}
+
+function toFiniteNumber(value: number | string | undefined): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }

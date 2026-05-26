@@ -53,11 +53,11 @@ export interface BVAccountCoin {
   coinType: string;
   name?: string;
   symbol: string;
-  decimals: number;
+  decimals: number | string;
   balance: string;
-  usdValue?: number;
-  price?: number;
-  priceChangePercentage24H?: number;
+  usdValue?: number | string;
+  price?: number | string;
+  priceChangePercentage24H?: number | string;
   logo?: string;
   verified?: boolean;
 }
@@ -70,7 +70,7 @@ export interface BVAccountNftItem {
   image?: string;
   collection?: string;
   collectionName?: string;
-  estimatedValueUsd?: number;
+  estimatedValueUsd?: number | string;
 }
 
 export interface BVAccountActivity {

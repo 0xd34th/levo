@@ -68,6 +68,56 @@ describe("get_portfolio", () => {
     expect(out.coinCount).toBe(1);
   });
 
+  it("normalizes provider numeric strings before totals and card output", async () => {
+    installFetchScenario({
+      bvCoins: [
+        {
+          coinType: "0x2::sui::SUI",
+          symbol: "SUI",
+          decimals: "9",
+          balance: "1000000000",
+          usdValue: "1.25",
+          price: "1.25",
+          priceChangePercentage24H: "0.5",
+          verified: true,
+        },
+        {
+          coinType: "0xrandom::dust::TOK",
+          symbol: "TOK",
+          decimals: "6",
+          balance: "1000000",
+          usdValue: "0.75",
+          price: "0.75",
+          priceChangePercentage24H: "-1.2",
+          verified: false,
+        },
+      ],
+    });
+
+    const out = await runGetPortfolio({
+      addressOrName: ADDRESS + Math.random(),
+      includeNfts: false,
+      limit: 10,
+    });
+
+    expect(out.totalUsd).toBe(1.25);
+    expect(out.unverifiedUsd).toBe(0.75);
+    expect(out.topCoins[0]).toMatchObject({
+      symbol: "SUI",
+      decimals: 9,
+      usdValue: 1.25,
+      price: 1.25,
+      priceChange24H: 0.5,
+    });
+    expect(out.topCoins[1]).toMatchObject({
+      symbol: "TOK",
+      decimals: 6,
+      usdValue: 0.75,
+      price: 0.75,
+      priceChange24H: -1.2,
+    });
+  });
+
   it("re-throws when BlockVision fails (no fallback wired)", async () => {
     installFetchScenario({ bvCoinsStatus: 429 });
     await expect(

@@ -107,7 +107,7 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
   let lpUsd = 0;
   let lpCount = 0;
   for (const { coin, verdict } of classified) {
-    const usd = coin.usdValue ?? 0;
+    const usd = toFiniteNumber(coin.usdValue);
     switch (verdict.trust) {
       case "verified":
         totalUsd += usd;
@@ -127,7 +127,7 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
   }
 
   const sortedCoins = [...classified].sort(
-    (a, b) => (b.coin.usdValue ?? 0) - (a.coin.usdValue ?? 0),
+    (a, b) => toFiniteNumber(b.coin.usdValue) - toFiniteNumber(a.coin.usdValue),
   );
 
   return {
@@ -146,11 +146,11 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
       coinType: c.coinType,
       symbol: c.symbol ?? "?",
       name: c.name,
-      decimals: c.decimals ?? 9,
+      decimals: toSafeDecimals(c.decimals),
       balance: c.balance,
-      usdValue: c.usdValue ?? 0,
-      price: c.price,
-      priceChange24H: c.priceChangePercentage24H,
+      usdValue: toFiniteNumber(c.usdValue),
+      price: maybeFiniteNumber(c.price),
+      priceChange24H: maybeFiniteNumber(c.priceChangePercentage24H),
       logo: c.logo,
       verified: c.verified,
       trust: verdict.trust,
@@ -162,9 +162,27 @@ export async function runGetPortfolio(input: GetPortfolioInput): Promise<Portfol
       name: n.name,
       image: n.image,
       collection: n.collectionName ?? n.collection,
-      estimatedValueUsd: n.estimatedValueUsd,
+      estimatedValueUsd: maybeFiniteNumber(n.estimatedValueUsd),
     })),
   };
+}
+
+function toFiniteNumber(value: number | string | undefined): number {
+  return maybeFiniteNumber(value) ?? 0;
+}
+
+function maybeFiniteNumber(value: number | string | undefined): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function toSafeDecimals(value: number | string | undefined): number {
+  const decimals = toFiniteNumber(value);
+  return Number.isInteger(decimals) && decimals >= 0 ? decimals : 9;
 }
 
 export const getPortfolioTool = tool({
