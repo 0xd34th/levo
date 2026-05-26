@@ -10,27 +10,16 @@ interface SuiPriceState {
   priceChange24H?: number;
 }
 
-interface UsageState {
-  freeRemaining: number;
-  freeLimit: number;
-  paidRemaining: number;
-}
-
 export function Header() {
   const [price, setPrice] = useState<SuiPriceState | null>(null);
-  const [usage, setUsage] = useState<UsageState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
       try {
-        const [pRes, uRes] = await Promise.all([
-          fetch("/api/sui-price").then((r) => (r.ok ? r.json() : null)),
-          fetch("/api/auth/usage").then((r) => (r.ok ? r.json() : null)),
-        ]);
+        const pRes = await fetch("/api/sui-price").then((r) => (r.ok ? r.json() : null));
         if (cancelled) return;
         if (pRes) setPrice(pRes as SuiPriceState);
-        if (uRes) setUsage(uRes as UsageState);
       } catch {
         /* ignore */
       }
@@ -53,7 +42,6 @@ export function Header() {
       </div>
       <div className="aisui-header-r">
         <ThemeToggle />
-        {usage ? <UsageChip remaining={usage.freeRemaining} limit={usage.freeLimit} /> : null}
         <div className="aisui-wallet-slot">
           <ConnectButton connectText="Connect wallet" />
         </div>
@@ -180,44 +168,5 @@ function Triangle({ dir }: { dir: "up" | "down" }) {
     <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M12 19 4 9h16z" />
     </svg>
-  );
-}
-
-function UsageChip({ remaining, limit }: { remaining: number; limit: number }) {
-  const pct = Math.max(0, Math.min(1, remaining / limit));
-  return (
-    <div className="usage-chip">
-      <div className="usage-bar">
-        <div className="usage-fill" style={{ width: `${pct * 100}%` }} />
-      </div>
-      <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>
-        <span className="mono tabular" style={{ color: "var(--fg-mid)" }}>{remaining}</span>/{limit} free
-      </span>
-      <style>{`
-        .usage-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 5px 10px;
-          border-radius: 8px;
-        }
-        .usage-bar {
-          width: 36px;
-          height: 3px;
-          border-radius: 2px;
-          background: var(--bg-elev);
-          overflow: hidden;
-        }
-        .usage-fill {
-          height: 100%;
-          background: var(--accent);
-          border-radius: 2px;
-          transition: width 200ms ease;
-        }
-        @media (max-width: 768px) {
-          .usage-chip { display: none; }
-        }
-      `}</style>
-    </div>
   );
 }

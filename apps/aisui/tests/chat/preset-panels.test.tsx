@@ -106,6 +106,13 @@ describe("Home preset panels", () => {
     expect(chatMocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("does not advertise the removed free-message quota", async () => {
+    render(<Home />);
+
+    expect(screen.queryByText(/10 free messages/i)).toBeNull();
+    expect(screen.queryByText(/^Free$/i)).toBeNull();
+  });
+
   it("opens the direct swap panel and prepares a SwapCard without sending chat", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

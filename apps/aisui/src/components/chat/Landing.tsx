@@ -68,7 +68,7 @@ export function Landing({ onPick }: LandingProps) {
         <FootStat icon={<Zap size={11} />} label="Sub-second streaming" />
         <FootStat icon={<Box size={11} />} label="Sui-native: PTB, Objects, SuiNS" />
         <FootStat icon={<ArrowLeftRight size={11} />} label="7K SwapCard routing" />
-        <FootStat icon={<Sparkles size={11} />} label="10 free messages / day" />
+        <FootStat icon={<Sparkles size={11} />} label="No app message cap" />
       </div>
 
       <style>{`

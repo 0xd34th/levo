@@ -16,7 +16,7 @@ export function ModeMenu({
         <Zap className="size-3" />
       </span>
       Fast
-      <span className="mp-cost mono">Free</span>
+      <span className="mp-cost mono">Live</span>
       <style>{`
         .mode-pill {
           display: inline-flex;

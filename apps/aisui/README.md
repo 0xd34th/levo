@@ -29,7 +29,6 @@ Browser (Next.js 15)
 - 远程 MCP 工具：通过 `MCP_SERVERS` env 接任意 MCP server（stdio / SSE / streamable HTTP）
 - 单档模型路由（DeepSeek `deepseek-chat`，可由 `DEFAULT_PROVIDER` 覆盖）
 - 缓存层：Upstash KV（缺省回落到内存），TTL + stale-while-revalidate
-- 配额护栏：per-fingerprint 每日免费消息上限，避免 BlockVision 30 calls/day Free trial 被打爆
 - 钱包门禁：未连接 Sui 钱包时无法发起 chat（前端弹连接 modal，后端返回 401）
 
 ## 本地运行
@@ -72,7 +71,6 @@ pnpm dlx vercel
 ## 架构要点
 
 - `src/lib/cache/store.ts` — 全部外部调用先过 `withCache(key, fetcher, { ttl, swr })`；Upstash 不可用时落内存
-- `src/lib/cache/quota.ts` — 按 fingerprint + 当天计数，超限返回 402
 - `src/lib/blockvision/client.ts` — BlockVision 客户端，重试 + 兜底返回 stale 缓存
 - `src/lib/sui/ptb-explainer.ts` — PTB → 自然语言反编译
 - `src/components/cards/SwapCard.tsx` — 用 7K MetaAg 获取实时 swap 路由，过滤 OKX provider，并通过 dapp-kit 让用户签名
