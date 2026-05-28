@@ -27,6 +27,7 @@ export function AgentComposerWorkbench({
 }) {
   const searchParams = useSearchParams();
   const intent = searchParams.get('intent');
+  const initialSurface = parseTradeSurface(searchParams.get('surface'));
   const [proposal, setProposal] = useState<Proposal | null>(() =>
     initialProposal(initialConfig, intent),
   );
@@ -48,7 +49,7 @@ export function AgentComposerWorkbench({
           </p>
         </div>
         <div className="min-h-0 flex-1 pt-4">
-          <AgentChatPanel onMandateCreated={() => {}} />
+          <AgentChatPanel onMandateCreated={() => {}} initialSurface={initialSurface} />
         </div>
       </section>
       {settingsOpen ? (
@@ -100,6 +101,10 @@ export function AgentComposerWorkbench({
       )}
     </div>
   );
+}
+
+function parseTradeSurface(value: string | null): 'swap' | 'send' | 'bridge' | null {
+  return value === 'swap' || value === 'send' || value === 'bridge' ? value : null;
 }
 
 function initialProposal(config: AgentMandateConfig | undefined, intent: string | null): Proposal | null {

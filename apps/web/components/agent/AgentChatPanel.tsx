@@ -25,6 +25,7 @@ import { SevenKSwapPanel } from './SevenKSwapPanel';
 
 interface Props {
   onMandateCreated: () => void | Promise<void>;
+  initialSurface?: TradeSurface | null;
 }
 
 type OnChainPresetKind = 'object' | 'digest' | 'collection';
@@ -141,14 +142,14 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
 
 // Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
 // tools with mandate inspection/handoff while keeping signing outside chat.
-export function AgentChatPanel({ onMandateCreated }: Props) {
+export function AgentChatPanel({ onMandateCreated, initialSurface = null }: Props) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
 
   const [input, setInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [activePreset, setActivePreset] = useState<OnChainPresetDescriptor | null>(null);
-  const [activeSurface, setActiveSurface] = useState<TradeSurface | null>(null);
+  const [activeSurface, setActiveSurface] = useState<TradeSurface | null>(initialSurface);
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({

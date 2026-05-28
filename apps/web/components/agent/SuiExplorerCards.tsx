@@ -263,6 +263,7 @@ function NftCollectionCard({ data }: { data: AnyRecord }) {
 function WriteCard({ data }: { data: AnyRecord }) {
   const action = stringValue(data.action, 'action');
   const icon = action === 'transfer' ? <Send className="size-4" /> : action === 'swap' ? <Repeat2 className="size-4" /> : <ExternalLink className="size-4" />;
+  const href = typeof data.href === 'string' ? data.href : null;
   return (
     <Shell icon={icon} title={`${capitalize(action)} prepared`} subtitle={stringValue(data.status)}>
       <div className="grid gap-2">
@@ -298,6 +299,14 @@ function WriteCard({ data }: { data: AnyRecord }) {
         >
           Open route <ExternalLink className="ml-1 size-3" />
         </a>
+      ) : null}
+      {href ? (
+        <Link
+          href={href}
+          className={cn(buttonVariants({ size: 'sm' }), 'mt-3')}
+        >
+          {action === 'swap' ? 'Open swap panel' : 'Open local panel'}
+        </Link>
       ) : null}
     </Shell>
   );

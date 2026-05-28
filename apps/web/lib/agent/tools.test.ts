@@ -250,7 +250,7 @@ describe('buildAgentTools', () => {
     vi.useRealTimers();
   });
 
-  it('maps USDC symbol aliases before preparing swap cards', async () => {
+  it('maps USDC symbol aliases before opening the local swap panel', async () => {
     vi.stubEnv('SUIVISION_API_KEY', 'test-key');
     vi.stubGlobal(
       'fetch',
@@ -283,10 +283,14 @@ describe('buildAgentTools', () => {
 
     expect(output).toMatchObject({
       kind: 'write-card',
+      action: 'swap',
+      status: 'open_local_surface',
+      href: '/agent/new?surface=swap',
       amountInHuman: '1',
       tokenOut: { coinType: MAINNET_USDC_COIN, symbol: 'USDC', decimals: 6 },
-      message: 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
+      message: 'Open the local swap panel to quote and execute with explicit wallet approval.',
     });
+    expect(output.attempts).toBeUndefined();
   });
 });
 

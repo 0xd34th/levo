@@ -33,9 +33,10 @@ vi.mock('@/components/agent/MandateProposalCard', () => ({
 }));
 
 vi.mock('@/components/agent/AgentChatPanel', () => ({
-  AgentChatPanel: () => (
+  AgentChatPanel: ({ initialSurface }: { initialSurface?: string | null }) => (
     <div>
       <p>Explore Sui or manage mandates.</p>
+      {initialSurface ? <p>Initial surface: {initialSurface}</p> : null}
       <button>Auto-harvest yield</button>
       <button>Deposit into Earn</button>
       <button>Withdraw from Earn</button>
@@ -159,6 +160,13 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Cadence');
     expect(markup).toContain('Expiry');
     expect(markup).toContain('The agent may');
+  });
+
+  it('/agent/new forwards the surface query to the chat panel', () => {
+    searchParams = 'surface=swap';
+    const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
+
+    expect(markup).toContain('Initial surface: swap');
   });
 
   it('Agent drawer Create tab also waits for user intent first', () => {

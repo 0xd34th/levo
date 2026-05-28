@@ -68,10 +68,6 @@ function blockvisionUrl(): string {
   return env('BLOCKVISION_API_URL', 'https://api.blockvision.org/v2/sui');
 }
 
-function publicSuiRpcUrl(): string {
-  return env('SUI_RPC_PUBLIC_FALLBACK', env('SUI_RPC_URL', 'https://fullnode.mainnet.sui.io:443'));
-}
-
 async function cacheGet<T>(key: string): Promise<T | null> {
   const local = memoryCache.get(key);
   if (local && local.expiresAt > Date.now()) return local.value as T;
@@ -334,12 +330,6 @@ async function getOkxSwapQuote(input: {
     priceImpactPct: Number(router.priceImpactPercent ?? 0),
     raw: first,
   };
-}
-
-async function getSevenKQuote() {
-  const quoteUrl = env('SEVENK_QUOTE_URL');
-  if (!quoteUrl) throw new Error('7K quote adapter is not configured');
-  throw new Error('7K quote adapter URL is configured but not implemented for this workspace');
 }
 
 export async function loadMcpTools(): Promise<{ tools: ToolSet; entries: Array<{ name: string; ok: boolean; error?: string }> }> {
@@ -755,7 +745,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
 
     prepare_swap: tool({
       description:
-        "Prepare a swap quote card. Uses server-resolved sender address; never trusts client sender input and never broadcasts.",
+        "Open Levo's local swap panel. Never signs or broadcasts from chat; the panel handles quote, review, and explicit wallet approval.",
       inputSchema: z.object({
         tokenIn: z.string().default(SUI_COIN),
         tokenOut: z.string().min(1),
@@ -763,7 +753,6 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
         slippageBps: z.number().int().min(1).max(10000).default(50),
       }),
       async execute(input) {
-        const senderAddress = ctx.senderAddress;
         const tokenIn = normalizeCoinType(input.tokenIn);
         const tokenOut = normalizeCoinType(input.tokenOut);
         const [inMeta, outMeta] = await Promise.all([
@@ -772,47 +761,18 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
         ]);
         const amountInHuman = normalizeHumanAmountInput(input.amountIn, inMeta.decimals);
         const amountInRaw = toBaseUnits(amountInHuman, inMeta.decimals);
-        const attempts: Array<JsonRecord> = [];
-        let quote: Awaited<ReturnType<typeof getOkxSwapQuote>> | null = null;
-
-        if (senderAddress) {
-          try {
-            quote = await getOkxSwapQuote({
-              tokenIn,
-              tokenOut,
-              amountIn: amountInRaw,
-              slippageBps: input.slippageBps,
-              senderAddress,
-            });
-            attempts.push({ source: 'okx', ok: true });
-          } catch (error) {
-            attempts.push({ source: 'okx', ok: false, error: error instanceof Error ? error.message : 'OKX unavailable' });
-          }
-        } else {
-          attempts.push({ source: 'okx', ok: false, error: 'No server-resolved sender wallet' });
-        }
-        try {
-          await getSevenKQuote();
-        } catch (error) {
-          attempts.push({ source: '7k', ok: false, error: error instanceof Error ? error.message : '7K unavailable' });
-        }
 
         return {
           kind: 'write-card',
           action: 'swap',
-          status: quote ? 'confirmation_required' : 'unavailable',
-          source: quote?.source,
-          sourceLabel: quote?.sourceLabel,
+          status: 'open_local_surface',
+          href: '/agent/new?surface=swap',
           tokenIn: { coinType: tokenIn, symbol: inMeta.symbol, decimals: inMeta.decimals },
           tokenOut: { coinType: tokenOut, symbol: outMeta.symbol, decimals: outMeta.decimals },
           amountInHuman,
-          amountOutHuman: quote ? fromBaseUnits(quote.amountOut, outMeta.decimals) : undefined,
-          amountOutMinHuman: quote ? fromBaseUnits(quote.amountOutMin, outMeta.decimals) : undefined,
-          priceImpactPct: quote?.priceImpactPct,
-          attempts,
-          message: quote
-            ? 'Quote prepared only. Explicit wallet approval is required before signing.'
-            : 'Live swap quotes are unavailable right now. No wallet action has been prepared.',
+          amountInRaw,
+          slippageBps: input.slippageBps,
+          message: 'Open the local swap panel to quote and execute with explicit wallet approval.',
         };
       },
     }),
@@ -914,15 +874,15 @@ function explainTransaction(tx: JsonRecord) {
 function describeCommand(cmd: JsonRecord, index: number) {
   if ('MoveCall' in cmd) {
     const moveCall = cmd.MoveCall as JsonRecord;
-    const module = String(moveCall.module ?? '');
+    const moduleName = String(moveCall.module ?? '');
     const fn = String(moveCall.function ?? '');
     return {
       index,
       kind: 'MoveCall',
-      module,
+      module: moduleName,
       function: fn,
       package: moveCall.package,
-      description: `${module}::${fn}`,
+      description: `${moduleName}::${fn}`,
     };
   }
   const key = Object.keys(cmd)[0] ?? 'Other';

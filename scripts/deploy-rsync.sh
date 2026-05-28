@@ -8,7 +8,7 @@ DEFAULT_PORT="10122"
 DEFAULT_USER="root"
 DEFAULT_REMOTE_DIR="/opt/levo"
 DEFAULT_WEB_ENV_FILE="$ROOT_DIR/apps/web/.env"
-DEFAULT_HEALTHCHECK_URL="http://127.0.0.1:10101/"
+DEFAULT_HEALTHCHECK_URL="http://127.0.0.1:10101/api/health"
 
 HOST="${LEVO_DEPLOY_HOST:-$DEFAULT_HOST}"
 PORT="${LEVO_DEPLOY_PORT:-$DEFAULT_PORT}"
@@ -29,7 +29,7 @@ Options:
   --user <user>           SSH user (default: root)
   --remote-dir <path>     Remote deploy dir (default: /opt/levo)
   --web-env-file <path>   Web env file to upload (default: apps/web/.env)
-  --healthcheck-url <url>  Remote healthcheck URL (default: http://127.0.0.1:10101/)
+  --healthcheck-url <url>  Remote healthcheck URL (default: http://127.0.0.1:10101/api/health)
   --skip-env              Skip env file validation and upload (use existing remote .env)
   --dry-run               Print rsync actions without modifying remote files
   --help                  Show this message

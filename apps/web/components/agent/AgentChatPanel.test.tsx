@@ -231,6 +231,14 @@ describe('AgentChatPanel preset gates', () => {
     expect(host.textContent).not.toContain('Cetus');
   });
 
+  it('can open the swap surface from an initial URL surface prop', async () => {
+    await act(async () => {
+      root.render(<AgentChatPanel onMandateCreated={() => {}} initialSurface="swap" />);
+    });
+
+    expect(host.textContent).toContain('Powered by 7K Aggregator');
+  });
+
   it('opens the official Sui Bridge only after bridge handoff review', async () => {
     const openMock = vi.spyOn(window, 'open').mockImplementation(() => null);
     await act(async () => {

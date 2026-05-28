@@ -7,7 +7,7 @@ import {
   type ExplorerToolContext,
 } from './explorer';
 
-interface ToolContext extends ExplorerToolContext {}
+type ToolContext = ExplorerToolContext;
 
 // Agent tool registry used by `/api/v1/agent/chat`. Each tool is bound to the
 // calling user's xUserId so server-side queries never leak cross-tenant data.

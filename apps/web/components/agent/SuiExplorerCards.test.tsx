@@ -123,4 +123,25 @@ describe('SuiToolCard result formatting', () => {
     expect(markup).toContain('Unavailable USDC');
     expect(markup).not.toContain('Unavailable ?');
   });
+
+  it('renders a local swap panel link when write-card carries an href', () => {
+    const markup = renderToStaticMarkup(
+      <SuiToolCard
+        output={{
+          kind: 'write-card',
+          action: 'swap',
+          status: 'open_local_surface',
+          href: '/agent/new?surface=swap',
+          tokenIn: { symbol: 'SUI' },
+          tokenOut: { symbol: 'USDC' },
+          amountInHuman: '1',
+          amountOutHuman: 'Open panel',
+          message: 'Open the local swap panel to quote and execute with explicit wallet approval.',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('Open swap panel');
+    expect(markup).toContain('href="/agent/new?surface=swap"');
+  });
 });
