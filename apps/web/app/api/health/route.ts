@@ -117,6 +117,7 @@ export async function GET() {
   const status: CheckStatus = Object.values(checks).every((check) => check.status === 'ok')
     ? 'ok'
     : 'degraded';
+  const ready = checks.db.status === 'ok' && checks.redis.status === 'ok' && checks.env.status === 'ok';
 
   return NextResponse.json(
     {
@@ -124,6 +125,6 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
       checks,
     },
-    { status: status === 'ok' ? 200 : 503 },
+    { status: ready ? 200 : 503 },
   );
 }

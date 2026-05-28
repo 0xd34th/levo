@@ -48,7 +48,7 @@ describe('GET /api/health', () => {
     const response = await GET();
     const payload = await response.json();
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     expect(payload).toMatchObject({
       status: 'degraded',
       checks: {
