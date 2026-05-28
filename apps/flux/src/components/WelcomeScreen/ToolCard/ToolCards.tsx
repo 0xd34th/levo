@@ -1,92 +1,66 @@
+import AltRouteRoundedIcon from '@mui/icons-material/AltRouteRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
+import type { SvgIconComponent } from '@mui/icons-material';
 import {
-  TrackingAction,
-  TrackingCategory,
-  TrackingEventParameter,
-} from '@/const/trackingKeys';
-import { useChains } from '@/hooks/useChains';
-import { useDexsAndBridges } from '@/hooks/useDexsAndBridges';
-import { useUserTracking } from '@/hooks/userTracking/useUserTracking';
-import type { DataItem } from '@/types/internal';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { ToolCardsContainer as Container } from './ToolCards.style';
-import { ToolCard } from './ToolCard';
+  TaskCardIcon,
+  TaskCardLabel,
+  TaskEntryButton,
+  ToolCardsContainer as Container,
+} from './ToolCards.style';
 
-import dynamic from 'next/dynamic';
-
-const ToolModal = dynamic(
-  () => import('../ToolModal/ToolModal').then((m) => m.ToolModal),
-  { loading: () => null },
-);
-
-interface ToolConfig {
+interface TaskEntry {
   id: string;
-  title: string;
-  trackingLabel: string;
-  data: DataItem[];
+  label: string;
+  Icon: SvgIconComponent;
+  testId?: string;
 }
 
-export const ToolCards = () => {
-  const [openModalId, setOpenModalId] = useState<string | null>(null);
+const TASK_ENTRIES: TaskEntry[] = [
+  {
+    id: 'swap-on-sui',
+    label: 'Swap on Sui',
+    Icon: SwapHorizRoundedIcon,
+  },
+  {
+    id: 'bridge-from-sui',
+    label: 'Bridge from Sui',
+    Icon: AltRouteRoundedIcon,
+  },
+  {
+    id: 'send-to-another-chain',
+    label: 'Send to another chain',
+    Icon: SendRoundedIcon,
+  },
+  {
+    id: 'explore-best-routes',
+    label: 'Explore best routes',
+    Icon: TravelExploreRoundedIcon,
+    testId: 'get-started-button',
+  },
+];
 
-  const { exchanges, bridges } = useDexsAndBridges();
-  const { chains } = useChains();
-  const { t } = useTranslation();
-  const { trackEvent } = useUserTracking();
+interface ToolCardsProps {
+  onTaskSelect: (task: TaskEntry) => void;
+}
 
-  const tools: ToolConfig[] = [
-    {
-      id: 'chains',
-      title: t('navbar.statsCards.chains'),
-      trackingLabel: 'chains_stats',
-      data: chains ?? [],
-    },
-    {
-      id: 'bridges',
-      title: t('navbar.statsCards.bridges'),
-      trackingLabel: 'bridges_stats',
-      data: bridges ?? [],
-    },
-    {
-      id: 'dexs',
-      title: t('navbar.statsCards.dexs'),
-      trackingLabel: 'dexes_stats',
-      data: exchanges ?? [],
-    },
-  ];
-
-  const handleCardClick =
-    (tool: ToolConfig) => (e: React.MouseEvent<HTMLDivElement>) => {
-      e.stopPropagation();
-      trackEvent({
-        category: TrackingCategory.WelcomeScreen,
-        action: TrackingAction.OpenToolModal,
-        label: tool.trackingLabel,
-        data: { [TrackingEventParameter.ToolModal]: tool.trackingLabel },
-      });
-      setOpenModalId((current) => (current === tool.id ? null : tool.id));
-    };
-
-  const activeTool = tools.find((tool) => tool.id === openModalId) ?? null;
-
+export const ToolCards = ({ onTaskSelect }: ToolCardsProps) => {
   return (
     <Container>
-      {tools.map((tool) => (
-        <ToolCard
-          key={tool.id}
-          title={tool.title}
-          number={tool.data.length.toString()}
-          handleClick={handleCardClick(tool)}
-        />
+      {TASK_ENTRIES.map((task) => (
+        <TaskEntryButton
+          key={task.id}
+          type="button"
+          onClick={() => onTaskSelect(task)}
+          data-testid={task.testId}
+        >
+          <TaskCardIcon>
+            <task.Icon fontSize="small" />
+          </TaskCardIcon>
+          <TaskCardLabel variant="bodyMediumStrong">{task.label}</TaskCardLabel>
+        </TaskEntryButton>
       ))}
-      {activeTool && (
-        <ToolModal
-          title={activeTool.title}
-          open={true}
-          setOpen={(open) => setOpenModalId(open ? openModalId : null)}
-          data={activeTool.data}
-        />
-      )}
     </Container>
   );
 };

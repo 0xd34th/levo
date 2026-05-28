@@ -1,5 +1,4 @@
 'use client';
-import { ButtonPrimary } from '../Button';
 import Box, { type BoxProps } from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
@@ -63,26 +62,4 @@ export const WelcomeScreenSubtitle = styled(Typography)(({ theme }) => ({
   ...theme.applyStyles('light', {
     color: (theme.vars || theme).palette.primary.main,
   }),
-}));
-
-export const WelcomeScreenButton = styled(ButtonPrimary)(({ theme }) => ({
-  height: 48,
-  width: 192,
-  margin: theme.spacing(4, 'auto'),
-  [theme.breakpoints.up('sm')]: {
-    margin: theme.spacing(6, 'auto'),
-    height: 56,
-    width: 247,
-  },
-}));
-
-export const WelcomeScreenButtonLabel = styled(Typography)(({ theme }) => ({
-  maxHeight: 40,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  [theme.breakpoints.up('sm')]: {
-    fontSize: '18px',
-    maxHeight: 48,
-    lineHeight: '24px',
-  },
 }));

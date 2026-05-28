@@ -34,6 +34,11 @@ vi.mock('next/font/google', () => ({
     style: { fontFamily: 'mocked-ibm-plex-sans' },
     variable: '--font-ibm-plex-sans',
   }),
+  IBM_Plex_Mono: () => ({
+    className: 'mocked-ibm-plex-mono-class',
+    style: { fontFamily: 'mocked-ibm-plex-mono' },
+    variable: '--font-ibm-plex-mono',
+  }),
 }));
 
 vi.mock('next/font/local', () => ({
