@@ -202,6 +202,13 @@ cd ../..
 supervisorctl restart levo-web
 supervisorctl status levo-web
 
+for attempt in {1..20}; do
+  if curl -fsS \"$HEALTHCHECK_URL\" >/dev/null; then
+    exit 0
+  fi
+  sleep 2
+done
+
 curl -fsS \"$HEALTHCHECK_URL\" >/dev/null
 '"
 
