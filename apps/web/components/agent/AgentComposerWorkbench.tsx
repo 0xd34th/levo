@@ -11,7 +11,11 @@ import {
   createInitialAgentMandateDraftState,
 } from '@/lib/agent/mandate-draft';
 import { AgentChatPanel } from './AgentChatPanel';
-import { AgentOnboardingTour } from './AgentOnboardingTour';
+import {
+  AGENT_NEW_ONBOARDING_STEPS,
+  AGENT_NEW_ONBOARDING_STORAGE_KEY,
+  AgentOnboardingTour,
+} from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
 import { MandateCreateForm } from './MandateCreateForm';
 import { MandateDraftPreview } from './MandateDraftPreview';
@@ -54,7 +58,11 @@ export function AgentComposerWorkbench({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <AgentOnboardingTour onOpenSettings={openSettings} />
+            <AgentOnboardingTour
+              steps={AGENT_NEW_ONBOARDING_STEPS}
+              storageKey={AGENT_NEW_ONBOARDING_STORAGE_KEY}
+              onOpenSettings={openSettings}
+            />
             <Button
               type="button"
               size="sm"

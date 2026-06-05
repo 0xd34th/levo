@@ -89,7 +89,7 @@ import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './Agent
 import { MandateCard } from './MandateCard';
 import { MandateWorkbench } from './MandateWorkbench';
 
-const TOUR_STORAGE_KEY = 'levo.agentOnboarding.v1';
+const TOUR_STORAGE_KEY = 'levo.agentOnboarding.new.v2';
 
 function findButton(host: HTMLElement, text: string) {
   const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
@@ -353,7 +353,7 @@ describe('Agent onboarding tour', () => {
   it.each(['dismissed', 'completed'] as const)('Guide reopens after %s state', async (status) => {
     window.localStorage.setItem(
       TOUR_STORAGE_KEY,
-      JSON.stringify({ version: 1, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
+      JSON.stringify({ version: 2, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
     );
 
     await renderWorkbench();

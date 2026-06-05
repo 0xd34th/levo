@@ -45,6 +45,12 @@ import {
   shortId,
 } from '@/lib/agent/display';
 import { cn } from '@/lib/utils';
+import {
+  AGENT_DASHBOARD_ONBOARDING_STEPS,
+  AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
+  AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS,
+  AgentOnboardingTour,
+} from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
 
 type AgentPageTab = 'mandates' | 'settings';
@@ -65,6 +71,7 @@ export function MandateWorkbench() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const openSettings = useCallback(() => setActiveTab('settings'), []);
 
   const reloadList = useCallback(async () => {
     if (!ready || !authenticated) return;
@@ -119,61 +126,80 @@ export function MandateWorkbench() {
   if (!ready) {
     return <ShellMessage>Loading mandates...</ShellMessage>;
   }
-  if (!authenticated) {
-    return <ShellMessage>Sign in to manage Agent mandates.</ShellMessage>;
-  }
+
+  const tourSteps = authenticated
+    ? AGENT_DASHBOARD_ONBOARDING_STEPS
+    : AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS;
 
   return (
-    <div className="grid min-h-[calc(100vh-4rem)] gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+    <div data-agent-tour="agent-dashboard" className="grid min-h-[calc(100vh-4rem)] gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
       <section className="rounded-[16px] bg-[color:var(--surface)] p-3 lg:h-[calc(100vh-4rem)]">
         <div className="flex items-center justify-between px-1 pb-3">
           <div>
             <h1 className="text-[19px] font-semibold">Agent</h1>
             <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
-              {activeTab === 'mandates' ? 'Mandates and recent runs' : 'Authorized external agents'}
+              {activeTab === 'mandates' || !authenticated ? 'Mandates and recent runs' : 'Authorized external agents'}
             </p>
           </div>
-          <Button size="icon-sm" aria-label="New mandate" render={<Link href="/agent/new" />}>
-            <Plus className="size-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <AgentOnboardingTour
+              key={authenticated ? 'dashboard-signed-in' : 'dashboard-signed-out'}
+              steps={tourSteps}
+              storageKey={AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY}
+              onOpenSettings={openSettings}
+            />
+            <Button
+              size="icon-sm"
+              aria-label="New mandate"
+              data-agent-tour="agent-new-mandate"
+              nativeButton={false}
+              render={<Link href="/agent/new" />}
+            >
+              <Plus className="size-4" />
+            </Button>
+          </div>
         </div>
-        <AgentPageTabList activeTab={activeTab} onTabChange={setActiveTab} />
-        {activeTab === 'mandates' ? (
-          loading ? (
-            <ShellMessage compact>Loading...</ShellMessage>
-          ) : mandates.length === 0 ? (
-            <EmptyMandates />
-          ) : (
-            <ul className="space-y-2 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
-              {mandates.map((mandate) => (
-                <li key={mandate.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(mandate.id)}
-                    className={cn(
-                      'w-full rounded-[12px] p-3 text-left ring-1 transition',
-                      selectedId === mandate.id
-                        ? 'bg-background ring-[color:var(--border-strong)]'
-                        : 'bg-transparent ring-transparent hover:bg-background/70',
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-medium">{mandate.name}</p>
-                        <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-                          {describeMandateIntent(mandate.actions)}
-                        </p>
+        {authenticated ? <AgentPageTabList activeTab={activeTab} onTabChange={setActiveTab} /> : null}
+        {!authenticated ? (
+          <ShellMessage compact>Sign in to view existing mandates.</ShellMessage>
+        ) : activeTab === 'mandates' ? (
+          <div data-agent-tour="agent-mandates">
+            {loading ? (
+              <ShellMessage compact>Loading...</ShellMessage>
+            ) : mandates.length === 0 ? (
+              <EmptyMandates />
+            ) : (
+              <ul className="space-y-2 overflow-y-auto lg:max-h-[calc(100vh-12rem)]">
+                {mandates.map((mandate) => (
+                  <li key={mandate.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(mandate.id)}
+                      className={cn(
+                        'w-full rounded-[12px] p-3 text-left ring-1 transition',
+                        selectedId === mandate.id
+                          ? 'bg-background ring-[color:var(--border-strong)]'
+                          : 'bg-transparent ring-transparent hover:bg-background/70',
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-medium">{mandate.name}</p>
+                          <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-soft)' }}>
+                            {describeMandateIntent(mandate.actions)}
+                          </p>
+                        </div>
+                        <StatusPill status={mandate.status} />
                       </div>
-                      <StatusPill status={mandate.status} />
-                    </div>
-                    <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
-                      {nextRunLabel(mandate)}
-                    </p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )
+                      <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
+                        {nextRunLabel(mandate)}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         ) : (
           <div className="rounded-[12px] bg-background p-4 text-[13px] ring-1 ring-[color:var(--border)]">
             <p className="font-medium">Agent settings</p>
@@ -185,7 +211,9 @@ export function MandateWorkbench() {
       </section>
 
       <section className="min-w-0 rounded-[16px] bg-[color:var(--surface)] p-4 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-        {activeTab === 'settings' ? (
+        {!authenticated ? (
+          <ShellMessage>Sign in to manage Agent mandates.</ShellMessage>
+        ) : activeTab === 'settings' ? (
           <AgentSettings
             onAgentsChanged={() => {
               void reloadList();
@@ -258,6 +286,7 @@ function AgentPageTabList({
         <button
           key={tab.value}
           type="button"
+          data-agent-tour={tab.value === 'settings' ? 'agent-settings-tab' : undefined}
           aria-pressed={activeTab === tab.value}
           onClick={() => onTabChange(tab.value)}
           className={cn(
@@ -499,7 +528,7 @@ function EmptyMandates() {
       <p className="mt-1 max-w-xs text-[13px]" style={{ color: 'var(--text-soft)' }}>
         Create a mandate to let the Levo Agent run bounded Earn actions.
       </p>
-      <Button className="mt-4" render={<Link href="/agent/new" />}>
+      <Button className="mt-4" nativeButton={false} render={<Link href="/agent/new" />}>
         New mandate
       </Button>
     </div>

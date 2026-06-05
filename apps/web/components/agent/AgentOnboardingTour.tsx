@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Check, ChevronLeft, ChevronRight, HelpCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const TOUR_STORAGE_KEY = 'levo.agentOnboarding.v1';
+export const AGENT_NEW_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.new.v2';
+export const AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.dashboard.v2';
+
 const TOUR_STORAGE_EVENT = 'levo-agent-onboarding-state';
 
 type StoredTourStatus = 'dismissed' | 'completed';
 
-interface TourStep {
+export interface AgentOnboardingTourStep {
   anchor: string;
   eyebrow: string;
   title: string;
@@ -24,7 +26,7 @@ interface TargetRect {
   height: number;
 }
 
-const TOUR_STEPS: TourStep[] = [
+export const AGENT_NEW_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
     anchor: 'chat-start',
     eyebrow: 'Start',
@@ -59,27 +61,92 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => void }) {
+export const AGENT_DASHBOARD_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
+  {
+    anchor: 'agent-mandates',
+    eyebrow: 'Dashboard',
+    title: 'Review active mandates',
+    body: 'Review mandates and recent runs from this dashboard.',
+  },
+  {
+    anchor: 'agent-new-mandate',
+    eyebrow: 'Create',
+    title: 'Open the guided composer',
+    body: 'Use New mandate to open the guided composer.',
+  },
+  {
+    anchor: 'agent-settings-tab',
+    eyebrow: 'Settings',
+    title: 'Switch to runner settings',
+    body: 'Switch to Settings to manage external runners.',
+    opensSettings: true,
+  },
+  {
+    anchor: 'runner-bind',
+    eyebrow: 'Runner',
+    title: 'Bind your external runner',
+    body: 'Bind an external runner before creating mandates.',
+    opensSettings: true,
+  },
+  {
+    anchor: 'runner-token',
+    eyebrow: 'Token',
+    title: 'Store the setup prompt',
+    body: 'Copy and store the one-time runner setup prompt after binding.',
+    opensSettings: true,
+  },
+];
+
+export const AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
+  {
+    anchor: 'agent-dashboard',
+    eyebrow: 'Agent',
+    title: 'Sign in to manage mandates',
+    body: 'Sign in to review and manage your Agent mandates. Use New mandate to open the guided composer.',
+  },
+  {
+    anchor: 'agent-new-mandate',
+    eyebrow: 'Create',
+    title: 'Start guided creation',
+    body: 'Use New mandate to open the guided composer.',
+  },
+];
+
+export function AgentOnboardingTour({
+  steps,
+  storageKey,
+  onOpenSettings,
+}: {
+  steps: AgentOnboardingTourStep[];
+  storageKey: string;
+  onOpenSettings: () => void;
+}) {
+  const getSnapshot = useCallback(
+    () => getTourStorageSnapshot(storageKey),
+    [storageKey],
+  );
   const storedState = useSyncExternalStore(
     subscribeToTourStorage,
-    getTourStorageSnapshot,
+    getSnapshot,
     getServerTourStorageSnapshot,
   );
   const [manualOpen, setManualOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
-  const activeStep = TOUR_STEPS[stepIndex];
-  const isLastStep = stepIndex === TOUR_STEPS.length - 1;
-  const open = manualOpen || storedState === 'new';
+  const activeStep = steps[Math.min(stepIndex, steps.length - 1)];
+  const activeAnchor = activeStep?.anchor;
+  const activeOpensSettings = activeStep?.opensSettings ?? false;
+  const isLastStep = stepIndex === steps.length - 1;
+  const open = steps.length > 0 && (manualOpen || storedState === 'new');
 
   useEffect(() => {
-    if (open && activeStep.opensSettings) {
+    if (open && activeOpensSettings) {
       onOpenSettings();
     }
-  }, [activeStep.opensSettings, onOpenSettings, open]);
+  }, [activeOpensSettings, onOpenSettings, open]);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !activeAnchor) {
       return;
     }
 
@@ -87,7 +154,7 @@ export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => 
     let revealTimer = 0;
 
     const updateTarget = () => {
-      const target = document.querySelector<HTMLElement>(`[data-agent-tour="${activeStep.anchor}"]`);
+      const target = document.querySelector<HTMLElement>(`[data-agent-tour="${activeAnchor}"]`);
       if (!target) {
         setTargetRect(null);
         return;
@@ -102,12 +169,12 @@ export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => 
     };
 
     const revealTarget = () => {
-      const target = document.querySelector<HTMLElement>(`[data-agent-tour="${activeStep.anchor}"]`);
+      const target = document.querySelector<HTMLElement>(`[data-agent-tour="${activeAnchor}"]`);
       target?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'smooth' });
       animationFrame = window.requestAnimationFrame(updateTarget);
     };
 
-    revealTimer = window.setTimeout(revealTarget, activeStep.opensSettings ? 120 : 0);
+    revealTimer = window.setTimeout(revealTarget, activeOpensSettings ? 120 : 0);
     window.addEventListener('resize', updateTarget);
     window.addEventListener('scroll', updateTarget, true);
 
@@ -117,7 +184,7 @@ export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => 
       window.removeEventListener('resize', updateTarget);
       window.removeEventListener('scroll', updateTarget, true);
     };
-  }, [activeStep.anchor, activeStep.opensSettings, open]);
+  }, [activeAnchor, activeOpensSettings, open]);
 
   const restart = useCallback(() => {
     setStepIndex(0);
@@ -125,17 +192,17 @@ export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => 
   }, []);
 
   const close = useCallback(() => {
-    writeTourState('dismissed');
+    writeTourState(storageKey, 'dismissed');
     setManualOpen(false);
-  }, []);
+  }, [storageKey]);
 
   const done = useCallback(() => {
-    writeTourState('completed');
+    writeTourState(storageKey, 'completed');
     setManualOpen(false);
-  }, []);
+  }, [storageKey]);
 
   const goBack = () => setStepIndex((value) => Math.max(0, value - 1));
-  const goNext = () => setStepIndex((value) => Math.min(TOUR_STEPS.length - 1, value + 1));
+  const goNext = () => setStepIndex((value) => Math.min(steps.length - 1, value + 1));
 
   return (
     <>
@@ -156,7 +223,7 @@ export function AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => 
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-mute)' }}>
-                  {activeStep.eyebrow} · {stepIndex + 1}/{TOUR_STEPS.length}
+                  {activeStep.eyebrow} · {stepIndex + 1}/{steps.length}
                 </p>
                 <h2 className="mt-1 text-[15px] font-semibold">{activeStep.title}</h2>
               </div>
@@ -218,10 +285,10 @@ function TourHighlight({ rect }: { rect: TargetRect }) {
   );
 }
 
-function hasStoredTourState(): boolean {
+function hasStoredTourState(storageKey: string): boolean {
   if (typeof window === 'undefined') return true;
   try {
-    const raw = window.localStorage.getItem(TOUR_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return false;
     const parsed = JSON.parse(raw) as { status?: unknown };
     return parsed.status === 'dismissed' || parsed.status === 'completed';
@@ -240,21 +307,21 @@ function subscribeToTourStorage(onStoreChange: () => void): () => void {
   };
 }
 
-function getTourStorageSnapshot(): 'stored' | 'new' {
-  return hasStoredTourState() ? 'stored' : 'new';
+function getTourStorageSnapshot(storageKey: string): 'stored' | 'new' {
+  return hasStoredTourState(storageKey) ? 'stored' : 'new';
 }
 
 function getServerTourStorageSnapshot(): 'stored' {
   return 'stored';
 }
 
-function writeTourState(status: StoredTourStatus) {
+function writeTourState(storageKey: string, status: StoredTourStatus) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(
-      TOUR_STORAGE_KEY,
+      storageKey,
       JSON.stringify({
-        version: 1,
+        version: 2,
         status,
         updatedAt: new Date().toISOString(),
       }),
