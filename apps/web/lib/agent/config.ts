@@ -22,6 +22,9 @@ export type ResolveEarnRetainedAccountTargetResult =
   | { ok: true; targetAddress: string }
   | { ok: false; error: string; status: number };
 
+export const MISSING_EARN_TARGET_ERROR =
+  'No Agent Earn target account was found for this wallet. A visible U/USDC balance is not enough for mandates; Agent needs the retained Earn account object before it can create one.';
+
 export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig {
   return {
     agentAddress: '',
@@ -89,8 +92,7 @@ export async function resolveEarnRetainedAccountTarget(params: {
       return {
         ok: false,
         status: 404,
-        error:
-          'No StableLayer Earn account target found for this wallet. Open Earn and create a retained account before creating a mandate.',
+        error: MISSING_EARN_TARGET_ERROR,
       };
     }
 
