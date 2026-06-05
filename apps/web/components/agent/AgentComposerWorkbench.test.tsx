@@ -164,7 +164,7 @@ describe('Agent mandate creation UI', () => {
     expect(markup).not.toContain('Sign this personal message');
   });
 
-  it('runner token panel offers a setup prompt that includes the one-time token', () => {
+  it('runner token panel offers a setup prompt that includes the runner API contract', () => {
     const prompt = buildRunnerSetupPrompt({
       baseUrl: 'https://levo.krilly.ai',
       runnerToken: 'lvo_runner_test',
@@ -183,6 +183,13 @@ describe('Agent mandate creation UI', () => {
     expect(prompt).toContain('LEVO_RUNNER_TOKEN=lvo_runner_test');
     expect(prompt).toContain(`LEVO_AGENT_ADDRESS=${CONFIG.agentAddress}`);
     expect(prompt).toContain('LEVO_BASE_URL=https://levo.krilly.ai');
+    expect(prompt).toContain('Authorization: Bearer ${LEVO_RUNNER_TOKEN}');
+    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/heartbeat');
+    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/claim');
+    expect(prompt).toContain('{"limit":5}');
+    expect(prompt).toContain('GET ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId}');
+    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId}/result');
+    expect(prompt).toContain('{"txDigest":"<submitted transaction digest>"}');
     expect(markup).toContain('Copy setup prompt');
     expect(markup).toContain('Copy token');
   });

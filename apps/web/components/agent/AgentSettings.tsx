@@ -295,8 +295,16 @@ export function buildRunnerSetupPrompt({
     `LEVO_AGENT_ADDRESS=${agentAddress}`,
     `${labelLine}LEVO_AGENT_ALIAS=agent-alpha`,
     '',
+    'Runner API contract:',
+    '- Send JSON requests with header: Authorization: Bearer ${LEVO_RUNNER_TOKEN}',
+    '- Send Content-Type: application/json for POST requests.',
+    '- POST ${LEVO_BASE_URL}/api/v1/agent/runner/heartbeat with body {} to keep the runner marked online.',
+    '- POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/claim with body {"limit":5} to claim due jobs.',
+    '- GET ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId} to load the encrypted job payload before execution.',
+    '- POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId}/result with body {"txDigest":"<submitted transaction digest>"} after submitting a job transaction.',
+    '',
     'Use the local Sui CLI alias or keypair that controls LEVO_AGENT_ADDRESS.',
-    'Start the runner, keep it online, and use the token only for Levo runner heartbeat/job claim APIs.',
+    'Start the runner, keep it online, poll for jobs, execute only jobs assigned to LEVO_AGENT_ADDRESS, and submit the result transaction digest.',
     'If the token is lost or exposed, rotate it in Levo Agent settings and replace the runner environment value.',
   ].join('\n');
 }
