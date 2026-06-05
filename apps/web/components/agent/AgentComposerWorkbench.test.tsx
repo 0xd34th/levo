@@ -104,6 +104,8 @@ import { MandateWorkbench } from './MandateWorkbench';
 const TOUR_STORAGE_BASE_KEY = 'levo.agentOnboarding.new.v3';
 const ACCOUNT_A_TOUR_STORAGE_KEY = `${TOUR_STORAGE_BASE_KEY}.account.twitter-user-a`;
 const ACCOUNT_B_TOUR_STORAGE_KEY = `${TOUR_STORAGE_BASE_KEY}.account.twitter-user-b`;
+const AI_CHAT_TOUR_COPY =
+  'Use the AI chat under Explore Sui or manage mandates to inspect Sui, check wallets or transactions, open trade handoffs, or start mandate requests.';
 
 function findButton(host: HTMLElement, text: string) {
   const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
@@ -330,13 +332,15 @@ describe('Agent onboarding tour', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
 
-    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).toContain('Ask the AI chat');
+    expect(host.textContent).toContain(AI_CHAT_TOUR_COPY);
   });
 
   it('first-run tour copy covers chat start, mandate creation, approval, runner binding, and runner setup storage', async () => {
     await renderWorkbench();
 
-    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).toContain('Ask the AI chat');
+    expect(host.textContent).toContain(AI_CHAT_TOUR_COPY);
 
     await clickButton(host, 'Next');
     expect(host.textContent).toContain('Shape an Earn mandate from an intent.');
@@ -361,7 +365,7 @@ describe('Agent onboarding tour', () => {
       version: 3,
       status: 'dismissed',
     });
-    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).not.toContain(AI_CHAT_TOUR_COPY);
   });
 
   it('finishing the tour writes completed state', async () => {
@@ -388,11 +392,11 @@ describe('Agent onboarding tour', () => {
     await renderWorkbench();
 
     expect(host.textContent).toContain('Guide');
-    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).not.toContain(AI_CHAT_TOUR_COPY);
 
     await clickButton(host, 'Guide');
 
-    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).toContain(AI_CHAT_TOUR_COPY);
   });
 
   it('completed state is scoped to the signed-in account', async () => {
@@ -403,7 +407,7 @@ describe('Agent onboarding tour', () => {
 
     await renderWorkbench();
 
-    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).not.toContain(AI_CHAT_TOUR_COPY);
 
     privyState.user = {
       id: 'privy-user-b',
@@ -415,6 +419,6 @@ describe('Agent onboarding tour', () => {
     await act(async () => {});
 
     expect(window.localStorage.getItem(ACCOUNT_B_TOUR_STORAGE_KEY)).toBeNull();
-    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+    expect(host.textContent).toContain(AI_CHAT_TOUR_COPY);
   });
 });

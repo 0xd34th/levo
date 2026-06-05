@@ -36,9 +36,9 @@ interface TargetRect {
 export const AGENT_NEW_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
     anchor: 'chat-start',
-    eyebrow: 'Start',
-    title: 'Use the command presets',
-    body: 'Start from chat, wallet, on-chain, trade, or mandate commands.',
+    eyebrow: 'Chat',
+    title: 'Ask the AI chat',
+    body: 'Use the AI chat under Explore Sui or manage mandates to inspect Sui, check wallets or transactions, open trade handoffs, or start mandate requests.',
   },
   {
     anchor: 'mandate-intent',
