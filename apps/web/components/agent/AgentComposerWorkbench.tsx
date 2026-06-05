@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AgentMandateConfig } from '@/lib/agent/config';
@@ -15,6 +16,7 @@ import {
   AGENT_NEW_ONBOARDING_STEPS,
   AGENT_NEW_ONBOARDING_STORAGE_KEY,
   AgentOnboardingTour,
+  getAgentOnboardingStorageKey,
 } from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
 import { MandateCreateForm } from './MandateCreateForm';
@@ -33,6 +35,7 @@ export function AgentComposerWorkbench({
   initialConfig?: AgentMandateConfig;
 }) {
   const searchParams = useSearchParams();
+  const { ready, authenticated, user } = usePrivy();
   const intent = searchParams.get('intent');
   const initialSurface = parseTradeSurface(searchParams.get('surface'));
   const [proposal, setProposal] = useState<Proposal | null>(() =>
@@ -41,6 +44,13 @@ export function AgentComposerWorkbench({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configReloadSignal, setConfigReloadSignal] = useState(0);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const tourStorageKey = ready
+    ? getAgentOnboardingStorageKey({
+        authenticated,
+        baseKey: AGENT_NEW_ONBOARDING_STORAGE_KEY,
+        user,
+      })
+    : null;
 
   const helperText = useMemo(() => {
     if (!intent) return 'Describe the Earn task first. Options appear only after there is a request to shape.';
@@ -58,11 +68,13 @@ export function AgentComposerWorkbench({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <AgentOnboardingTour
-              steps={AGENT_NEW_ONBOARDING_STEPS}
-              storageKey={AGENT_NEW_ONBOARDING_STORAGE_KEY}
-              onOpenSettings={openSettings}
-            />
+            {tourStorageKey ? (
+              <AgentOnboardingTour
+                steps={AGENT_NEW_ONBOARDING_STEPS}
+                storageKey={tourStorageKey}
+                onOpenSettings={openSettings}
+              />
+            ) : null}
             <Button
               type="button"
               size="sm"

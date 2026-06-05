@@ -10,6 +10,17 @@ import type { AgentMandateConfig } from '@/lib/agent/config';
 
 let searchParams = '';
 
+const { privyState } = vi.hoisted(() => ({
+  privyState: {
+    ready: true,
+    authenticated: true,
+    user: {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    } as { id?: string; twitter?: { subject?: string } } | null,
+  },
+}));
+
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(searchParams),
 }));
@@ -19,8 +30,9 @@ vi.mock('@privy-io/react-auth', () => ({
   useIdentityToken: () => ({ identityToken: 'identity-token' }),
   useLoginWithOAuth: () => ({ initOAuth: vi.fn() }),
   usePrivy: () => ({
-    ready: true,
-    authenticated: true,
+    ready: privyState.ready,
+    authenticated: privyState.authenticated,
+    user: privyState.user,
     getAccessToken: vi.fn(),
   }),
 }));
@@ -89,7 +101,9 @@ import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './Agent
 import { MandateCard } from './MandateCard';
 import { MandateWorkbench } from './MandateWorkbench';
 
-const TOUR_STORAGE_KEY = 'levo.agentOnboarding.new.v2';
+const TOUR_STORAGE_BASE_KEY = 'levo.agentOnboarding.new.v3';
+const ACCOUNT_A_TOUR_STORAGE_KEY = `${TOUR_STORAGE_BASE_KEY}.account.twitter-user-a`;
+const ACCOUNT_B_TOUR_STORAGE_KEY = `${TOUR_STORAGE_BASE_KEY}.account.twitter-user-b`;
 
 function findButton(host: HTMLElement, text: string) {
   const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
@@ -262,6 +276,12 @@ describe('Agent onboarding tour', () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     searchParams = 'intent=auto-harvest%20claimable%20yield%20daily%20with%20conservative%20caps';
+    privyState.ready = true;
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
     window.localStorage.clear();
     host = document.createElement('div');
     document.body.append(host);
@@ -330,7 +350,8 @@ describe('Agent onboarding tour', () => {
 
     await clickButton(host, 'Close');
 
-    expect(JSON.parse(window.localStorage.getItem(TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+    expect(JSON.parse(window.localStorage.getItem(ACCOUNT_A_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      version: 3,
       status: 'dismissed',
     });
     expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
@@ -345,15 +366,16 @@ describe('Agent onboarding tour', () => {
     await clickButton(host, 'Next');
     await clickButton(host, 'Done');
 
-    expect(JSON.parse(window.localStorage.getItem(TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+    expect(JSON.parse(window.localStorage.getItem(ACCOUNT_A_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      version: 3,
       status: 'completed',
     });
   });
 
   it.each(['dismissed', 'completed'] as const)('Guide reopens after %s state', async (status) => {
     window.localStorage.setItem(
-      TOUR_STORAGE_KEY,
-      JSON.stringify({ version: 2, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
+      ACCOUNT_A_TOUR_STORAGE_KEY,
+      JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
     );
 
     await renderWorkbench();
@@ -363,6 +385,29 @@ describe('Agent onboarding tour', () => {
 
     await clickButton(host, 'Guide');
 
+    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+  });
+
+  it('completed state is scoped to the signed-in account', async () => {
+    window.localStorage.setItem(
+      ACCOUNT_A_TOUR_STORAGE_KEY,
+      JSON.stringify({ version: 3, status: 'completed', updatedAt: '2026-06-05T00:00:00.000Z' }),
+    );
+
+    await renderWorkbench();
+
+    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+
+    privyState.user = {
+      id: 'privy-user-b',
+      twitter: { subject: 'twitter-user-b' },
+    };
+    await act(async () => {
+      root?.render(<AgentComposerWorkbench initialConfig={CONFIG} />);
+    });
+    await act(async () => {});
+
+    expect(window.localStorage.getItem(ACCOUNT_B_TOUR_STORAGE_KEY)).toBeNull();
     expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
   });
 });

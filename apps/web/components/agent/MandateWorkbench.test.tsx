@@ -16,6 +16,7 @@ const {
   privyState: {
     ready: true,
     authenticated: false,
+    user: null as { id?: string; twitter?: { subject?: string } } | null,
   },
   fetchMandatesMock: vi.fn(async () => []),
   getAccessTokenMock: vi.fn(async () => 'access-token'),
@@ -30,6 +31,7 @@ vi.mock('@privy-io/react-auth', () => ({
   usePrivy: () => ({
     ready: privyState.ready,
     authenticated: privyState.authenticated,
+    user: privyState.user,
     getAccessToken: getAccessTokenMock,
   }),
 }));
@@ -56,7 +58,10 @@ vi.mock('./AgentSettings', () => ({
 
 import { MandateWorkbench } from './MandateWorkbench';
 
-const DASHBOARD_TOUR_STORAGE_KEY = 'levo.agentOnboarding.dashboard.v2';
+const DASHBOARD_TOUR_BASE_KEY = 'levo.agentOnboarding.dashboard.v3';
+const SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.signed-out`;
+const ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-a`;
+const ACCOUNT_B_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-b`;
 
 function findButton(host: HTMLElement, text: string) {
   const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
@@ -87,6 +92,7 @@ describe('/agent mandate workbench onboarding', () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     privyState.ready = true;
     privyState.authenticated = false;
+    privyState.user = null;
     fetchMandatesMock.mockClear();
     getAccessTokenMock.mockClear();
     generateAuthorizationSignatureMock.mockClear();
@@ -134,7 +140,8 @@ describe('/agent mandate workbench onboarding', () => {
 
     await clickButton(host, 'Close');
 
-    expect(JSON.parse(window.localStorage.getItem(DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+    expect(JSON.parse(window.localStorage.getItem(SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      version: 3,
       status: 'dismissed',
     });
     expect(host.textContent).not.toContain('Sign in to review and manage your Agent mandates.');
@@ -146,15 +153,16 @@ describe('/agent mandate workbench onboarding', () => {
     await clickButton(host, 'Next');
     await clickButton(host, 'Done');
 
-    expect(JSON.parse(window.localStorage.getItem(DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+    expect(JSON.parse(window.localStorage.getItem(SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      version: 3,
       status: 'completed',
     });
   });
 
   it.each(['dismissed', 'completed'] as const)('Guide reopens after %s state', async (status) => {
     window.localStorage.setItem(
-      DASHBOARD_TOUR_STORAGE_KEY,
-      JSON.stringify({ version: 2, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
+      SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY,
+      JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
     );
 
     await renderWorkbench();
@@ -169,6 +177,10 @@ describe('/agent mandate workbench onboarding', () => {
 
   it('signed-in tour switches to Settings and reveals the runner bind anchor', async () => {
     privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
     await renderWorkbench();
 
     expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
@@ -180,5 +192,57 @@ describe('/agent mandate workbench onboarding', () => {
     expect(host.textContent).toContain('Switch to Settings to manage external runners.');
     expect(host.querySelector('[data-agent-tour="runner-bind"]')).toBeTruthy();
     expect(host.textContent).toContain('Bind external agent');
+  });
+
+  it.each(['dismissed', 'completed'] as const)('signed-in %s state is scoped to one account', async (status) => {
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
+    window.localStorage.setItem(
+      ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY,
+      JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
+    );
+
+    await renderWorkbench();
+
+    expect(host.textContent).not.toContain('Review mandates and recent runs from this dashboard.');
+
+    privyState.user = {
+      id: 'privy-user-b',
+      twitter: { subject: 'twitter-user-b' },
+    };
+    await act(async () => {
+      root?.render(<MandateWorkbench />);
+    });
+    await flushTourEffects();
+
+    expect(window.localStorage.getItem(ACCOUNT_B_DASHBOARD_TOUR_STORAGE_KEY)).toBeNull();
+    expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
+  });
+
+  it('account switching restarts the tour at the first step', async () => {
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
+    await renderWorkbench();
+
+    await clickButton(host, 'Next');
+    expect(host.textContent).toContain('Use New mandate to open the guided composer.');
+
+    privyState.user = {
+      id: 'privy-user-b',
+      twitter: { subject: 'twitter-user-b' },
+    };
+    await act(async () => {
+      root?.render(<MandateWorkbench />);
+    });
+    await flushTourEffects();
+
+    expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
+    expect(host.textContent).not.toContain('Use New mandate to open the guided composer.');
   });
 });

@@ -50,6 +50,7 @@ import {
   AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
   AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS,
   AgentOnboardingTour,
+  getAgentOnboardingStorageKey,
 } from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
 
@@ -61,7 +62,7 @@ const AGENT_PAGE_TABS: Array<{ value: AgentPageTab; label: string }> = [
 ];
 
 export function MandateWorkbench() {
-  const { getAccessToken, ready, authenticated } = usePrivy();
+  const { getAccessToken, ready, authenticated, user } = usePrivy();
   const { identityToken } = useIdentityToken();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
   const [activeTab, setActiveTab] = useState<AgentPageTab>('mandates');
@@ -130,6 +131,11 @@ export function MandateWorkbench() {
   const tourSteps = authenticated
     ? AGENT_DASHBOARD_ONBOARDING_STEPS
     : AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS;
+  const tourStorageKey = getAgentOnboardingStorageKey({
+    authenticated,
+    baseKey: AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
+    user,
+  });
 
   return (
     <div data-agent-tour="agent-dashboard" className="grid min-h-[calc(100vh-4rem)] gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -142,12 +148,13 @@ export function MandateWorkbench() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <AgentOnboardingTour
-              key={authenticated ? 'dashboard-signed-in' : 'dashboard-signed-out'}
-              steps={tourSteps}
-              storageKey={AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY}
-              onOpenSettings={openSettings}
-            />
+            {tourStorageKey ? (
+              <AgentOnboardingTour
+                steps={tourSteps}
+                storageKey={tourStorageKey}
+                onOpenSettings={openSettings}
+              />
+            ) : null}
             <Button
               size="icon-sm"
               aria-label="New mandate"

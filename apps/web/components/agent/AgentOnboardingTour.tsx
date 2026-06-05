@@ -4,12 +4,19 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Check, ChevronLeft, ChevronRight, HelpCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export const AGENT_NEW_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.new.v2';
-export const AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.dashboard.v2';
+export const AGENT_NEW_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.new.v3';
+export const AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY = 'levo.agentOnboarding.dashboard.v3';
 
+const TOUR_STORAGE_VERSION = 3;
 const TOUR_STORAGE_EVENT = 'levo-agent-onboarding-state';
 
 type StoredTourStatus = 'dismissed' | 'completed';
+type AgentOnboardingStorageUser = {
+  id?: string | null;
+  twitter?: {
+    subject?: string | null;
+  } | null;
+} | null | undefined;
 
 export interface AgentOnboardingTourStep {
   anchor: string;
@@ -112,15 +119,38 @@ export const AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS: AgentOnboardingTourSte
   },
 ];
 
-export function AgentOnboardingTour({
-  steps,
-  storageKey,
-  onOpenSettings,
+export function getAgentOnboardingStorageKey({
+  authenticated,
+  baseKey,
+  user,
 }: {
+  authenticated: boolean;
+  baseKey: string;
+  user?: AgentOnboardingStorageUser;
+}): string | null {
+  if (!authenticated) return `${baseKey}.signed-out`;
+
+  const accountIdentity = user?.twitter?.subject ?? user?.id ?? null;
+  if (!accountIdentity) return null;
+
+  return `${baseKey}.account.${encodeURIComponent(accountIdentity)}`;
+}
+
+interface AgentOnboardingTourProps {
   steps: AgentOnboardingTourStep[];
   storageKey: string;
   onOpenSettings: () => void;
-}) {
+}
+
+export function AgentOnboardingTour(props: AgentOnboardingTourProps) {
+  return <AgentOnboardingTourContent key={props.storageKey} {...props} />;
+}
+
+function AgentOnboardingTourContent({
+  steps,
+  storageKey,
+  onOpenSettings,
+}: AgentOnboardingTourProps) {
   const getSnapshot = useCallback(
     () => getTourStorageSnapshot(storageKey),
     [storageKey],
@@ -321,7 +351,7 @@ function writeTourState(storageKey: string, status: StoredTourStatus) {
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
-        version: 2,
+        version: TOUR_STORAGE_VERSION,
         status,
         updatedAt: new Date().toISOString(),
       }),
