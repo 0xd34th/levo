@@ -6,6 +6,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MandateSummary } from '@/lib/agent/client';
 
 const {
   privyState,
@@ -18,7 +19,7 @@ const {
     authenticated: false,
     user: null as { id?: string; twitter?: { subject?: string } } | null,
   },
-  fetchMandatesMock: vi.fn(async () => []),
+  fetchMandatesMock: vi.fn<() => Promise<MandateSummary[]>>(async () => []),
   getAccessTokenMock: vi.fn(async () => 'access-token'),
   generateAuthorizationSignatureMock: vi.fn(),
 }));
@@ -62,6 +63,31 @@ const DASHBOARD_TOUR_BASE_KEY = 'levo.agentOnboarding.dashboard.v3';
 const SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.signed-out`;
 const ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-a`;
 const ACCOUNT_B_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-b`;
+
+const ACTIVE_MANDATE: MandateSummary = {
+  id: 'mandate-1',
+  userAgentId: null,
+  agentAddress: '0xagent',
+  mandateObjectId: '0xmandate',
+  name: 'Earn mandate',
+  actions: 1,
+  coinLimits: [],
+  periodMs: '86400000',
+  allowedTargets: [],
+  expiryMs: String(Date.now() + 86400000),
+  metadata: {},
+  status: 'ACTIVE',
+  nonce: '0',
+  witnessCommit: '0xwitness',
+  createdTxDigest: '0xcreated',
+  initTxDigest: null,
+  revokedTxDigest: null,
+  revokedAt: null,
+  destroyedTxDigest: null,
+  destroyedAt: null,
+  createdAt: '2026-06-05T00:00:00.000Z',
+  updatedAt: '2026-06-05T00:00:00.000Z',
+};
 
 function findButton(host: HTMLElement, text: string) {
   const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
@@ -181,6 +207,7 @@ describe('/agent mandate workbench onboarding', () => {
       id: 'privy-user-a',
       twitter: { subject: 'twitter-user-a' },
     };
+    fetchMandatesMock.mockResolvedValueOnce([ACTIVE_MANDATE]);
     await renderWorkbench();
 
     expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
@@ -194,12 +221,30 @@ describe('/agent mandate workbench onboarding', () => {
     expect(host.textContent).toContain('Bind external agent');
   });
 
+  it('signed-in empty dashboard tour starts at the main New mandate CTA', async () => {
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
+    fetchMandatesMock.mockResolvedValueOnce([]);
+
+    await renderWorkbench();
+
+    expect(host.textContent).toContain('Create your first mandate');
+    expect(host.textContent).toContain('Use the main New mandate action to create your first bounded Earn mandate.');
+    expect(host.textContent).not.toContain('Review mandates and recent runs from this dashboard.');
+    expect(host.querySelector('[data-agent-tour="agent-empty-new-mandate"]')).toBeTruthy();
+    expect(host.querySelector('[data-agent-tour="agent-mandates"] [data-agent-tour="agent-empty-new-mandate"]')).toBeNull();
+  });
+
   it.each(['dismissed', 'completed'] as const)('signed-in %s state is scoped to one account', async (status) => {
     privyState.authenticated = true;
     privyState.user = {
       id: 'privy-user-a',
       twitter: { subject: 'twitter-user-a' },
     };
+    fetchMandatesMock.mockResolvedValue([ACTIVE_MANDATE]);
     window.localStorage.setItem(
       ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY,
       JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
@@ -228,6 +273,7 @@ describe('/agent mandate workbench onboarding', () => {
       id: 'privy-user-a',
       twitter: { subject: 'twitter-user-a' },
     };
+    fetchMandatesMock.mockResolvedValue([ACTIVE_MANDATE]);
     await renderWorkbench();
 
     await clickButton(host, 'Next');

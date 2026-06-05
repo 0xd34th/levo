@@ -104,6 +104,16 @@ export const AGENT_DASHBOARD_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   },
 ];
 
+export const AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
+  {
+    anchor: 'agent-empty-new-mandate',
+    eyebrow: 'Create',
+    title: 'Create your first mandate',
+    body: 'Use the main New mandate action to create your first bounded Earn mandate.',
+  },
+  ...AGENT_DASHBOARD_ONBOARDING_STEPS.slice(2),
+];
+
 export const AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
     anchor: 'agent-dashboard',

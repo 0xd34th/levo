@@ -46,6 +46,7 @@ import {
 } from '@/lib/agent/display';
 import { cn } from '@/lib/utils';
 import {
+  AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS,
   AGENT_DASHBOARD_ONBOARDING_STEPS,
   AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
   AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS,
@@ -70,12 +71,16 @@ export function MandateWorkbench() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MandateDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mandatesLoaded, setMandatesLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const openSettings = useCallback(() => setActiveTab('settings'), []);
 
   const reloadList = useCallback(async () => {
-    if (!ready || !authenticated) return;
+    if (!ready || !authenticated) {
+      setMandatesLoaded(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -86,6 +91,7 @@ export function MandateWorkbench() {
       setError(err instanceof Error ? err.message : 'Failed to load mandates');
     } finally {
       setLoading(false);
+      setMandatesLoaded(true);
     }
   }, [authenticated, getAccessToken, identityToken, ready]);
 
@@ -128,8 +134,11 @@ export function MandateWorkbench() {
     return <ShellMessage>Loading mandates...</ShellMessage>;
   }
 
+  const useEmptyDashboardTour = authenticated && mandatesLoaded && mandates.length === 0 && !loading;
   const tourSteps = authenticated
-    ? AGENT_DASHBOARD_ONBOARDING_STEPS
+    ? useEmptyDashboardTour
+      ? AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS
+      : AGENT_DASHBOARD_ONBOARDING_STEPS
     : AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS;
   const tourStorageKey = getAgentOnboardingStorageKey({
     authenticated,
@@ -271,7 +280,7 @@ export function MandateWorkbench() {
                 }
               />
             ) : (
-              <EmptyMandates />
+              <EmptyMandates newMandateTourAnchor="agent-empty-new-mandate" />
             )}
           </>
         )}
@@ -527,7 +536,11 @@ function KV({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EmptyMandates() {
+function EmptyMandates({
+  newMandateTourAnchor,
+}: {
+  newMandateTourAnchor?: string;
+}) {
   return (
     <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[12px] bg-background p-6 text-center ring-1 ring-[color:var(--border)]">
       <Bot className="size-8" />
@@ -535,7 +548,12 @@ function EmptyMandates() {
       <p className="mt-1 max-w-xs text-[13px]" style={{ color: 'var(--text-soft)' }}>
         Create a mandate to let the Levo Agent run bounded Earn actions.
       </p>
-      <Button className="mt-4" nativeButton={false} render={<Link href="/agent/new" />}>
+      <Button
+        className="mt-4"
+        data-agent-tour={newMandateTourAnchor}
+        nativeButton={false}
+        render={<Link href="/agent/new" />}
+      >
         New mandate
       </Button>
     </div>
