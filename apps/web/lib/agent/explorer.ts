@@ -738,7 +738,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
           decimals: meta.decimals,
           amount: input.amount,
           amountRaw: toBaseUnits(input.amount, meta.decimals),
-          message: 'Prepared only. Use the Levo wallet approval flow before any transfer is signed.',
+          message: 'Prepared only. Use the Review transfer button on this card before any transfer is signed.',
         };
       },
     }),

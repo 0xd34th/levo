@@ -100,6 +100,46 @@ describe('buildAgentTools', () => {
     });
   });
 
+  it('prepares transfer cards for inline wallet review without executing from chat', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const requestUrl = new URL(String(url));
+        if (requestUrl.pathname.endsWith('/coin/detail')) {
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: {
+                coinType: FULL_SUI_COIN,
+                symbol: 'SUI',
+                decimals: 9,
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error(`unexpected URL ${requestUrl.pathname}`));
+      }),
+    );
+
+    const recipient = '0x0000000000000000000000000000000000000000000000000000000000000123';
+    const tool = buildAgentTools({ xUserId: 'test-user' }).prepare_transfer as unknown as {
+      execute: (input: { toAddressOrName: string; coinType: string; amount: string }) => Promise<unknown>;
+    };
+    const output = await tool.execute({ toAddressOrName: recipient, coinType: 'SUI', amount: '1.25' });
+
+    expect(output).toMatchObject({
+      kind: 'write-card',
+      action: 'transfer',
+      status: 'confirmation_required',
+      recipient,
+      coinType: FULL_SUI_COIN,
+      amount: '1.25',
+      amountRaw: '1250000000',
+      message: 'Prepared only. Use the Review transfer button on this card before any transfer is signed.',
+    });
+  });
+
   it('maps SuiVision Pro market fields into token metrics', async () => {
     vi.stubEnv('SUIVISION_API_KEY', 'test-key');
     vi.stubGlobal(

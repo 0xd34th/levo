@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ArrowRightLeft,
   BadgeCheck,
@@ -15,11 +15,18 @@ import {
   Sparkles,
   WalletCards,
 } from 'lucide-react';
+import { SendButton } from '@/components/send-button';
+import { TransactionResult, type TransactionResultData } from '@/components/transaction-result';
 import { buttonVariants } from '@/components/ui/button';
+import { SUI_COIN_TYPE } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 import { shortId } from '@/lib/agent/display';
+import { detectRecipientType } from '@/lib/recipient';
+import { useCoinBalance } from '@/lib/use-coin-balance';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 
 type AnyRecord = Record<string, unknown>;
+const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 
 export function SuiToolCard({ output }: { output: AnyRecord }) {
   const kind = output.kind;
@@ -262,17 +269,14 @@ function NftCollectionCard({ data }: { data: AnyRecord }) {
 
 function WriteCard({ data }: { data: AnyRecord }) {
   const action = stringValue(data.action, 'action');
+  if (action === 'transfer') return <TransferWriteCard data={data} />;
+
   const icon = action === 'transfer' ? <Send className="size-4" /> : action === 'swap' ? <Repeat2 className="size-4" /> : <ExternalLink className="size-4" />;
   const href = typeof data.href === 'string' ? data.href : null;
   return (
     <Shell icon={icon} title={`${capitalize(action)} prepared`} subtitle={stringValue(data.status)}>
       <div className="grid gap-2">
-        {action === 'transfer' ? (
-          <>
-            <Stat label="Recipient" value={shortId(stringValue(data.recipient), 8, 6)} />
-            <Stat label="Amount" value={`${stringValue(data.amount)} ${stringValue(data.symbol)}`} />
-          </>
-        ) : action === 'swap' ? (
+        {action === 'swap' ? (
           <>
             <Stat label="Input" value={`${stringValue(data.amountInHuman)} ${coinSymbol(data.tokenIn)}`} />
             <Stat label="Est. output" value={`${stringValue(data.amountOutHuman, 'Unavailable')} ${coinSymbol(data.tokenOut)}`} />
@@ -308,6 +312,87 @@ function WriteCard({ data }: { data: AnyRecord }) {
           {action === 'swap' ? 'Open swap panel' : 'Open local panel'}
         </Link>
       ) : null}
+    </Shell>
+  );
+}
+
+function TransferWriteCard({ data }: { data: AnyRecord }) {
+  const recipient = stringValue(data.recipient);
+  const recipientInput = stringValue(data.recipientResolvedFrom, recipient);
+  const amount = stringValue(data.amount);
+  const coinType = stringValue(data.coinType, SUI_COIN_TYPE);
+  const symbol = stringValue(data.symbol, coinType.split('::').pop() || 'Token');
+  const { suiAddress: embeddedWalletAddress, loading: walletLoading, error: walletError } = useEmbeddedWallet();
+  const { balance: availableBalance, loading: balanceLoading } = useCoinBalance(embeddedWalletAddress, coinType);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [txResult, setTxResult] = useState<TransactionResultData | null>(null);
+
+  return (
+    <Shell icon={<Send className="size-4" />} title="Transfer prepared" subtitle={stringValue(data.status)}>
+      <div className="grid gap-2">
+        <Stat label="Recipient" value={shortId(recipientInput || recipient, 8, 6)} />
+        {recipientInput && recipient && recipientInput !== recipient ? (
+          <Stat label="Resolved" value={shortId(recipient, 8, 6)} />
+        ) : null}
+        <Stat label="Amount" value={`${amount} ${symbol}`} />
+      </div>
+      <div className="mt-3 flex items-center gap-2 rounded-[8px] bg-[color:var(--surface)] px-3 py-2">
+        <ShieldAlert className="size-4 shrink-0" />
+        <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
+          {stringValue(data.message, 'Wallet approval is required before signing.')}
+        </p>
+      </div>
+      <div className="mt-3 space-y-2">
+        <p className="text-[13px] font-semibold">Review transfer</p>
+        {walletLoading ? (
+          <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
+            Preparing your embedded wallet...
+          </p>
+        ) : null}
+        {balanceLoading ? (
+          <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
+            Checking balance...
+          </p>
+        ) : null}
+        {!walletLoading && !walletError && !embeddedWalletAddress ? (
+          <p className="text-[12px]" style={{ color: 'var(--text-soft)' }}>
+            Embedded wallet is not ready.
+          </p>
+        ) : null}
+        {walletError ? (
+          <p className="text-[12px]" style={{ color: 'var(--down)' }}>
+            {walletError}
+          </p>
+        ) : null}
+        {sendError ? (
+          <p className="text-[12px]" style={{ color: 'var(--down)' }}>
+            {sendError}
+          </p>
+        ) : null}
+        <SendButton
+          amount={amount}
+          coinType={coinType}
+          recipientType={detectRecipientType(recipientInput)}
+          embeddedWalletAddress={embeddedWalletAddress}
+          availableBalance={availableBalance}
+          onConfirm={(result) => {
+            setSendError(null);
+            setTxResult(result);
+          }}
+          onError={setSendError}
+          username={recipientInput}
+        />
+      </div>
+      <div className="mt-3">
+        <TransactionResult
+          data={txResult}
+          network={NETWORK}
+          onReset={() => {
+            setTxResult(null);
+            setSendError(null);
+          }}
+        />
+      </div>
     </Shell>
   );
 }
