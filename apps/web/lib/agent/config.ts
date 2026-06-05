@@ -1,5 +1,4 @@
 import { normalizeSuiAddress } from '@mysten/sui/utils';
-import { discoverEarnRetainedAccountId } from '@/lib/stable-layer-earn';
 import type { UserAgent } from '@/lib/generated/prisma/client';
 
 export interface AgentMandateTemplate {
@@ -18,12 +17,9 @@ export interface AgentMandateConfig {
   error?: string;
 }
 
-export type ResolveEarnRetainedAccountTargetResult =
+export type ResolveEarnMandateTargetResult =
   | { ok: true; targetAddress: string }
   | { ok: false; error: string; status: number };
-
-export const MISSING_EARN_TARGET_ERROR =
-  'No Agent Earn target account was found for this wallet. A visible U/USDC balance is not enough for mandates; Agent needs the retained Earn account object before it can create one.';
 
 export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig {
   return {
@@ -67,10 +63,10 @@ export function getAgentMandateConfig(
   };
 }
 
-export async function resolveEarnRetainedAccountTarget(params: {
+export async function resolveEarnMandateTarget(params: {
   xUserId: string;
   senderAddress: string;
-}): Promise<ResolveEarnRetainedAccountTargetResult> {
+}): Promise<ResolveEarnMandateTargetResult> {
   let normalizedSenderAddress: string;
   try {
     normalizedSenderAddress = normalizeSuiAddress(params.senderAddress);
@@ -82,34 +78,11 @@ export async function resolveEarnRetainedAccountTarget(params: {
     };
   }
 
-  try {
-    const targetAddress = await discoverEarnRetainedAccountId({
-      xUserId: params.xUserId,
-      senderAddress: normalizedSenderAddress,
-    });
-
-    if (!targetAddress) {
-      return {
-        ok: false,
-        status: 404,
-        error: MISSING_EARN_TARGET_ERROR,
-      };
-    }
-
-    return {
-      ok: true,
-      targetAddress,
-    };
-  } catch (error) {
-    console.warn('Failed to resolve StableLayer Earn account target', {
-      xUserId: params.xUserId,
-      senderAddress: normalizedSenderAddress,
-      error,
-    });
-    return {
-      ok: false,
-      status: 503,
-      error: 'StableLayer Earn account lookup is temporarily unavailable.',
-    };
-  }
+  // Levo's normal Earn deposit path uses the wallet EOA as the Bucket account.
+  // The `levo-earn-retained` account object is only created by retained-yield
+  // settlement, so requiring it would block users who already deposited.
+  return {
+    ok: true,
+    targetAddress: normalizedSenderAddress,
+  };
 }

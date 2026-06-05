@@ -106,7 +106,7 @@ describe('mandate draft builder', () => {
     expect(result.errors).toContain('Per-run cap must be less than or equal to the period cap.');
   });
 
-  it('disables payload generation when the wallet Earn account target is missing', () => {
+  it('disables payload generation when agent configuration has an error', () => {
     const state = createInitialAgentMandateDraftState(null);
     const result = buildCreateMandatePayload(
       state,
@@ -116,13 +116,13 @@ describe('mandate draft builder', () => {
         agentLabel: CONFIG.agentLabel,
         executionMode: 'external_runner',
         templates: [],
-        error: 'No StableLayer Earn account target found for this wallet.',
+        error: 'Wallet binding has an invalid Sui address.',
       },
       NOW,
     );
 
     expect(result.payload).toBeNull();
-    expect(result.errors[0]).toBe('No StableLayer Earn account target found for this wallet.');
+    expect(result.errors[0]).toBe('Wallet binding has an invalid Sui address.');
   });
 
   it('blocks scheduled plans over the v1 64-run cap', () => {

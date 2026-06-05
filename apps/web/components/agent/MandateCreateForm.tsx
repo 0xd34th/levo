@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent, type HTMLAttributes } from 'react';
-import Link from 'next/link';
 import {
   ArrowRight,
   CalendarClock,
@@ -488,7 +487,6 @@ function AgentConfigNotice({
   const shouldOfferAgentSettings =
     message.includes('No active external agent') ||
     message.includes('Loading agent configuration');
-  const shouldOfferEarn = message.includes('No Agent Earn target account');
 
   return (
     <div
@@ -505,18 +503,6 @@ function AgentConfigNotice({
           onClick={onRetryWalletSetup}
         >
           Retry wallet setup
-        </Button>
-      )}
-      {shouldOfferEarn && (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="self-start whitespace-nowrap sm:self-auto"
-          nativeButton={false}
-          render={<Link href="/earn" />}
-        >
-          Open Earn
         </Button>
       )}
       {shouldOfferAgentSettings && onOpenAgentSettings && (

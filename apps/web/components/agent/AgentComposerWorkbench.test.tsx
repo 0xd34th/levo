@@ -86,16 +86,6 @@ const NO_AGENT_CONFIG: AgentMandateConfig = {
   error: 'No active external agent is configured. Bind an agent before creating mandates.',
 };
 
-const NO_EARN_TARGET_CONFIG: AgentMandateConfig = {
-  agentAddress: '',
-  userAgentId: null,
-  agentLabel: null,
-  executionMode: 'external_runner',
-  templates: [],
-  error:
-    'No Agent Earn target account was found for this wallet. A visible U/USDC balance is not enough for mandates; Agent needs the retained Earn account object before it can create one.',
-};
-
 const LOADING_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
@@ -164,17 +154,6 @@ describe('Agent mandate creation UI', () => {
 
     expect(markup).toContain('Loading agent configuration...');
     expect(markup).toContain('Bind agent');
-    expect(markup).not.toContain('What should the agent do?');
-  });
-
-  it('/agent/new explains that balances do not create the Earn mandate target', () => {
-    searchParams = '';
-    const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={NO_EARN_TARGET_CONFIG} />);
-
-    expect(markup).toContain('A visible U/USDC balance is not enough for mandates');
-    expect(markup).toContain('Open Earn');
-    expect(markup).toContain('href="/earn"');
-    expect(markup).not.toContain('Bind agent');
     expect(markup).not.toContain('What should the agent do?');
   });
 

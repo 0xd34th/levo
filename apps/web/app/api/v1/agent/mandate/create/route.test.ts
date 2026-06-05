@@ -5,7 +5,7 @@ const {
   createMandateMock,
   loadOwnerWalletMock,
   rateLimitMock,
-  resolveEarnRetainedAccountTargetMock,
+  resolveEarnMandateTargetMock,
   getDefaultUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
@@ -13,7 +13,7 @@ const {
   createMandateMock: vi.fn(),
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
-  resolveEarnRetainedAccountTargetMock: vi.fn(),
+  resolveEarnMandateTargetMock: vi.fn(),
   getDefaultUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('@/lib/agent/mandate-flow', () => ({
 }));
 
 vi.mock('@/lib/agent/config', () => ({
-  resolveEarnRetainedAccountTarget: resolveEarnRetainedAccountTargetMock,
+  resolveEarnMandateTarget: resolveEarnMandateTargetMock,
 }));
 
 vi.mock('@/lib/agent/user-agent', () => ({
@@ -111,7 +111,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
       },
     });
     loadOwnerWalletMock.mockResolvedValue({ xUserId: '12345', suiAddress: OWNER_ADDRESS });
-    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+    resolveEarnMandateTargetMock.mockResolvedValue({
       ok: true,
       targetAddress: TARGET,
     });
@@ -138,7 +138,7 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     expect(res.status).toBe(200);
     expect(loadOwnerWalletMock).toHaveBeenCalledWith('12345');
-    expect(resolveEarnRetainedAccountTargetMock).toHaveBeenCalledWith({
+    expect(resolveEarnMandateTargetMock).toHaveBeenCalledWith({
       xUserId: '12345',
       senderAddress: OWNER_ADDRESS,
     });
@@ -166,11 +166,11 @@ describe('POST /api/v1/agent/mandate/create', () => {
     expect(createMandateMock).not.toHaveBeenCalled();
   });
 
-  it('rejects creation when no Earn account target is found for the wallet', async () => {
-    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+  it('rejects creation when Earn target resolution fails for the wallet', async () => {
+    resolveEarnMandateTargetMock.mockResolvedValue({
       ok: false,
-      status: 404,
-      error: 'No StableLayer Earn account target found for this wallet.',
+      status: 400,
+      error: 'Wallet binding has an invalid Sui address.',
     });
     const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
       method: 'POST',
@@ -180,9 +180,9 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     const res = await POST(req);
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: 'No StableLayer Earn account target found for this wallet.',
+      error: 'Wallet binding has an invalid Sui address.',
     });
     expect(createMandateMock).not.toHaveBeenCalled();
   });

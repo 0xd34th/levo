@@ -12,7 +12,7 @@ import {
   loadOwnerWallet,
 } from '@/lib/agent/mandate-flow';
 import {
-  resolveEarnRetainedAccountTarget,
+  resolveEarnMandateTarget,
 } from '@/lib/agent/config';
 import { MandateSpecSchema } from '@/lib/agent/mandate-spec';
 import type { MandateSpec } from '@/lib/agent/types';
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const resolvedTarget = await resolveEarnRetainedAccountTarget({
+  const resolvedTarget = await resolveEarnMandateTarget({
     xUserId: auth.identity.xUserId,
     senderAddress: owner.suiAddress,
   });

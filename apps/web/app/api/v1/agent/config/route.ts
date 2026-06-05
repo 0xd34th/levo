@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import {
   getAgentMandateConfig,
   getDisabledAgentMandateConfig,
-  resolveEarnRetainedAccountTarget,
+  resolveEarnMandateTarget,
 } from '@/lib/agent/config';
 import { loadOwnerWallet } from '@/lib/agent/mandate-flow';
 import { getDefaultUserAgent } from '@/lib/agent/user-agent';
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const target = await resolveEarnRetainedAccountTarget({
+  const target = await resolveEarnMandateTarget({
     xUserId: auth.identity.xUserId,
     senderAddress: owner.suiAddress,
   });

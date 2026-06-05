@@ -4,14 +4,14 @@ import { NextRequest } from 'next/server';
 const {
   loadOwnerWalletMock,
   rateLimitMock,
-  resolveEarnRetainedAccountTargetMock,
+  resolveEarnMandateTargetMock,
   getDefaultUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
-  resolveEarnRetainedAccountTargetMock: vi.fn(),
+  resolveEarnMandateTargetMock: vi.fn(),
   getDefaultUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -54,7 +54,7 @@ vi.mock('@/lib/agent/config', () => ({
     templates: [],
     error,
   }),
-  resolveEarnRetainedAccountTarget: resolveEarnRetainedAccountTargetMock,
+  resolveEarnMandateTarget: resolveEarnMandateTargetMock,
 }));
 
 vi.mock('@/lib/agent/user-agent', () => ({
@@ -90,7 +90,7 @@ describe('GET /api/v1/agent/config', () => {
       },
     });
     loadOwnerWalletMock.mockResolvedValue({ xUserId: '12345', suiAddress: OWNER_ADDRESS });
-    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+    resolveEarnMandateTargetMock.mockResolvedValue({
       ok: true,
       targetAddress: TARGET,
     });
@@ -114,7 +114,7 @@ describe('GET /api/v1/agent/config', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(401);
-    expect(resolveEarnRetainedAccountTargetMock).not.toHaveBeenCalled();
+    expect(resolveEarnMandateTargetMock).not.toHaveBeenCalled();
   });
 
   it('returns the current wallet StableLayer Earn account target', async () => {
@@ -139,17 +139,17 @@ describe('GET /api/v1/agent/config', () => {
         },
       ],
     });
-    expect(resolveEarnRetainedAccountTargetMock).toHaveBeenCalledWith({
+    expect(resolveEarnMandateTargetMock).toHaveBeenCalledWith({
       xUserId: '12345',
       senderAddress: OWNER_ADDRESS,
     });
   });
 
-  it('returns a disabled config when no Earn account target exists', async () => {
-    resolveEarnRetainedAccountTargetMock.mockResolvedValue({
+  it('returns a disabled config when Earn target resolution fails', async () => {
+    resolveEarnMandateTargetMock.mockResolvedValue({
       ok: false,
-      status: 404,
-      error: 'No StableLayer Earn account target found for this wallet.',
+      status: 400,
+      error: 'Wallet binding has an invalid Sui address.',
     });
     const req = new NextRequest('http://localhost/api/v1/agent/config', {
       headers: { origin: 'http://localhost' },
@@ -164,7 +164,7 @@ describe('GET /api/v1/agent/config', () => {
       agentLabel: null,
       executionMode: 'external_runner',
       templates: [],
-      error: 'No StableLayer Earn account target found for this wallet.',
+      error: 'Wallet binding has an invalid Sui address.',
     });
   });
 });
