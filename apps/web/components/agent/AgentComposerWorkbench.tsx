@@ -1,7 +1,9 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import type { CreateMandatePayload } from '@/lib/agent/client';
 import {
@@ -9,6 +11,7 @@ import {
   createInitialAgentMandateDraftState,
 } from '@/lib/agent/mandate-draft';
 import { AgentChatPanel } from './AgentChatPanel';
+import { AgentOnboardingTour } from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
 import { MandateCreateForm } from './MandateCreateForm';
 import { MandateDraftPreview } from './MandateDraftPreview';
@@ -33,6 +36,7 @@ export function AgentComposerWorkbench({
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configReloadSignal, setConfigReloadSignal] = useState(0);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
 
   const helperText = useMemo(() => {
     if (!intent) return 'Describe the Earn task first. Options appear only after there is a request to shape.';
@@ -42,11 +46,27 @@ export function AgentComposerWorkbench({
   return (
     <div className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
       <section className="flex min-h-[620px] flex-col rounded-[16px] bg-[color:var(--surface)] p-4">
-        <div className="border-b border-[color:var(--border)] pb-3">
-          <h1 className="text-[24px] font-semibold tracking-[-0.01em]">Agent workspace</h1>
-          <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-            Chat can inspect Sui and prepare handoffs. Approval stays in guided cards.
-          </p>
+        <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
+          <div>
+            <h1 className="text-[24px] font-semibold tracking-[-0.01em]">Agent workspace</h1>
+            <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
+              Chat can inspect Sui and prepare handoffs. Approval stays in guided cards.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <AgentOnboardingTour onOpenSettings={openSettings} />
+            <Button
+              type="button"
+              size="sm"
+              variant={settingsOpen ? 'default' : 'outline'}
+              onClick={openSettings}
+              data-agent-tour="agent-settings-toggle"
+              aria-pressed={settingsOpen}
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Agent settings
+            </Button>
+          </div>
         </div>
         <div className="min-h-0 flex-1 pt-4">
           <AgentChatPanel onMandateCreated={() => {}} initialSurface={initialSurface} />
@@ -90,7 +110,7 @@ export function AgentComposerWorkbench({
                 initialConfig={initialConfig}
                 onDraftChange={setProposal}
                 onCreated={() => {}}
-                onOpenAgentSettings={() => setSettingsOpen(true)}
+                onOpenAgentSettings={openSettings}
                 configReloadSignal={configReloadSignal}
                 showIntentPrompt={false}
               />

@@ -17,7 +17,7 @@ interface ProposalPayload {
 export function MandateDraftPreview({ proposal }: { proposal: ProposalPayload | null }) {
   if (!proposal?.spec || !proposal.plan || proposal.error) {
     return (
-      <aside className="flex h-full min-h-[420px] flex-col rounded-[16px] bg-[color:var(--surface)] p-5">
+      <aside data-agent-tour="mandate-preview" className="flex h-full min-h-[420px] flex-col rounded-[16px] bg-[color:var(--surface)] p-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-5" />
           <h2 className="text-[18px] font-semibold">Mandate preview</h2>
@@ -40,7 +40,7 @@ export function MandateDraftPreview({ proposal }: { proposal: ProposalPayload | 
   const target = proposal.spec.allowedTargets[0] ?? '';
 
   return (
-    <aside className="h-full rounded-[16px] bg-[color:var(--surface)] p-5">
+    <aside data-agent-tour="mandate-preview" className="h-full rounded-[16px] bg-[color:var(--surface)] p-5">
       <div className="flex items-center gap-2">
         <ShieldCheck className="size-5" />
         <h2 className="text-[18px] font-semibold">Mandate preview</h2>

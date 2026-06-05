@@ -1,5 +1,11 @@
+/**
+ * @vitest-environment happy-dom
+ */
+
+import { act } from 'react';
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 
 let searchParams = '';
@@ -34,7 +40,7 @@ vi.mock('@/components/agent/MandateProposalCard', () => ({
 
 vi.mock('@/components/agent/AgentChatPanel', () => ({
   AgentChatPanel: ({ initialSurface }: { initialSurface?: string | null }) => (
-    <div>
+    <div data-agent-tour="chat-start">
       <p>Explore Sui or manage mandates.</p>
       {initialSurface ? <p>Initial surface: {initialSurface}</p> : null}
       <button>Auto-harvest yield</button>
@@ -82,6 +88,22 @@ import { AgentComposerWorkbench } from './AgentComposerWorkbench';
 import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
 import { MandateWorkbench } from './MandateWorkbench';
+
+const TOUR_STORAGE_KEY = 'levo.agentOnboarding.v1';
+
+function findButton(host: HTMLElement, text: string) {
+  const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
+    candidate.textContent?.includes(text),
+  );
+  if (!button) throw new Error(`Button not found: ${text}`);
+  return button;
+}
+
+async function clickButton(host: HTMLElement, text: string) {
+  await act(async () => {
+    findButton(host, text).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
 
 describe('Agent mandate creation UI', () => {
   it('/agent/new initial SSR markup asks for intent before showing option controls', () => {
@@ -230,5 +252,117 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Mandates');
     expect(markup).toContain('Settings');
     expect(markup).toContain('Mandates and recent runs');
+  });
+});
+
+describe('Agent onboarding tour', () => {
+  let host: HTMLDivElement;
+  let root: Root | null;
+
+  beforeEach(() => {
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    searchParams = 'intent=auto-harvest%20claimable%20yield%20daily%20with%20conservative%20caps';
+    window.localStorage.clear();
+    host = document.createElement('div');
+    document.body.append(host);
+    root = null;
+  });
+
+  afterEach(async () => {
+    if (root) {
+      await act(async () => {
+        root?.unmount();
+      });
+    }
+    host.remove();
+    window.localStorage.clear();
+  });
+
+  async function renderWorkbench(config: AgentMandateConfig = CONFIG) {
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<AgentComposerWorkbench initialConfig={config} />);
+    });
+    await act(async () => {});
+  }
+
+  it('/agent/new renders Guide', () => {
+    searchParams = '';
+    const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
+
+    expect(markup).toContain('Guide');
+  });
+
+  it('auto-starts after hydrating SSR markup when no stored state exists', async () => {
+    host.innerHTML = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
+
+    await act(async () => {
+      root = hydrateRoot(host, <AgentComposerWorkbench initialConfig={CONFIG} />);
+    });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+  });
+
+  it('first-run tour copy covers chat start, mandate creation, approval, runner binding, and runner setup storage', async () => {
+    await renderWorkbench();
+
+    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+
+    await clickButton(host, 'Next');
+    expect(host.textContent).toContain('Shape an Earn mandate from an intent.');
+
+    await clickButton(host, 'Next');
+    expect(host.textContent).toContain('Review caps, cadence, expiry, and preview before signing.');
+
+    await clickButton(host, 'Next');
+    expect(host.textContent).toContain('Open settings and bind an external runner.');
+    expect(host.textContent).toContain('Bind external agent');
+
+    await clickButton(host, 'Next');
+    expect(host.textContent).toContain('Copy and store the one-time runner setup prompt after binding.');
+  });
+
+  it('closing the tour writes dismissed state', async () => {
+    await renderWorkbench();
+
+    await clickButton(host, 'Close');
+
+    expect(JSON.parse(window.localStorage.getItem(TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      status: 'dismissed',
+    });
+    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+  });
+
+  it('finishing the tour writes completed state', async () => {
+    await renderWorkbench();
+
+    await clickButton(host, 'Next');
+    await clickButton(host, 'Next');
+    await clickButton(host, 'Next');
+    await clickButton(host, 'Next');
+    await clickButton(host, 'Done');
+
+    expect(JSON.parse(window.localStorage.getItem(TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
+      status: 'completed',
+    });
+  });
+
+  it.each(['dismissed', 'completed'] as const)('Guide reopens after %s state', async (status) => {
+    window.localStorage.setItem(
+      TOUR_STORAGE_KEY,
+      JSON.stringify({ version: 1, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
+    );
+
+    await renderWorkbench();
+
+    expect(host.textContent).toContain('Guide');
+    expect(host.textContent).not.toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
+
+    await clickButton(host, 'Guide');
+
+    expect(host.textContent).toContain('Start from chat, wallet, on-chain, trade, or mandate commands.');
   });
 });

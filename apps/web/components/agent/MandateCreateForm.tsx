@@ -209,7 +209,7 @@ export function MandateCreateForm({
     if (!showIntentPrompt) {
       return (
         <div className="space-y-3">
-          <section className="rounded-[12px] bg-background p-4 ring-1 ring-[color:var(--border)]">
+          <section data-agent-tour="mandate-intent" className="rounded-[12px] bg-background p-4 ring-1 ring-[color:var(--border)]">
             <p className="text-[14px] font-medium">No mandate intent selected</p>
             <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
               Choose an Earn mandate command in the Agent workspace. The guided approval controls will appear here.
@@ -228,7 +228,7 @@ export function MandateCreateForm({
 
     return (
       <form onSubmit={submitIntent} className="space-y-5">
-        <section className="rounded-[14px] bg-background p-4 ring-1 ring-[color:var(--border)]">
+        <section data-agent-tour="mandate-intent" className="rounded-[14px] bg-background p-4 ring-1 ring-[color:var(--border)]">
           <p className="text-[14px] font-semibold">What should the agent do?</p>
           <p className="mt-1 text-[13px] leading-[1.45]" style={{ color: 'var(--text-soft)' }}>
             Describe the Earn task in your own words.
@@ -259,7 +259,7 @@ export function MandateCreateForm({
 
   return (
     <div className="space-y-5">
-      <section className="space-y-4">
+      <section data-agent-tour="mandate-options" className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">

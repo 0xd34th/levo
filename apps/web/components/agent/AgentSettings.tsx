@@ -155,7 +155,7 @@ export function AgentSettings({ onAgentsChanged }: AgentSettingsProps = {}) {
 
   return (
     <div className="h-full overflow-y-auto space-y-4">
-      <section className="rounded-[12px] bg-[color:var(--surface)] p-3 ring-1 ring-[color:var(--border)]">
+      <section data-agent-tour="runner-bind" className="rounded-[12px] bg-[color:var(--surface)] p-3 ring-1 ring-[color:var(--border)]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-4" />
           <h2 className="text-[14px] font-semibold">Bind external agent</h2>
@@ -239,7 +239,7 @@ export function RunnerTokenPanel({
   });
 
   return (
-    <section className="rounded-[12px] bg-background p-3 ring-1 ring-[color:var(--border)]">
+    <section data-agent-tour="runner-token" className="rounded-[12px] bg-background p-3 ring-1 ring-[color:var(--border)]">
       <p className="text-[13px] font-medium">Runner token</p>
       <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
         Shown once. Store it in your runner environment.

@@ -1,44 +1,55 @@
 ## Goal
 
-Restore `apps/web` quality gates and high-value production guardrails so the web app can be linted, tested, built, health-checked, and smoke-tested without relying on dead swap adapters or stale CI paths.
+Add a first-run, restartable onboarding tour on `/agent/new` that teaches a user how to start from the agent command presets, shape an Earn mandate safely, review approval limits, and bind a BYO external runner.
 
 ## Scope
 
-- `apps/web` lint, unit tests, package scripts, dependency audit surface, health route, and minimal browser smoke.
-- Agent chat swap handoff from chat tool output to the existing local swap panel.
-- Root CI and rsync deploy healthcheck configuration.
-- Root `SPEC.md` / `PLAN.md` plus env/docs updates required by this web readiness work.
+- `/agent/new` client UI only.
+- Browser-local onboarding state using `localStorage`.
+- Stable tour anchors on existing agent, mandate, preview, and settings surfaces.
+- Focused unit coverage for first-run display, dismiss/complete persistence, restart, and required guide copy.
+- Root `SPEC.md` / `PLAN.md` updates for this onboarding work.
 
 ## Non-Goals
 
-- Do not remediate `apps/aisui` or `apps/flux` dependency advisories.
-- Do not add a new swap SDK, bridge embed, or production bridge execution path.
-- Do not deploy production or change production secrets.
-- Do not refactor Earn state-machine internals.
+- No backend API, Prisma migration, account-level onboarding sync, analytics event, production deploy change, or secrets change.
+- No new UI dependency or broad redesign of the agent workspace.
+- No change to mandate creation, signing, runner binding, or scheduler semantics.
 
 ## Public Interfaces
 
-- `GET /api/health` returns a secret-free JSON payload:
-  - `status: "ok" | "degraded"`
-  - `checks.db`
-  - `checks.redis`
-  - `checks.env`
-  - `checks.gasStation`
-  - `checks.agentScheduler`
-- Agent `write-card` payloads may include `href`.
-- Agent `prepare_swap` returns `status: "open_local_surface"` and `href: "/agent/new?surface=swap"`.
-- `/agent/new?surface=swap|send|bridge` opens the matching local trade surface.
-- `apps/web` exposes `pnpm test:e2e`.
+- New component:
+  - `AgentOnboardingTour({ onOpenSettings }: { onOpenSettings: () => void })`
+- Browser state key:
+  - `levo.agentOnboarding.v1`
+- Stable DOM anchors:
+  - `data-agent-tour="chat-start"`
+  - `data-agent-tour="mandate-intent"`
+  - `data-agent-tour="mandate-options"`
+  - `data-agent-tour="mandate-preview"`
+  - `data-agent-tour="agent-settings-toggle"`
+  - `data-agent-tour="runner-bind"`
+  - `data-agent-tour="runner-token"`
 
 ## Acceptance
 
-1. `pnpm --dir apps/web lint` passes.
-2. `pnpm --dir apps/web typecheck` passes.
-3. `pnpm --dir apps/web test` passes.
-4. `pnpm --dir apps/web build` passes.
-5. `pnpm --dir apps/web test:e2e` passes.
-6. Web-scoped audit has no `apps__web` moderate/high/critical advisories; non-web app advisories remain out of scope.
-7. `prepare_swap` no longer attempts OKX or unimplemented 7K quote adapters; it opens the local swap surface.
-8. `GET /api/health` returns structured health checks without exposing secret values and is used by `scripts/deploy-rsync.sh`.
-9. CI runs against `main`, removes the nonexistent signer test, and explicitly typechecks web.
-10. `scripts/deploy-rsync.sh --dry-run --skip-env` remains usable.
+1. `/agent/new` renders a persistent `Guide` restart control.
+2. The tour auto-starts only when `localStorage` has no dismissed or completed state for `levo.agentOnboarding.v1`.
+3. `Close` writes a dismissed state; `Done` writes a completed state.
+4. Clicking `Guide` reopens the tour after dismissed or completed state.
+5. Tour copy covers:
+   - starting from chat, wallet, on-chain, trade, or mandate commands;
+   - shaping an Earn mandate from an intent;
+   - reviewing caps, cadence, expiry, and preview before signing;
+   - opening settings and binding an external runner;
+   - copying and storing the one-time runner setup prompt after binding.
+6. The tour can open the Agent settings panel for runner binding without blocking normal workspace actions.
+7. Existing agent chat and mandate creation behavior remains unchanged.
+8. Verification commands pass:
+   - `pnpm --dir apps/web test -- AgentComposerWorkbench`
+   - `pnpm --dir apps/web test -- AgentChatPanel`
+   - `pnpm --dir apps/web lint`
+   - `pnpm --dir apps/web typecheck`
+   - `pnpm --dir apps/web test`
+   - `pnpm --dir apps/web build`
+   - `pnpm --dir apps/web test:e2e`

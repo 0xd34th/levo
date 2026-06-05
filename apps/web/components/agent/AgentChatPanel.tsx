@@ -291,7 +291,7 @@ function EmptyState({
   disabled: boolean;
 }) {
   return (
-    <div className="rounded-[12px] bg-[color:var(--surface)] p-4">
+    <div data-agent-tour="chat-start" className="rounded-[12px] bg-[color:var(--surface)] p-4">
       <p className="text-[13px] font-medium">Explore Sui or manage mandates.</p>
       <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
         Start with a Sui query, a prepared transfer/swap, or an Earn mandate handoff.
