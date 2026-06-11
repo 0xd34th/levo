@@ -81,6 +81,7 @@ interface EarnFinalResponse {
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const USER_FACING_USDC_TYPE = getUserFacingUsdcCoinType() ?? MAINNET_USDC_TYPE;
+const POST_TRANSACTION_SUMMARY_REFRESH_DELAYS_MS = [1500, 3500] as const;
 const SUMMARY_AUTH_ERRORS = new Set([
   'Authentication temporarily unavailable',
   'Invalid or expired session',
@@ -243,6 +244,7 @@ export default function EarnPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [txDigest, setTxDigest] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const scheduledSummaryRefreshTimeoutsRef = useRef<number[]>([]);
 
   const refreshSummary = useCallback(async () => {
     abortRef.current?.abort();
@@ -288,16 +290,33 @@ export default function EarnPage() {
     }
   }, [authenticated, getAccessToken, identityToken, ready]);
 
-  useEffect(() => {
-    void refreshSummary();
-    return () => abortRef.current?.abort();
-  }, [refreshSummary]);
+  const clearScheduledSummaryRefreshes = useCallback(() => {
+    for (const timeoutId of scheduledSummaryRefreshTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+    scheduledSummaryRefreshTimeoutsRef.current = [];
+  }, []);
+
+  const schedulePostTransactionSummaryRefreshes = useCallback(() => {
+    clearScheduledSummaryRefreshes();
+    scheduledSummaryRefreshTimeoutsRef.current = POST_TRANSACTION_SUMMARY_REFRESH_DELAYS_MS.map((delayMs) =>
+      window.setTimeout(() => {
+        void refreshSummary();
+      }, delayMs),
+    );
+  }, [clearScheduledSummaryRefreshes, refreshSummary]);
 
   useEffect(() => {
-    return subscribeAccountDataRefresh(() => {
-      void refreshSummary();
-    });
-  }, [refreshSummary]);
+    void refreshSummary();
+    return () => {
+      clearScheduledSummaryRefreshes();
+      abortRef.current?.abort();
+    };
+  }, [clearScheduledSummaryRefreshes, refreshSummary]);
+
+  useEffect(() => {
+    return subscribeAccountDataRefresh(schedulePostTransactionSummaryRefreshes);
+  }, [schedulePostTransactionSummaryRefreshes]);
 
   const metricSummary = useMemo(() => {
     if (!summary) {
@@ -472,13 +491,21 @@ export default function EarnPage() {
       setAmount('');
       setError(null);
       emitAccountDataRefresh();
+      schedulePostTransactionSummaryRefreshes();
       await refreshSummary();
     } catch (executeError) {
       setError(executeError instanceof Error ? executeError.message : 'Earn execution failed');
     } finally {
       setExecuting(false);
     }
-  }, [generateAuthorizationSignature, getAccessToken, identityToken, preview, refreshSummary]);
+  }, [
+    generateAuthorizationSignature,
+    getAccessToken,
+    identityToken,
+    preview,
+    refreshSummary,
+    schedulePostTransactionSummaryRefreshes,
+  ]);
 
   const yieldServerPayout = summary?.yieldSettlementMode === 'server_payout';
   const claimableValue = metricSummary.claimableYieldUsdc;
