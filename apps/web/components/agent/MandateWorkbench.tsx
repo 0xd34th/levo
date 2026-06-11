@@ -136,7 +136,9 @@ export function MandateWorkbench() {
 
   const useEmptyDashboardTour = authenticated && mandatesLoaded && mandates.length === 0 && !loading;
   const tourSteps = authenticated
-    ? useEmptyDashboardTour
+    ? !mandatesLoaded
+      ? []
+      : useEmptyDashboardTour
       ? AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS
       : AGENT_DASHBOARD_ONBOARDING_STEPS
     : AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS;

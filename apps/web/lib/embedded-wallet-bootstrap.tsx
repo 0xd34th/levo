@@ -29,6 +29,11 @@ const DEFAULT_CONTEXT: EmbeddedWalletBootstrapState = {
 
 const EmbeddedWalletBootstrapContext = createContext<EmbeddedWalletBootstrapState>(DEFAULT_CONTEXT);
 
+function getWalletIdentityKey(rawIdentityKey: string): string {
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() || '__missing_privy_app_id__';
+  return `${privyAppId}:${rawIdentityKey}`;
+}
+
 function loadCachedAddress(identityKey: string): string | null {
   try {
     const value = window.sessionStorage.getItem(`${STORAGE_KEY_PREFIX}${identityKey}`);
@@ -85,9 +90,10 @@ function useEmbeddedWalletSetupState(): EmbeddedWalletBootstrapState {
   const controllerRef = useRef<AbortController | null>(null);
   const fetchedRef = useRef(false);
   const authIdentityRef = useRef<string | null>(null);
-  const authIdentityKey = authenticated
+  const rawAuthIdentityKey = authenticated
     ? user?.twitter?.subject ?? user?.id ?? '__authenticated__'
     : null;
+  const authIdentityKey = rawAuthIdentityKey ? getWalletIdentityKey(rawAuthIdentityKey) : null;
 
   const setupWallet = useCallback(async () => {
     if (!authIdentityKey) {

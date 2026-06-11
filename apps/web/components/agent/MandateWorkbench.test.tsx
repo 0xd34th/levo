@@ -110,6 +110,14 @@ async function flushTourEffects() {
   });
 }
 
+function deferredMandates() {
+  let resolve!: (value: MandateSummary[]) => void;
+  const promise = new Promise<MandateSummary[]>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 describe('/agent mandate workbench onboarding', () => {
   let host: HTMLDivElement;
   let root: Root | null;
@@ -219,6 +227,29 @@ describe('/agent mandate workbench onboarding', () => {
     expect(host.textContent).toContain('Switch to Settings to manage external runners.');
     expect(host.querySelector('[data-agent-tour="runner-bind"]')).toBeTruthy();
     expect(host.textContent).toContain('Bind external agent');
+  });
+
+  it('does not open the signed-in dashboard tour before mandates finish loading', async () => {
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
+    const pending = deferredMandates();
+    fetchMandatesMock.mockReturnValueOnce(pending.promise);
+
+    await renderWorkbench();
+
+    expect(host.textContent).toContain('Guide');
+    expect(host.textContent).not.toContain('Review active mandates');
+
+    await act(async () => {
+      pending.resolve([]);
+      await pending.promise;
+    });
+    await flushTourEffects();
+
+    expect(host.textContent).toContain('Create your first mandate');
   });
 
   it('signed-in empty dashboard tour starts at the main New mandate CTA', async () => {
