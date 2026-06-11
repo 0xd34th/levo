@@ -33,6 +33,7 @@ import {
 } from '../lib/agent/package';
 import { getAgentSuiClient } from '../lib/agent/sui-client';
 import { getAgentAddress, getAgentKeypair } from '../lib/agent/kms';
+import { sendFundsToAddressBalance } from '../lib/address-balance';
 import type { MandateSpec, MandateSpecInput } from '../lib/agent/mandate-spec';
 import { MandateSpecSchema } from '../lib/agent/mandate-spec';
 import { prisma } from '../lib/prisma';
@@ -258,7 +259,12 @@ async function transferSuiFromAgent(
 ): Promise<void> {
   const tx = new Transaction();
   const [coin] = tx.splitCoins(tx.gas, [amountMist]);
-  tx.transferObjects([coin!], to);
+  sendFundsToAddressBalance({
+    tx,
+    coin: coin!,
+    recipient: to,
+    coinType: TEST_COIN_TYPE,
+  });
   const kp = getAgentKeypair();
   tx.setSender(kp.getPublicKey().toSuiAddress());
   const bytes = await tx.build({ client });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { normalizeStructTag } from '@mysten/sui/utils';
 import {
   getClientIp,
   hasValidHmacSecret,
@@ -29,13 +30,14 @@ class QuoteUpdateConflictError extends Error {
   }
 }
 
-function extractTransferredCoinType(objectType: string): string | null {
-  const prefix = '0x2::coin::Coin<';
-  if (!objectType.startsWith(prefix) || !objectType.endsWith('>')) {
+function extractAccumulatorBalanceCoinType(type: string): string | null {
+  const normalizedType = normalizeStructTag(type);
+  const prefix = `${normalizeStructTag('0x2::balance::Balance<0x2::sui::SUI>').split('<')[0]}<`;
+  if (!normalizedType.startsWith(prefix) || !normalizedType.endsWith('>')) {
     return null;
   }
 
-  return objectType.slice(prefix.length, -1);
+  return normalizedType.slice(prefix.length, -1);
 }
 
 function isPrismaConflictError(error: unknown): error is { code: string } {
@@ -125,6 +127,69 @@ async function syncPendingQuoteWithConfirmedLedger(
       confirmedTxDigest: txDigest,
     },
   });
+}
+
+function findMatchingRecipientAmountFromBalanceChanges(params: {
+  balanceChanges: Array<{
+    owner?: unknown;
+    coinType?: string;
+    amount?: string;
+  }>;
+  recipientAddress: string;
+  coinType: string;
+}) {
+  const normalizedCoinType = normalizeStructTag(params.coinType);
+  const match = params.balanceChanges.find((bc) => {
+    const owner = bc.owner;
+    if (typeof owner !== 'object' || owner === null) return false;
+    if (!('AddressOwner' in owner)) return false;
+    if (owner.AddressOwner !== params.recipientAddress) return false;
+    if (!bc.coinType || normalizeStructTag(bc.coinType) !== normalizedCoinType) return false;
+    return BigInt(bc.amount ?? '0') > 0n;
+  });
+
+  return match ? BigInt(match.amount ?? '0') : null;
+}
+
+function findMatchingRecipientAmountFromAccumulatorEvents(params: {
+  accumulatorEvents: unknown[] | null | undefined;
+  recipientAddress: string;
+  coinType: string;
+}) {
+  const normalizedCoinType = normalizeStructTag(params.coinType);
+
+  for (const event of params.accumulatorEvents ?? []) {
+    if (typeof event !== 'object' || event === null) {
+      continue;
+    }
+    const candidate = event as {
+      address?: string;
+      operation?: string;
+      ty?: string;
+      value?: {
+        integer?: string;
+      };
+    };
+    if (candidate.address !== params.recipientAddress) {
+      continue;
+    }
+    if (candidate.operation !== 'merge') {
+      continue;
+    }
+    if (!candidate.ty || extractAccumulatorBalanceCoinType(candidate.ty) !== normalizedCoinType) {
+      continue;
+    }
+    if (!candidate.value?.integer) {
+      continue;
+    }
+
+    const amount = BigInt(candidate.value.integer);
+    if (amount > 0n) {
+      return amount;
+    }
+  }
+
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -333,49 +398,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 8. Find matching transfer in objectChanges
-  const objectChanges = tx.objectChanges ?? [];
-  const transferChange = objectChanges.find((change) => {
-    // Accept both 'transferred' and 'created' — SplitCoins + TransferObjects
-    // produces a 'created' change, not 'transferred'
-    if (change.type !== 'transferred' && change.type !== 'created') return false;
+  // 8. Verify settlement by recipient balance increase. Address Balance
+  // settlement via coin::send_funds may not create or transfer a Coin object.
+  const onChainAmount =
+    findMatchingRecipientAmountFromBalanceChanges({
+      balanceChanges: tx.balanceChanges ?? [],
+      recipientAddress: quoteData.vaultAddress,
+      coinType: settlementCoinType,
+    }) ??
+    findMatchingRecipientAmountFromAccumulatorEvents({
+      accumulatorEvents: tx.effects?.accumulatorEvents,
+      recipientAddress: quoteData.vaultAddress,
+      coinType: settlementCoinType,
+    });
 
-    // 'transferred' uses recipient, 'created' uses owner
-    const ownerField = change.type === 'transferred' ? change.recipient : change.owner;
-    if (typeof ownerField !== 'object' || ownerField === null) return false;
-    if (!('AddressOwner' in ownerField)) return false;
-    if (ownerField.AddressOwner !== quoteData.vaultAddress) return false;
-
-    return extractTransferredCoinType(change.objectType) === settlementCoinType;
-  });
-
-  if (!transferChange) {
-    return NextResponse.json(
-      { error: 'No matching transfer found in transaction' },
-      { status: 400 },
-    );
-  }
-
-  // 9. Get amount from balanceChanges
-  const balanceChanges = tx.balanceChanges ?? [];
-  const vaultBalanceChange = balanceChanges.find((bc) => {
-    const owner = bc.owner;
-    if (typeof owner !== 'object' || owner === null) return false;
-    if (!('AddressOwner' in owner)) return false;
-    if (owner.AddressOwner !== quoteData.vaultAddress) return false;
-    if (bc.coinType !== settlementCoinType) return false;
-    return true;
-  });
-
-  if (!vaultBalanceChange) {
+  if (onChainAmount === null) {
     return NextResponse.json(
       { error: 'No matching balance change found for vault' },
       { status: 400 },
     );
   }
 
-  // 10. Verify amount matches
-  const onChainAmount = BigInt(vaultBalanceChange.amount);
+  // 9. Verify amount matches
   if (onChainAmount !== quotedAmount) {
     return NextResponse.json(
       {
@@ -387,7 +431,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 11. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
+  // 10. Write PaymentLedger row and update quote to CONFIRMED (in a Prisma transaction)
   try {
     const confirmedAt = new Date();
     const normalizedXUserId = quoteData.xUserId || null;

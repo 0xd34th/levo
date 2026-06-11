@@ -7,6 +7,10 @@ import {
 } from '@mysten/sui/transactions';
 import { POST as confirmPayment } from '@/app/api/v1/payments/confirm/route';
 import {
+  buildTransactionBytesWithGasPreference,
+  sendFundsToAddressBalance,
+} from '@/lib/address-balance';
+import {
   getClientIp,
   hasValidHmacSecret,
   noStoreJson,
@@ -104,6 +108,32 @@ function pendingSendResponse(
     vaultAddress,
     txDigest,
   });
+}
+
+function buildSendTransaction(params: {
+  senderAddress: string;
+  recipientAddress: string;
+  coinType: string;
+  amount: bigint;
+}) {
+  const tx = new Transaction();
+  tx.setSender(params.senderAddress);
+
+  const coin = tx.add(
+    coinWithBalance({
+      type: params.coinType,
+      balance: params.amount,
+    }),
+  );
+
+  sendFundsToAddressBalance({
+    tx,
+    coin,
+    recipient: params.recipientAddress,
+    coinType: params.coinType,
+  });
+
+  return tx;
 }
 
 async function confirmBroadcastedQuote(
@@ -477,24 +507,25 @@ export async function POST(req: NextRequest) {
     privyWalletId = authorizationBundle.walletId;
     suiPublicKey = authorizationBundle.storedPublicKey;
   } else {
-    const tx = new Transaction();
-    tx.setSender(xUser.suiAddress);
-
-    if (gasKeypair) {
-      tx.setGasOwner(gasKeypair.toSuiAddress());
-    }
-
-    const coin = tx.add(
-      coinWithBalance({
-        type: quotePayload.coinType,
-        balance: amount,
-      }),
-    );
-
-    tx.transferObjects([coin], quotePayload.vaultAddress);
-
     try {
-      txBytes = await tx.build({ client });
+      const buildTransaction = () => buildSendTransaction({
+        senderAddress: xUser.suiAddress!,
+        recipientAddress: quotePayload.vaultAddress,
+        coinType: quotePayload.coinType,
+        amount,
+      });
+
+      if (gasKeypair) {
+        const buildResult = await buildTransactionBytesWithGasPreference({
+          client,
+          gasOwner: gasKeypair.toSuiAddress(),
+          buildTransaction,
+          allowLegacyFallback: true,
+        });
+        txBytes = buildResult.txBytes;
+      } else {
+        txBytes = await buildTransaction().build({ client });
+      }
     } catch (error) {
       const buildError = getAnnotatedTransactionErrorMessage(error);
       console.error(

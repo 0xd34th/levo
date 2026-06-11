@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
         quote: storedQuote.quote,
         senderAddress: storedQuote.senderAddress,
         coinTypeIn: storedQuote.coinTypeIn,
+        coinTypeOut: storedQuote.coinTypeOut,
         amountIn: storedQuote.amountIn,
         slippageBps: storedQuote.slippageBps,
         gasOwner: gasKeypair.toSuiAddress(),

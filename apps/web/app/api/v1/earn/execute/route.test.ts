@@ -162,7 +162,7 @@ describe('POST /api/v1/earn/execute', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     });
   });
 });

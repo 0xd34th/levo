@@ -1,5 +1,9 @@
 import { Transaction } from '@mysten/sui/transactions';
 import type { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import {
+  getAddressBalanceGasStatus,
+  type AddressBalanceGasClient,
+} from './address-balance';
 import { getSuiClient } from './sui';
 
 const MIST_PER_SUI = 1_000_000_000n;
@@ -19,8 +23,11 @@ export interface GasStationCoin {
 
 export interface GasStationHealthSummary {
   address: string;
-  coinCount: number;
+  featureFlagEnabled: boolean;
+  addressBalance: bigint;
+  coinBalance: bigint;
   totalBalance: bigint;
+  coinCount: number;
   largestCoinBalance: bigint;
   smallestCoinBalance: bigint;
   warnings: string[];
@@ -37,7 +44,7 @@ interface CoinPageResponse {
   nextCursor?: string | null;
 }
 
-interface GasStationReadClient {
+interface GasStationReadClient extends AddressBalanceGasClient {
   getCoins(params: {
     owner: string;
     coinType: string;
@@ -72,7 +79,7 @@ export function buildGasStationRecoveryHint(address: string | null): string {
     ? `Gas station address: ${address}.`
     : 'Gas station address: unavailable.';
 
-  return `${addressMessage} Check sponsor SUI balance/fragmentation with "${GAS_STATION_STATUS_COMMAND}"; if needed, merge coins with "${GAS_STATION_MERGE_COMMAND}".`;
+  return `${addressMessage} Check sponsor address-balance gas and legacy coin fallback with "${GAS_STATION_STATUS_COMMAND}"; if fallback coin gas is needed, merge coins with "${GAS_STATION_MERGE_COMMAND}".`;
 }
 
 export async function listGasStationSuiCoins(
@@ -104,25 +111,31 @@ export async function listGasStationSuiCoins(
 
 export function summarizeGasStationCoins(params: {
   address: string;
+  featureFlagEnabled?: boolean;
+  addressBalance?: bigint;
+  coinBalance?: bigint;
   coins: GasStationCoin[];
   minTotalBalanceMist?: bigint;
   maxCoinCount?: number;
 }): GasStationHealthSummary {
   const {
     address,
+    featureFlagEnabled = false,
+    addressBalance = 0n,
     coins,
     minTotalBalanceMist = DEFAULT_MIN_TOTAL_BALANCE_MIST,
     maxCoinCount = DEFAULT_MAX_COIN_COUNT,
   } = params;
 
   const balances = coins.map((coin) => coin.balance);
-  const totalBalance = balances.reduce((sum, balance) => sum + balance, 0n);
+  const coinBalance = params.coinBalance ?? balances.reduce((sum, balance) => sum + balance, 0n);
+  const totalBalance = addressBalance + coinBalance;
   const largestCoinBalance = balances.reduce((max, balance) => (balance > max ? balance : max), 0n);
   const smallestCoinBalance = balances.reduce((min, balance) => (balance < min ? balance : min), largestCoinBalance);
   const warnings: string[] = [];
 
-  if (coins.length === 0) {
-    warnings.push('No sponsor SUI coins are available. Refill the gas station before retrying sponsored sends.');
+  if (totalBalance === 0n) {
+    warnings.push('No sponsor SUI balance is available. Refill the gas station before retrying sponsored sends.');
   }
 
   if (totalBalance < minTotalBalanceMist) {
@@ -139,8 +152,11 @@ export function summarizeGasStationCoins(params: {
 
   return {
     address,
-    coinCount: coins.length,
+    featureFlagEnabled,
+    addressBalance,
+    coinBalance,
     totalBalance,
+    coinCount: coins.length,
     largestCoinBalance,
     smallestCoinBalance,
     warnings,
@@ -151,14 +167,28 @@ export async function getGasStationHealthSummary(
   address: string,
   client: GasStationReadClient = getSuiClient(),
 ): Promise<GasStationHealthSummary> {
-  const coins = await listGasStationSuiCoins(address, client);
-  return summarizeGasStationCoins({ address, coins });
+  const [coins, gasStatus] = await Promise.all([
+    listGasStationSuiCoins(address, client),
+    getAddressBalanceGasStatus({
+      client,
+      owner: address,
+    }),
+  ]);
+  return summarizeGasStationCoins({
+    address,
+    coins,
+    featureFlagEnabled: gasStatus.featureEnabled,
+    addressBalance: gasStatus.addressBalance,
+    coinBalance: gasStatus.coinBalance,
+  });
 }
 
 export function formatGasStationHealthSummary(summary: GasStationHealthSummary): string[] {
   const lines = [
     `Address: ${summary.address}`,
-    `Total SUI: ${formatMistAsSui(summary.totalBalance)} (${summary.coinCount} ${pluralizeCoins(summary.coinCount)}; largest ${formatMistAsSui(summary.largestCoinBalance)}, smallest ${formatMistAsSui(summary.smallestCoinBalance)})`,
+    `Address-balance gas: ${summary.featureFlagEnabled ? 'enabled' : 'disabled'}; addressBalance ${formatMistAsSui(summary.addressBalance)} SUI; coinBalance ${formatMistAsSui(summary.coinBalance)} SUI`,
+    `Legacy coin fallback: ${summary.coinCount} ${pluralizeCoins(summary.coinCount)}; largest ${formatMistAsSui(summary.largestCoinBalance)}, smallest ${formatMistAsSui(summary.smallestCoinBalance)}`,
+    `Total SUI: ${formatMistAsSui(summary.totalBalance)}`,
   ];
 
   for (const warning of summary.warnings) {

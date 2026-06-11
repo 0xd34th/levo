@@ -22,14 +22,18 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Sponsor Maintenance
 
-The app currently keeps the existing gas-station sponsor flow. For operational checks and manual recovery:
+The gas station is a sponsor signer. Fund the derived signer address balance
+with SUI so sponsored transactions can use address-balance gas. Legacy
+`Coin<SUI>` gas remains available as fallback.
 
 ```bash
 pnpm --dir apps/web gas-station:status
 pnpm --dir apps/web gas-station:merge
 ```
 
-Use `status` to inspect sponsor balance and `Coin<SUI>` fragmentation. Use `merge` only during a quiet period; it is an operational mitigation, not a permanent fix for sponsor contention.
+Use `status` to inspect the network feature flag, total SUI, addressBalance,
+coinBalance, and fallback coin fragmentation. Use `merge` only during a quiet
+period and only for legacy fallback coin gas maintenance.
 
 ## Learn More
 

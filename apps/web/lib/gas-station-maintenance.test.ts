@@ -44,6 +44,9 @@ describe('summarizeGasStationCoins', () => {
   it('summarizes balance, fragmentation, and warnings', () => {
     const summary = summarizeGasStationCoins({
       address: '0xgasstation',
+      featureFlagEnabled: true,
+      addressBalance: 125_000_000n,
+      coinBalance: 85_000_000n,
       coins: [
         { coinObjectId: '0x1', balance: 50_000_000n, digest: 'd1', version: '1' },
         { coinObjectId: '0x2', balance: 25_000_000n, digest: 'd2', version: '2' },
@@ -55,13 +58,15 @@ describe('summarizeGasStationCoins', () => {
 
     expect(summary).toMatchObject({
       address: '0xgasstation',
+      featureFlagEnabled: true,
+      addressBalance: 125_000_000n,
+      coinBalance: 85_000_000n,
       coinCount: 3,
-      totalBalance: 85_000_000n,
+      totalBalance: 210_000_000n,
       largestCoinBalance: 50_000_000n,
       smallestCoinBalance: 10_000_000n,
     });
     expect(summary.warnings).toEqual([
-      'Total sponsor balance is below the recommended threshold of 0.1000 SUI.',
       'Coin fragmentation is high (3 SUI coins). Consider merging them during a quiet period.',
     ]);
   });
@@ -69,6 +74,9 @@ describe('summarizeGasStationCoins', () => {
   it('formats a human-readable status line with next-step commands', () => {
     const lines = formatGasStationHealthSummary({
       address: '0xgasstation',
+      featureFlagEnabled: true,
+      addressBalance: 1_000_000_000n,
+      coinBalance: 250_000_000n,
       coinCount: 2,
       totalBalance: 1_250_000_000n,
       largestCoinBalance: 1_000_000_000n,
@@ -78,7 +86,9 @@ describe('summarizeGasStationCoins', () => {
 
     expect(lines).toEqual([
       'Address: 0xgasstation',
-      'Total SUI: 1.2500 (2 coins; largest 1.0000, smallest 0.2500)',
+      'Address-balance gas: enabled; addressBalance 1.0000 SUI; coinBalance 0.2500 SUI',
+      'Legacy coin fallback: 2 coins; largest 1.0000, smallest 0.2500',
+      'Total SUI: 1.2500',
       'Warning: Coin fragmentation is high (2 SUI coins). Consider merging them during a quiet period.',
       'Commands: pnpm --dir apps/web gas-station:status | pnpm --dir apps/web gas-station:merge',
     ]);

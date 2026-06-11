@@ -4,8 +4,8 @@ Send stablecoins to any X handle on Sui, and let users earn yield in USDC with a
 
 ## How it works
 
-1. **Send** — Enter an `@handle` and amount in USDC. Levo resolves a canonical Privy-backed Sui wallet for the X user and sends there directly.
-2. **Earn** — Users stake USDC through StableLayer, keep a USDC-only UX, and can claim yield or withdraw back to USDC.
+1. **Send** — Enter an `@handle` and amount in USDC. Levo resolves a canonical Privy-backed Sui wallet for the X user and settles funds into that address balance.
+2. **Earn** — Users stake USDC through StableLayer, keep a USDC-only UX, and can claim yield or withdraw back to their address balance.
 3. **Dashboard** — Users can view balances, recent activity, and direct wallet delivery status.
 
 ## Architecture
@@ -54,6 +54,12 @@ Key API routes:
 - **Contracts**: Sui Move (2024.beta edition)
 - **Testing**: Vitest (web), Move unit tests (contracts)
 
+### Sui Address Balances
+
+Levo uses Sui Address Balances for user-facing settlement. Payments, Earn payouts/withdrawals, and swap outputs call `0x2::coin::send_funds<T>` so recipients receive canonical per-address balances instead of app-managed Coin objects. Transaction inputs that protocols require as Coin objects still use SDK coin selection.
+
+Gas sponsorship also prefers address-balance gas when the network feature flag is enabled and the sponsor address has SUI in its address balance. `GAS_STATION_SECRET_KEY` is still the sponsor signer; fund the derived signer address balance with SUI. Legacy Coin<SUI> gas remains as fallback, and `gas-station:merge` is only for maintaining that fallback.
+
 ## Prerequisites
 
 - Node.js 20+
@@ -89,7 +95,7 @@ cp apps/web/.env.example apps/web/.env
 | `SUI_RPC_URL` | Mainnet fullnode URL, for example `https://fullnode.mainnet.sui.io:443` |
 | `NEXT_PUBLIC_PACKAGE_ID` | Mainnet Levo package ID |
 | `LEVO_USD_COIN_TYPE` | Active settlement coin type, typically from the standalone `packages/levo-usd` publish |
-| `GAS_STATION_SECRET_KEY` | `openssl rand -base64 32` (fund the derived address with mainnet SUI) |
+| `GAS_STATION_SECRET_KEY` | `openssl rand -base64 32` sponsor signer; fund the derived address balance with mainnet SUI |
 
 ### 2. Database and services
 

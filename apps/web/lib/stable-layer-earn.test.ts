@@ -39,6 +39,7 @@ const {
   transactionBuildMock,
   transactionMergeCoinsMock,
   transactionMoveCallMock,
+  transactionPureAddressMock,
   transactionObjectMock,
   transactionPureStringMock,
   transactionSetSenderMock,
@@ -103,6 +104,7 @@ const {
     transactionBuildMock: vi.fn(),
     transactionMoveCallMock: vi.fn(() => 'move-call-result'),
     transactionObjectMock: vi.fn((value) => value),
+    transactionPureAddressMock: vi.fn((value: string) => `address:${value}`),
     transactionPureStringMock: vi.fn((value) => value),
     transactionMergeCoinsMock: vi.fn(),
     transactionSetSenderMock: vi.fn(),
@@ -120,6 +122,7 @@ vi.mock('@mysten/sui/transactions', () => ({
       moveCall: transactionMoveCallMock,
       object: transactionObjectMock,
       pure: {
+        address: transactionPureAddressMock,
         string: transactionPureStringMock,
       },
       setSender: transactionSetSenderMock,
@@ -283,12 +286,19 @@ describe('stable-layer earn helpers', () => {
     transactionBuildMock.mockReset();
     transactionMoveCallMock.mockReset();
     transactionObjectMock.mockReset();
+    transactionPureAddressMock.mockReset();
     transactionPureStringMock.mockReset();
     transactionMergeCoinsMock.mockReset();
     transactionSetSenderMock.mockReset();
     transactionSetGasOwnerMock.mockReset();
     transactionSplitCoinsMock.mockReset();
     transactionTransferObjectsMock.mockReset();
+    transactionAddMock.mockImplementation((value) => value);
+    transactionMoveCallMock.mockImplementation(() => 'move-call-result');
+    transactionObjectMock.mockImplementation((value) => value);
+    transactionPureAddressMock.mockImplementation((value: string) => `address:${value}`);
+    transactionPureStringMock.mockImplementation((value) => value);
+    transactionSplitCoinsMock.mockImplementation(() => ['split-coin']);
 
     prismaMock.xUser.findUnique.mockResolvedValue({
       privyUserId: 'privy-user',
@@ -705,7 +715,7 @@ describe('stable-layer earn helpers', () => {
       previewToken: 'preview-token',
       authorizationSignature: 'auth-signature',
     })).rejects.toThrow(
-      'Earn transaction failed on-chain: No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      'Earn transaction failed on-chain: No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     );
   });
 
@@ -772,7 +782,41 @@ describe('stable-layer earn helpers', () => {
     });
 
     expect(signSuiTransactionMock).not.toHaveBeenCalled();
+    expect(transactionMoveCallMock).toHaveBeenCalledWith({
+      target: '0x2::coin::send_funds',
+      typeArguments: ['0xusdc'],
+      arguments: ['reward-usdc-coin', 'address:0xsender'],
+    });
     expect(prismaMock.pendingEarnSettlement.create).toHaveBeenCalled();
+  });
+
+  it('sends withdrawn principal to the user address balance before authorization', async () => {
+    stagePreview('preview-token', {
+      xUserId: 'x-user-1',
+      action: 'withdraw',
+      amount: '100',
+      yieldSettlementMode: 'disabled',
+      expectedYieldUsdc: '0',
+      expectedPrincipalUsdc: '100',
+    });
+
+    await expect(executeEarnAction({
+      xUserId: 'x-user-1',
+      privyUserId: 'privy-user',
+      previewToken: 'preview-token',
+    })).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+
+    expect(transactionMoveCallMock).toHaveBeenCalledWith({
+      target: '0x2::coin::send_funds',
+      typeArguments: ['0xusdc'],
+      arguments: ['principal-usdc-coin', 'address:0xsender'],
+    });
+    expect(transactionTransferObjectsMock).not.toHaveBeenCalledWith(
+      ['principal-usdc-coin'],
+      '0xsender',
+    );
   });
 
   it('returns partial when withdraw settles yield but the principal leg fails', async () => {

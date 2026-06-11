@@ -18,6 +18,7 @@ import { fromBase64, normalizeSuiAddress, toBase64 } from '@mysten/sui/utils';
 import { AGENT_ACTION, getEventType, getLevoAgentPackageId } from '../lib/agent/package';
 import { getAgentSuiClient } from '../lib/agent/sui-client';
 import { getAgentAddress, getAgentKeypair, signTransactionAsAgent } from '../lib/agent/kms';
+import { sendFundsToAddressBalance } from '../lib/address-balance';
 import {
   buildCreateAndShareMandateTx,
   buildConsumeAndAuthorizeTx,
@@ -246,7 +247,12 @@ async function transferSuiFromAgent(
 ): Promise<void> {
   const tx = new Transaction();
   const [coin] = tx.splitCoins(tx.gas, [amountMist]);
-  tx.transferObjects([coin!], to);
+  sendFundsToAddressBalance({
+    tx,
+    coin: coin!,
+    recipient: to,
+    coinType: TEST_COIN_TYPE,
+  });
   const kp = getAgentKeypair();
   tx.setSender(kp.getPublicKey().toSuiAddress());
   const bytes = await tx.build({ client });

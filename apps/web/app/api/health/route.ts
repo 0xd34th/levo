@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { hasValidHmacSecret } from '@/lib/env';
 import { getGasStationAddress } from '@/lib/gas-station';
+import { getGasStationHealthSummary } from '@/lib/gas-station-maintenance';
 import { getRedis } from '@/lib/rate-limit';
 
 type CheckStatus = 'ok' | 'degraded';
@@ -9,6 +10,7 @@ interface HealthCheck {
   status: CheckStatus;
   message?: string;
   missing?: string[];
+  [key: string]: unknown;
 }
 
 const SCHEDULER_HEARTBEAT_KEY = 'agent:scheduler:heartbeat';
@@ -66,13 +68,42 @@ function checkEnv(): HealthCheck {
     : { status: 'ok' };
 }
 
-function checkGasStation(): HealthCheck {
+async function checkGasStation(): Promise<HealthCheck> {
   if (!configured('GAS_STATION_SECRET_KEY')) {
     return { status: 'degraded', message: 'gas station signer is not configured' };
   }
   try {
     const address = getGasStationAddress();
-    return address ? { status: 'ok' } : { status: 'degraded', message: 'gas station signer is unavailable' };
+    if (!address) {
+      return { status: 'degraded', message: 'gas station signer is unavailable' };
+    }
+
+    const summary = await getGasStationHealthSummary(address);
+    const fallbackAvailable = summary.coinBalance > 0n && summary.coinCount > 0;
+    const addressBalanceReady = summary.featureFlagEnabled && summary.addressBalance > 0n;
+    if (addressBalanceReady) {
+      return {
+        status: 'ok',
+        message: 'address-balance gas ready',
+        address,
+        featureFlagEnabled: summary.featureFlagEnabled,
+        addressBalance: summary.addressBalance.toString(),
+        coinBalance: summary.coinBalance.toString(),
+        fallbackAvailable,
+      };
+    }
+
+    return {
+      status: 'degraded',
+      message: fallbackAvailable
+        ? 'address-balance gas unavailable; legacy coin fallback available'
+        : 'address-balance gas unavailable and legacy coin fallback is unfunded',
+      address,
+      featureFlagEnabled: summary.featureFlagEnabled,
+      addressBalance: summary.addressBalance.toString(),
+      coinBalance: summary.coinBalance.toString(),
+      fallbackAvailable,
+    };
   } catch {
     return { status: 'degraded', message: 'gas station signer is invalid' };
   }
@@ -111,7 +142,7 @@ export async function GET() {
     db: await checkDb(),
     redis: await checkRedis(),
     env: checkEnv(),
-    gasStation: checkGasStation(),
+    gasStation: await checkGasStation(),
     agentScheduler: await checkAgentScheduler(),
   };
   const status: CheckStatus = Object.values(checks).every((check) => check.status === 'ok')

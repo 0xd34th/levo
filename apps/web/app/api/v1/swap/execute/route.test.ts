@@ -171,6 +171,7 @@ describe('POST /api/v1/swap/execute', () => {
     expect(buildSevenKSwapTransactionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         senderAddress: `0x${'0'.repeat(63)}2`,
+        coinTypeOut: MAINNET_USDC_TYPE,
         gasOwner: '0xgasstation',
       }),
     );

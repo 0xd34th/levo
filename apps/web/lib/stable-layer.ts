@@ -1,5 +1,6 @@
 import { Transaction, type TransactionArgument } from '@mysten/sui/transactions';
 import { StableLayerClient } from 'stable-layer-sdk';
+import { sendFundsToAddressBalance } from './address-balance';
 
 type StableLayerInternals = {
   bucketClient: {
@@ -134,7 +135,12 @@ export async function buildMintIntoVaultTx(params: {
     throw new Error('StableLayer mint did not return a stable coin result');
   }
 
-  tx.transferObjects([stableCoin], vaultAddress);
+  sendFundsToAddressBalance({
+    tx,
+    coin: stableCoin,
+    recipient: vaultAddress,
+    coinType: stableCoinType,
+  });
 }
 
 export async function buildBurnFromStableCoinTx(params: {

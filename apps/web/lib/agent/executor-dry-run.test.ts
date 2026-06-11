@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   AGENT_ADDRESS,
+  buildTransactionBytesWithGasPreferenceMock,
   buildConsumeAndAuthorizeTxMock,
   decryptWitnessForActionMock,
   devInspectTransactionBlockMock,
+  getGasStationKeypairMock,
   getObjectMock,
   prismaMock,
   signTransactionAsAgentMock,
@@ -13,9 +15,11 @@ const {
   txSetSenderMock,
 } = vi.hoisted(() => ({
   AGENT_ADDRESS: '0x1111111111111111111111111111111111111111111111111111111111111111',
+  buildTransactionBytesWithGasPreferenceMock: vi.fn(),
   buildConsumeAndAuthorizeTxMock: vi.fn(),
   decryptWitnessForActionMock: vi.fn(),
   devInspectTransactionBlockMock: vi.fn(),
+  getGasStationKeypairMock: vi.fn(),
   getObjectMock: vi.fn(),
   prismaMock: {
     agentMandate: {
@@ -35,7 +39,10 @@ const {
 }));
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }));
-vi.mock('@/lib/gas-station', () => ({ getGasStationKeypair: () => null }));
+vi.mock('@/lib/gas-station', () => ({ getGasStationKeypair: getGasStationKeypairMock }));
+vi.mock('@/lib/address-balance', () => ({
+  buildTransactionBytesWithGasPreference: buildTransactionBytesWithGasPreferenceMock,
+}));
 vi.mock('./kms', () => ({
   getAgentAddress: () => AGENT_ADDRESS,
   signTransactionAsAgent: signTransactionAsAgentMock,
@@ -99,6 +106,13 @@ const activeMandate = {
 describe('dryRunAgentMandate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getGasStationKeypairMock.mockReturnValue(null);
+    buildTransactionBytesWithGasPreferenceMock.mockImplementation(
+      async ({ client, buildTransaction }: { client: unknown; buildTransaction: () => { build: (args: { client: unknown }) => Promise<Uint8Array> } }) => ({
+        txBytes: await buildTransaction().build({ client }),
+        gasMode: 'legacy-coin',
+      }),
+    );
     buildConsumeAndAuthorizeTxMock.mockImplementation(() => ({
       setSender: txSetSenderMock,
       setGasOwner: txSetGasOwnerMock,
@@ -154,6 +168,31 @@ describe('dryRunAgentMandate', () => {
     expect(report.evidence.devInspectStatus).toBe('success');
     expect(prismaMock.agentAction.count).toHaveBeenCalledTimes(2);
     expect(prismaMock.agentWitness.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('checks sponsor signing with the address-balance gas preference helper', async () => {
+    getGasStationKeypairMock.mockReturnValue({
+      toSuiAddress: () => '0xsponsor',
+      signTransaction: vi.fn(async () => ({ signature: 'sponsor-sig' })),
+    });
+    const { dryRunAgentMandate } = await import('./executor-dry-run');
+
+    const report = await dryRunAgentMandate({
+      testCase: {
+        id: 'active-sponsored',
+        mandateId: 'mandate-1',
+        expect: 'executable',
+      },
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.evidence.gasSponsorChecked).toBe(true);
+    expect(buildTransactionBytesWithGasPreferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gasOwner: '0xsponsor',
+        buildTransaction: expect.any(Function),
+      }),
+    );
   });
 
   it('stops paused mandates at the guard before Seal, signing, or devInspect', async () => {

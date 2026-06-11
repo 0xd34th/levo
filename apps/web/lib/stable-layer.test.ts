@@ -9,6 +9,7 @@ const {
   initializeMock,
   moveCallMock,
   objectMock,
+  pureAddressMock,
   releaseRewardsMock,
   treasuryMock,
 } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const {
   initializeMock: vi.fn(),
   moveCallMock: vi.fn(),
   objectMock: vi.fn(),
+  pureAddressMock: vi.fn((value: string) => `address:${value}`),
   releaseRewardsMock: vi.fn(),
   treasuryMock: vi.fn(),
 }));
@@ -69,6 +71,7 @@ describe('stable-layer helpers', () => {
     });
 
     objectMock.mockImplementation((value: string) => value);
+    pureAddressMock.mockImplementation((value: string) => `address:${value}`);
     moveCallMock.mockReturnValueOnce('burn-request').mockReturnValueOnce('withdraw-response').mockReturnValueOnce('usdc-coin');
   });
 
@@ -144,6 +147,40 @@ describe('stable-layer helpers', () => {
       withdrawResponse: 'withdraw-response',
     });
     expect(result).toBe('usdc-coin');
+  });
+
+  it('sends minted stable coins into the vault address balance', async () => {
+    const { buildMintIntoVaultTx } = await import('./stable-layer');
+
+    const tx = {
+      moveCall: moveCallMock,
+      pure: {
+        address: pureAddressMock,
+      },
+    } as const;
+
+    await buildMintIntoVaultTx({
+      tx: tx as never,
+      senderAddress: '0xsender',
+      stableCoinType: '0xbrand::levo_usd::LEVO_USD',
+      usdcCoin: 'usdc-coin' as never,
+      amount: 100n,
+      vaultAddress: '0xvault',
+    });
+
+    expect(buildMintTxMock).toHaveBeenCalledWith({
+      tx,
+      stableCoinType: '0xbrand::levo_usd::LEVO_USD',
+      usdcCoin: 'usdc-coin',
+      amount: 100n,
+      sender: '0xsender',
+      autoTransfer: false,
+    });
+    expect(moveCallMock).toHaveBeenCalledWith({
+      target: '0x2::coin::send_funds',
+      typeArguments: ['0xbrand::levo_usd::LEVO_USD'],
+      arguments: ['stable-coin', 'address:0xvault'],
+    });
   });
 
   it('throws a clear error when stable-layer-sdk internals are unavailable', async () => {

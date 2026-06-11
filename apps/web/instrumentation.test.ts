@@ -30,15 +30,20 @@ describe('register', () => {
     getGasStationAddressMock.mockReturnValue(null);
     getGasStationHealthSummaryMock.mockResolvedValue({
       address: '0xgasstation',
-      coinCount: 1,
+      featureFlagEnabled: true,
+      addressBalance: 1_000_000_000n,
+      coinBalance: 0n,
       totalBalance: 1_000_000_000n,
+      coinCount: 1,
       largestCoinBalance: 1_000_000_000n,
       smallestCoinBalance: 1_000_000_000n,
       warnings: [],
     });
     formatGasStationHealthSummaryMock.mockReturnValue([
       'Address: 0xgasstation',
-      'Total SUI: 1.0000 (1 coin; largest 1.0000, smallest 1.0000)',
+      'Address-balance gas: enabled; addressBalance 1.0000 SUI; coinBalance 0.0000 SUI',
+      'Legacy coin fallback: 1 coin; largest 1.0000, smallest 1.0000',
+      'Total SUI: 1.0000',
       'Commands: pnpm --dir apps/web gas-station:status | pnpm --dir apps/web gas-station:merge',
     ]);
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -68,7 +73,13 @@ describe('register', () => {
     expect(formatGasStationHealthSummaryMock).toHaveBeenCalled();
     expect(console.log).toHaveBeenCalledWith('[gas-station] Address: 0xgasstation');
     expect(console.log).toHaveBeenCalledWith(
-      '[gas-station] Total SUI: 1.0000 (1 coin; largest 1.0000, smallest 1.0000)',
+      '[gas-station] Address-balance gas: enabled; addressBalance 1.0000 SUI; coinBalance 0.0000 SUI',
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      '[gas-station] Legacy coin fallback: 1 coin; largest 1.0000, smallest 1.0000',
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      '[gas-station] Total SUI: 1.0000',
     );
     expect(console.log).toHaveBeenCalledWith(
       '[gas-station] Commands: pnpm --dir apps/web gas-station:status | pnpm --dir apps/web gas-station:merge',

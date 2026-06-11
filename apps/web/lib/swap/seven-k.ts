@@ -1,8 +1,12 @@
 import {
   Transaction,
-  type TransactionObjectArgument,
   coinWithBalance,
+  type TransactionArgument,
 } from '@mysten/sui/transactions';
+import {
+  buildTransactionBytesWithGasPreference,
+  sendFundsToAddressBalance,
+} from '@/lib/address-balance';
 import { getSuiClient } from '@/lib/sui';
 
 const DEFAULT_SLIPPAGE_BPS = 100;
@@ -111,6 +115,7 @@ export async function buildSevenKSwapTransaction({
   quote,
   senderAddress,
   coinTypeIn,
+  coinTypeOut,
   amountIn,
   slippageBps,
   gasOwner,
@@ -118,34 +123,52 @@ export async function buildSevenKSwapTransaction({
   quote: unknown;
   senderAddress: string;
   coinTypeIn: string;
+  coinTypeOut: string;
   amountIn: string;
   slippageBps: number;
   gasOwner: string;
 }): Promise<Uint8Array> {
   const metaAg = await createMetaAg(slippageBps);
-  const tx = new Transaction();
-  tx.setSender(senderAddress);
-  tx.setGasOwner(gasOwner);
+  const client = getSuiClient();
 
-  const coinIn = tx.add(
-    coinWithBalance({
-      balance: BigInt(amountIn),
-      type: coinTypeIn,
-      useGasCoin: false,
-    }),
-  );
+  const buildTransaction = async () => {
+    const tx = new Transaction();
+    tx.setSender(senderAddress);
 
-  const coinOut = await metaAg.swap(
-    {
-      quote,
-      signer: senderAddress,
+    const coinIn = tx.add(
+      coinWithBalance({
+        balance: BigInt(amountIn),
+        type: coinTypeIn,
+        useGasCoin: false,
+      }),
+    );
+
+    const coinOut = await metaAg.swap(
+      {
+        quote,
+        signer: senderAddress,
+        tx,
+        coinIn,
+      },
+      slippageBps,
+    );
+
+    sendFundsToAddressBalance({
       tx,
-      coinIn,
-    },
-    slippageBps,
-  );
+      coin: coinOut as TransactionArgument,
+      recipient: senderAddress,
+      coinType: coinTypeOut,
+    });
 
-  tx.transferObjects([coinOut as TransactionObjectArgument], senderAddress);
+    return tx;
+  };
 
-  return tx.build({ client: getSuiClient() });
+  const result = await buildTransactionBytesWithGasPreference({
+    client,
+    gasOwner,
+    buildTransaction,
+    allowLegacyFallback: true,
+  });
+
+  return result.txBytes;
 }

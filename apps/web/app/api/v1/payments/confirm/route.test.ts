@@ -308,6 +308,100 @@ describe('POST /api/v1/payments/confirm', () => {
     });
   });
 
+  it('confirms address-balance send_funds settlements from balance changes without coin object changes', async () => {
+    const quotePayload = makeQuotePayload();
+    const quoteUpdateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const ledgerCreateMock = vi.fn().mockResolvedValue({});
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [],
+      balanceChanges: [
+        {
+          owner: { AddressOwner: quotePayload.vaultAddress },
+          coinType: quotePayload.coinType,
+          amount: quotePayload.amount,
+        },
+      ],
+    });
+    transactionMock.mockImplementation(async (callback) =>
+      callback({
+        paymentQuote: { updateMany: quoteUpdateManyMock },
+        paymentLedger: { create: ledgerCreateMock },
+      }),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(quoteUpdateManyMock).toHaveBeenCalled();
+    expect(ledgerCreateMock).toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
+  it('confirms address-balance settlements from accumulator merge events when RPC balanceChanges are absent', async () => {
+    const quotePayload = makeQuotePayload();
+    const quoteUpdateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const ledgerCreateMock = vi.fn().mockResolvedValue({});
+
+    verifyQuoteTokenMock.mockReturnValue(quotePayload);
+    findUniqueMock.mockResolvedValue(null);
+    findFirstMock.mockResolvedValue(null);
+    getTransactionBlockMock.mockResolvedValue({
+      effects: {
+        status: { status: 'success' },
+        accumulatorEvents: [
+          {
+            address: quotePayload.vaultAddress,
+            operation: 'merge',
+            ty: `0x2::balance::Balance<${quotePayload.coinType}>`,
+            value: { integer: quotePayload.amount },
+          },
+        ],
+      },
+      transaction: { data: { sender: quotePayload.senderAddress } },
+      objectChanges: [],
+      balanceChanges: [],
+    });
+    transactionMock.mockImplementation(async (callback) =>
+      callback({
+        paymentQuote: { updateMany: quoteUpdateManyMock },
+        paymentLedger: { create: ledgerCreateMock },
+      }),
+    );
+
+    const req = new NextRequest('http://localhost/api/v1/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ txDigest: VALID_TX_DIGEST, quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      status: 'confirmed',
+      amount: quotePayload.amount,
+      vaultAddress: quotePayload.vaultAddress,
+      txDigest: VALID_TX_DIGEST,
+    });
+  });
+
   it('recovers an expired pending quote when the stored digest matches and the ledger already exists', async () => {
     const quotePayload = makeQuotePayload();
     const txDigest = VALID_TX_DIGEST;
@@ -455,7 +549,7 @@ describe('POST /api/v1/payments/confirm', () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
-      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
       txDigest: VALID_TX_DIGEST,
     });
   });

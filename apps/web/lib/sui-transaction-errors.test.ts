@@ -21,7 +21,7 @@ describe('annotateNoValidGasCoinsError', () => {
 
   it('adds the gas station address and recovery commands to gas coin errors', () => {
     expect(annotateNoValidGasCoinsError('No valid gas coins found for the transaction.')).toBe(
-      'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     );
   });
 
@@ -33,7 +33,7 @@ describe('annotateNoValidGasCoinsError', () => {
     getGasStationAddressMock.mockReturnValue(null);
 
     expect(annotateNoValidGasCoinsError('No valid gas coins found for the transaction.')).toBe(
-      'No valid gas coins found for the transaction. Gas station address: unavailable. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      'No valid gas coins found for the transaction. Gas station address: unavailable. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     );
   });
 });
@@ -47,7 +47,7 @@ describe('getAnnotatedTransactionErrorMessage', () => {
         new Error('No valid gas coins found for the transaction.'),
       ),
     ).toBe(
-      'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     );
   });
 });

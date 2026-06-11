@@ -1,5 +1,6 @@
 import type { AgentMandate, AgentWitness } from '@/lib/generated/prisma/client';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
+import { buildTransactionBytesWithGasPreference } from '@/lib/address-balance';
 import { getGasStationKeypair } from '@/lib/gas-station';
 import { prisma } from '@/lib/prisma';
 import {
@@ -129,33 +130,41 @@ export async function executeNextStep(args: {
 
   // 2) Build + sign + submit the consume_witness + authorize PTB.
   //
-  // Gas sponsorship: when GAS_STATION_SECRET_KEY is configured AND the gas
-  // station is a different address from the agent, sponsor agent gas via the
-  // standard Sui sponsored-transaction pattern (sender signs the tx, gas owner
-  // also signs; Sui verifies both signatures). Falls back to agent-paid gas if
-  // the station isn't configured or coincides with the agent.
+  // Gas sponsorship: prefer sponsor address-balance gas when available, while
+  // preserving legacy Coin<SUI> sponsor gas as fallback. Sender and gas owner
+  // still both sign sponsored transaction bytes.
   const client = getAgentSuiClient();
   const agentAddress = await agentAddressForTx();
   const gasStation = getGasStationKeypair();
   const useSponsor = gasStation !== null && gasStation.toSuiAddress() !== agentAddress;
 
-  const tx = buildConsumeAndAuthorizeTx({
-    mandateId: mandate.mandateObjectId,
-    coinType: step.coinType,
-    action: step.actionType,
-    target: step.target,
-    amount: BigInt(step.amount),
-    witness,
-    nextCommit: hexToBytes(step.nextCommit),
-  });
-  tx.setSender(agentAddress);
-  if (useSponsor && gasStation) {
-    tx.setGasOwner(gasStation.toSuiAddress());
-  }
+  const buildTransaction = () => {
+    const tx = buildConsumeAndAuthorizeTx({
+      mandateId: mandate.mandateObjectId,
+      coinType: step.coinType,
+      action: step.actionType,
+      target: step.target,
+      amount: BigInt(step.amount),
+      witness,
+      nextCommit: hexToBytes(step.nextCommit),
+    });
+    tx.setSender(agentAddress);
+    return tx;
+  };
 
   let txBytes: Uint8Array;
   try {
-    txBytes = await tx.build({ client });
+    if (useSponsor && gasStation) {
+      const buildResult = await buildTransactionBytesWithGasPreference({
+        client,
+        gasOwner: gasStation.toSuiAddress(),
+        buildTransaction,
+        allowLegacyFallback: true,
+      });
+      txBytes = buildResult.txBytes;
+    } else {
+      txBytes = await buildTransaction().build({ client });
+    }
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'tx build failed';
     await markActionFailed({ actionId: action.id, errorReason: reason });

@@ -9,6 +9,10 @@ import {
 } from '@mysten/sui/transactions';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import {
+  buildTransactionBytesWithGasPreference,
+  sendFundsToAddressBalance,
+} from '@/lib/address-balance';
+import {
   MAINNET_USDC_TYPE,
   getConfiguredLevoUsdCoinType,
   getUserFacingUsdcCoinType,
@@ -833,31 +837,14 @@ async function inspectGlobalClaimableRewardUsdb(params: {
   return amount;
 }
 
-async function maybeApplyGasSponsor(tx: Transaction, sponsored: boolean) {
-  if (!sponsored) {
-    return false;
-  }
-
-  const gasKeypair = getGasStationKeypair();
-  if (!gasKeypair) {
-    return false;
-  }
-
-  const gasAddress = gasKeypair.toSuiAddress();
-  tx.setGasOwner(gasAddress);
-  return true;
-}
-
 async function buildUserEarnTransaction(params: {
   action: 'stake' | 'withdraw';
   senderAddress: string;
   stableCoinType: string;
   amount: bigint;
-  sponsored: boolean;
 }) {
   const tx = new Transaction();
   tx.setSender(params.senderAddress);
-  const sponsorApplied = await maybeApplyGasSponsor(tx, params.sponsored);
 
   const stableLayerClient = await getStableLayerClient(params.senderAddress);
   if (params.action === 'stake') {
@@ -889,10 +876,15 @@ async function buildUserEarnTransaction(params: {
       throw new Error('StableLayer withdraw did not return USDC');
     }
 
-    tx.transferObjects([principalUsdcCoin as TransactionObjectArgument], params.senderAddress);
+    sendFundsToAddressBalance({
+      tx,
+      coin: principalUsdcCoin,
+      recipient: params.senderAddress,
+      coinType: MAINNET_USDC_TYPE,
+    });
   }
 
-  return { tx, sponsorApplied };
+  return tx;
 }
 
 async function buildUserEarnTransactionBytes(params: {
@@ -902,10 +894,31 @@ async function buildUserEarnTransactionBytes(params: {
   amount: bigint;
   sponsored: boolean;
 }) {
-  const { tx, sponsorApplied } = await buildUserEarnTransaction(params);
+  const buildTransaction = () => buildUserEarnTransaction({
+    action: params.action,
+    senderAddress: params.senderAddress,
+    stableCoinType: params.stableCoinType,
+    amount: params.amount,
+  });
+
   try {
-    const txBytes = await tx.build({ client: getSuiClient() });
-    return { txBytes, sponsorApplied };
+    const client = getSuiClient();
+    if (params.sponsored) {
+      const gasKeypair = getGasStationKeypair();
+      if (gasKeypair) {
+        const result = await buildTransactionBytesWithGasPreference({
+          client,
+          gasOwner: gasKeypair.toSuiAddress(),
+          buildTransaction,
+          allowLegacyFallback: true,
+        });
+        return { txBytes: result.txBytes, sponsorApplied: true };
+      }
+    }
+
+    const tx = await buildTransaction();
+    const txBytes = await tx.build({ client });
+    return { txBytes, sponsorApplied: false };
   } catch (error) {
     throw new Error(
       getAnnotatedTransactionErrorMessage(error) ?? 'Failed to build Earn transaction',
@@ -1544,7 +1557,12 @@ async function buildYieldSettlementBundle(params: {
 
   if (params.plan.userPayoutOwedUsdc > 0n) {
     if (harvestedPayableUsdcCoin) {
-      tx.transferObjects([harvestedPayableUsdcCoin], params.plan.senderAddress);
+      sendFundsToAddressBalance({
+        tx,
+        coin: harvestedPayableUsdcCoin,
+        recipient: params.plan.senderAddress,
+        coinType: MAINNET_USDC_TYPE,
+      });
     } else {
       const fallbackCoin = tx.add(
         coinWithBalance({
@@ -1552,7 +1570,12 @@ async function buildYieldSettlementBundle(params: {
           balance: params.plan.userPayoutOwedUsdc,
         }),
       ) as TransactionObjectArgument;
-      tx.transferObjects([fallbackCoin], params.plan.senderAddress);
+      sendFundsToAddressBalance({
+        tx,
+        coin: fallbackCoin,
+        recipient: params.plan.senderAddress,
+        coinType: MAINNET_USDC_TYPE,
+      });
     }
   } else if (harvestedPayableUsdcCoin) {
     tx.transferObjects([harvestedPayableUsdcCoin], managerAddress);

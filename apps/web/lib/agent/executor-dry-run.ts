@@ -1,5 +1,6 @@
 import type { AgentMandate, AgentWitness } from '@/lib/generated/prisma/client';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { buildTransactionBytesWithGasPreference } from '@/lib/address-balance';
 import { getGasStationKeypair } from '@/lib/gas-station';
 import { prisma } from '@/lib/prisma';
 import { getMandateExecutionBlockReason } from './execution-guard';
@@ -259,24 +260,31 @@ async function checkAgentSigner(args: {
   agentAddress: string;
 }): Promise<boolean> {
   const client = getAgentSuiClient();
-  const tx = buildConsumeAndAuthorizeTx({
-    mandateId: args.mandateObjectId,
-    coinType: args.step.coinType,
-    action: args.step.actionType,
-    target: args.step.target,
-    amount: BigInt(args.step.amount),
-    witness: args.witness,
-    nextCommit: hexToBytes(args.step.nextCommit),
-  });
-  tx.setSender(args.agentAddress);
+  const buildTransaction = () => {
+    const tx = buildConsumeAndAuthorizeTx({
+      mandateId: args.mandateObjectId,
+      coinType: args.step.coinType,
+      action: args.step.actionType,
+      target: args.step.target,
+      amount: BigInt(args.step.amount),
+      witness: args.witness,
+      nextCommit: hexToBytes(args.step.nextCommit),
+    });
+    tx.setSender(args.agentAddress);
+    return tx;
+  };
 
   const gasStation = getGasStationKeypair();
   const useSponsor = gasStation !== null && gasStation.toSuiAddress() !== args.agentAddress;
-  if (useSponsor && gasStation) {
-    tx.setGasOwner(gasStation.toSuiAddress());
-  }
 
-  const txBytes = await tx.build({ client });
+  const txBytes = useSponsor && gasStation
+    ? (await buildTransactionBytesWithGasPreference({
+        client,
+        gasOwner: gasStation.toSuiAddress(),
+        buildTransaction,
+        allowLegacyFallback: true,
+      })).txBytes
+    : await buildTransaction().build({ client });
   await signTransactionAsAgent(txBytes);
   if (useSponsor && gasStation) {
     await gasStation.signTransaction(txBytes);

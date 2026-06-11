@@ -9,16 +9,23 @@ const {
   findUniqueMock,
   getGasStationAddressMock,
   getGasStationKeypairMock,
+  getProtocolConfigMock,
   getPrivyClientMock,
   paymentQuoteUpdateManyMock,
   redisDelMock,
   redisGetMock,
   redisSetMock,
+  coreGetBalanceMock,
   getSuiClientMock,
   rateLimitMock,
   signSuiTransactionMock,
   txAddMock,
   txBuildMock,
+  txMoveCallMock,
+  txPureAddressMock,
+  txSetGasOwnerMock,
+  txSetGasPaymentMock,
+  txTransferObjectsMock,
   verifyQuoteTokenMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
@@ -30,16 +37,23 @@ const {
   findUniqueMock: vi.fn(),
   getGasStationAddressMock: vi.fn(() => '0xgasstation'),
   getGasStationKeypairMock: vi.fn(),
+  getProtocolConfigMock: vi.fn(),
   getPrivyClientMock: vi.fn(),
   paymentQuoteUpdateManyMock: vi.fn(),
   redisDelMock: vi.fn(),
   redisGetMock: vi.fn(),
   redisSetMock: vi.fn(),
+  coreGetBalanceMock: vi.fn(),
   getSuiClientMock: vi.fn(),
   rateLimitMock: vi.fn(),
   signSuiTransactionMock: vi.fn(),
   txAddMock: vi.fn(),
   txBuildMock: vi.fn(),
+  txMoveCallMock: vi.fn(),
+  txPureAddressMock: vi.fn((value: string) => `address:${value}`),
+  txSetGasOwnerMock: vi.fn(),
+  txSetGasPaymentMock: vi.fn(),
+  txTransferObjectsMock: vi.fn(),
   verifyQuoteTokenMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -49,9 +63,14 @@ vi.mock('@mysten/sui/transactions', () => ({
   Transaction: vi.fn().mockImplementation(function TransactionMock() {
     return {
       setSender: vi.fn(),
-      setGasOwner: vi.fn(),
+      setGasOwner: txSetGasOwnerMock,
+      setGasPayment: txSetGasPaymentMock,
       add: txAddMock,
-      transferObjects: vi.fn(),
+      moveCall: txMoveCallMock,
+      pure: {
+        address: txPureAddressMock,
+      },
+      transferObjects: txTransferObjectsMock,
       build: txBuildMock,
     };
   }),
@@ -150,8 +169,24 @@ describe('POST /api/v1/payments/send', () => {
     redisGetMock.mockResolvedValue(null);
     redisSetMock.mockResolvedValue('OK');
     redisDelMock.mockResolvedValue(1);
+    getProtocolConfigMock.mockResolvedValue({
+      featureFlags: {
+        enable_address_balance_gas_payments: false,
+      },
+    });
+    coreGetBalanceMock.mockResolvedValue({
+      balance: {
+        balance: '0',
+        addressBalance: '0',
+        coinBalance: '0',
+      },
+    });
     executeTransactionBlockMock.mockReset();
     getSuiClientMock.mockReturnValue({
+      getProtocolConfig: getProtocolConfigMock,
+      core: {
+        getBalance: coreGetBalanceMock,
+      },
       executeTransactionBlock: executeTransactionBlockMock,
     });
     txAddMock.mockReturnValue('coin-object');
@@ -172,6 +207,11 @@ describe('POST /api/v1/payments/send', () => {
       },
     });
     signSuiTransactionMock.mockResolvedValue('user-signature');
+    txMoveCallMock.mockReset();
+    txPureAddressMock.mockClear();
+    txSetGasOwnerMock.mockReset();
+    txSetGasPaymentMock.mockReset();
+    txTransferObjectsMock.mockReset();
     findFirstMock.mockResolvedValue(null);
     verifyQuoteTokenMock.mockReturnValue({
       xUserId: '99999',
@@ -331,6 +371,54 @@ describe('POST /api/v1/payments/send', () => {
     });
   });
 
+  it('builds sponsored sends with address-balance gas and coin::send_funds settlement', async () => {
+    const gasKeypair = {
+      toSuiAddress: vi.fn(() => '0xgasstation'),
+      signTransaction: vi.fn(),
+    };
+
+    getGasStationKeypairMock.mockReturnValueOnce(gasKeypair);
+    getProtocolConfigMock.mockResolvedValueOnce({
+      featureFlags: {
+        enable_address_balance_gas_payments: true,
+      },
+    });
+    coreGetBalanceMock.mockResolvedValueOnce({
+      balance: {
+        balance: '500000000',
+        addressBalance: '500000000',
+        coinBalance: '0',
+      },
+    });
+    findUniqueMock.mockResolvedValueOnce({
+      privyUserId: 'privy-user',
+      privyWalletId: 'wallet-id',
+      suiAddress: '0xwallet',
+      suiPublicKey: 'public-key',
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/payments/send', {
+      method: 'POST',
+      body: JSON.stringify({ quoteToken: 'quote-token' }),
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    });
+
+    const res = await POST(req);
+
+    expect(txSetGasOwnerMock).toHaveBeenCalledWith('0xgasstation');
+    expect(txSetGasPaymentMock).toHaveBeenCalledWith([]);
+    expect(txMoveCallMock).toHaveBeenCalledWith({
+      target: '0x2::coin::send_funds',
+      typeArguments: ['0x2::sui::SUI'],
+      arguments: ['coin-object', 'address:0xvault'],
+    });
+    expect(txTransferObjectsMock).not.toHaveBeenCalledWith(['coin-object'], '0xvault');
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: 'authorization_required',
+    });
+  });
+
   it('builds mainnet USDC X-handle sends as direct transfers without StableLayer minting', async () => {
     process.env.NEXT_PUBLIC_SUI_NETWORK = 'mainnet';
     delete process.env.LEVO_USD_COIN_TYPE;
@@ -444,7 +532,7 @@ describe('POST /api/v1/payments/send', () => {
     expect(paymentQuoteUpdateManyMock).toHaveBeenCalled();
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({
-      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     });
   });
 
@@ -475,7 +563,7 @@ describe('POST /api/v1/payments/send', () => {
 
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({
-      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor SUI balance/fragmentation with "pnpm --dir apps/web gas-station:status"; if needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
+      error: 'No valid gas coins found for the transaction. Gas station address: 0xgasstation. Check sponsor address-balance gas and legacy coin fallback with "pnpm --dir apps/web gas-station:status"; if fallback coin gas is needed, merge coins with "pnpm --dir apps/web gas-station:merge".',
     });
   });
 });

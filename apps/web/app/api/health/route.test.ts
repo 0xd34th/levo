@@ -1,13 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  getGasStationAddressMock,
+  getGasStationHealthSummaryMock,
   queryRawMock,
   redisGetMock,
   redisPingMock,
 } = vi.hoisted(() => ({
+  getGasStationAddressMock: vi.fn(),
+  getGasStationHealthSummaryMock: vi.fn(),
   queryRawMock: vi.fn(),
   redisGetMock: vi.fn(),
   redisPingMock: vi.fn(),
+}));
+
+vi.mock('@/lib/gas-station', () => ({
+  getGasStationAddress: getGasStationAddressMock,
+}));
+
+vi.mock('@/lib/gas-station-maintenance', () => ({
+  getGasStationHealthSummary: getGasStationHealthSummaryMock,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -42,6 +54,18 @@ describe('GET /api/health', () => {
     vi.stubEnv('HMAC_SECRET', 'a'.repeat(64));
     vi.stubEnv('GAS_STATION_SECRET_KEY', 'replace-me');
     vi.stubEnv('LEVO_AGENT_SIGNER_SECRET_KEY', 'replace-me');
+    getGasStationAddressMock.mockReturnValue(null);
+    getGasStationHealthSummaryMock.mockResolvedValue({
+      address: '0xgasstation',
+      featureFlagEnabled: true,
+      addressBalance: 1_000_000_000n,
+      coinBalance: 0n,
+      totalBalance: 1_000_000_000n,
+      coinCount: 0,
+      largestCoinBalance: 0n,
+      smallestCoinBalance: 0n,
+      warnings: [],
+    });
   });
 
   it('returns structured health checks without exposing secret values', async () => {
@@ -91,5 +115,35 @@ describe('GET /api/health', () => {
       status: 'degraded',
       missing: ['DATABASE_URL'],
     });
+  });
+
+  it('reports legacy gas coin fallback as degraded without blocking readiness', async () => {
+    vi.stubEnv('GAS_STATION_SECRET_KEY', 'configured-secret');
+    getGasStationAddressMock.mockReturnValue('0xgasstation');
+    getGasStationHealthSummaryMock.mockResolvedValueOnce({
+      address: '0xgasstation',
+      featureFlagEnabled: false,
+      addressBalance: 0n,
+      coinBalance: 250_000_000n,
+      totalBalance: 250_000_000n,
+      coinCount: 1,
+      largestCoinBalance: 250_000_000n,
+      smallestCoinBalance: 250_000_000n,
+      warnings: [],
+    });
+
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.checks.gasStation).toMatchObject({
+      status: 'degraded',
+      address: '0xgasstation',
+      featureFlagEnabled: false,
+      addressBalance: '0',
+      coinBalance: '250000000',
+      fallbackAvailable: true,
+    });
+    expect(payload.checks.gasStation.message).toContain('legacy coin fallback available');
   });
 });
