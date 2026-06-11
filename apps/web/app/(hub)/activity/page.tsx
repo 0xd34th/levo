@@ -44,6 +44,24 @@ function groupKey(isoDate: string) {
   return dayFormatter.format(new Date(isoDate));
 }
 
+async function getActivityResponseError(response: Response, fallback: string) {
+  try {
+    const payload = await response.clone().json();
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      'error' in payload &&
+      typeof payload.error === 'string' &&
+      payload.error
+    ) {
+      return payload.error;
+    }
+  } catch {
+    // Ignore malformed error payloads.
+  }
+  return fallback;
+}
+
 export default function ActivityPage() {
   const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { initOAuth } = useLoginWithOAuth();
@@ -90,7 +108,7 @@ export default function ActivityPage() {
         );
 
         if (controller.signal.aborted) return;
-        if (!res.ok) throw new Error('Failed to load payments');
+        if (!res.ok) throw new Error(await getActivityResponseError(res, 'Failed to load sent payments.'));
 
         const payload = (await res.json()) as TransactionHistoryResponse;
 
@@ -99,7 +117,7 @@ export default function ActivityPage() {
         setSentCursor(payload.nextCursor);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        if (!cursor) setSentError('Failed to load sent payments.');
+        if (!cursor) setSentError(err instanceof Error ? err.message : 'Failed to load sent payments.');
       } finally {
         if (!controller.signal.aborted) {
           setSentLoading(false);
@@ -134,7 +152,7 @@ export default function ActivityPage() {
         );
 
         if (controller.signal.aborted) return;
-        if (!res.ok) throw new Error('Failed to load received payments');
+        if (!res.ok) throw new Error(await getActivityResponseError(res, 'Failed to load received payments.'));
 
         const payload = (await res.json()) as IncomingPaymentsResponse;
 
@@ -149,7 +167,7 @@ export default function ActivityPage() {
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        if (!cursor) setReceivedError('Failed to load received payments.');
+        if (!cursor) setReceivedError(err instanceof Error ? err.message : 'Failed to load received payments.');
       } finally {
         if (!controller.signal.aborted) {
           setReceivedLoading(false);

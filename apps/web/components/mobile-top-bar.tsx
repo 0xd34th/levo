@@ -21,7 +21,7 @@ export function MobileTopBar({ title, backHref, handle }: MobileTopBarProps) {
 
   return (
     <header className="sticky top-0 z-40 bg-background">
-      <div className="mx-auto grid h-14 w-full max-w-lg grid-cols-[44px_1fr_auto] items-center gap-2 px-4 md:max-w-2xl lg:max-w-4xl">
+      <div className="grid h-14 w-full grid-cols-[44px_1fr_auto] items-center gap-2 px-4">
         <div className="flex items-center">
           {backHref ? (
             <Link

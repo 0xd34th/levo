@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getConfiguredLevoUsdCoinType,
   getCoinDecimals,
@@ -21,6 +21,10 @@ import {
 describe('coin helpers', () => {
   const configuredPackageId = '0xabc';
   const configuredTestUsdc = getTestUsdcCoinType(configuredPackageId)!;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   it('whitelists SUI and TEST_USDC for display formatting', () => {
     expect(isDisplaySupportedCoinType(SUI_COIN_TYPE)).toBe(true);
@@ -92,6 +96,18 @@ describe('coin helpers', () => {
     expect(getCoinLabel(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe('USDC');
     expect(getCoinDecimals(levoUsdCoinType, configuredPackageId, 'mainnet', levoUsdCoinType)).toBe(6);
     expect(normalizeCoinTypeForDisplay(levoUsdCoinType, 'mainnet', configuredPackageId, levoUsdCoinType)).toBe(
+      MAINNET_USDC_TYPE,
+    );
+  });
+
+  it('uses the public LevoUSD coin type for browser-side display mapping', () => {
+    const levoUsdCoinType = '0xlevo::levo_usd::LEVO_USD';
+    vi.stubEnv('NEXT_PUBLIC_LEVO_USD_COIN_TYPE', levoUsdCoinType);
+    vi.stubEnv('LEVO_USD_COIN_TYPE', '');
+
+    expect(getConfiguredLevoUsdCoinType(configuredPackageId, undefined, 'mainnet')).toBe(levoUsdCoinType);
+    expect(isDisplaySupportedCoinType(levoUsdCoinType, configuredPackageId, 'mainnet')).toBe(true);
+    expect(normalizeCoinTypeForDisplay(levoUsdCoinType, 'mainnet', configuredPackageId)).toBe(
       MAINNET_USDC_TYPE,
     );
   });

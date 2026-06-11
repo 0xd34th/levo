@@ -74,6 +74,10 @@ function getConfiguredNetwork(
     : 'testnet';
 }
 
+function getConfiguredLevoUsdEnv(): string | undefined {
+  return process.env.NEXT_PUBLIC_LEVO_USD_COIN_TYPE ?? process.env.LEVO_USD_COIN_TYPE;
+}
+
 export function getTestUsdcCoinType(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
 ): string | null {
@@ -83,7 +87,7 @@ export function getTestUsdcCoinType(
 
 export function getConfiguredLevoUsdCoinType(
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
-  explicitCoinType = process.env.LEVO_USD_COIN_TYPE,
+  explicitCoinType = getConfiguredLevoUsdEnv(),
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
 ): string | null {
   const normalizedExplicitCoinType = explicitCoinType?.trim();
@@ -236,7 +240,7 @@ function findSelectableCoinOption(
 export function isStableLayerEnabled(
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
 ): boolean {
   return (
     getConfiguredNetwork(network) === 'mainnet' &&
@@ -248,7 +252,7 @@ export function getSettlementCoinType(
   coinType: string,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
 ): string {
   if (
     getConfiguredNetwork(network) === 'mainnet' &&
@@ -264,7 +268,7 @@ export function normalizeCoinTypeForDisplay(
   coinType: string,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
 ): string {
   const configuredLevoUsd = getConfiguredLevoUsdCoinType(packageId, levoUsdCoinType, network);
   if (
@@ -303,7 +307,7 @@ export function getCoinLabel(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
   options?: SelectableCoinOption[],
 ): string {
   const displayCoinType = normalizeCoinTypeForDisplay(
@@ -337,7 +341,7 @@ export function isDisplaySupportedCoinType(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
   options?: SelectableCoinOption[],
 ): boolean {
   const displayCoinType = normalizeCoinTypeForDisplay(
@@ -358,7 +362,7 @@ export function getCoinDecimals(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
   options?: SelectableCoinOption[],
 ): number {
   const displayCoinType = normalizeCoinTypeForDisplay(
@@ -392,7 +396,7 @@ export function getInputDecimals(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
   options?: SelectableCoinOption[],
 ): number {
   const displayCoinType = normalizeCoinTypeForDisplay(
@@ -421,7 +425,7 @@ function getDisplayDecimals(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
 ): number {
   return getInputDecimals(coinType, packageId, network, levoUsdCoinType);
 }
@@ -481,7 +485,7 @@ export function formatAmount(
   coinType: string,
   packageId = process.env.NEXT_PUBLIC_PACKAGE_ID,
   network = process.env.NEXT_PUBLIC_SUI_NETWORK,
-  levoUsdCoinType = process.env.LEVO_USD_COIN_TYPE,
+  levoUsdCoinType = getConfiguredLevoUsdEnv(),
 ): string {
   const chainDecimals = getCoinDecimals(coinType, packageId, network, levoUsdCoinType);
   const displayDecimals = getDisplayDecimals(coinType, packageId, network, levoUsdCoinType);

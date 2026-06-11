@@ -81,6 +81,12 @@ interface EarnFinalResponse {
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const USER_FACING_USDC_TYPE = getUserFacingUsdcCoinType() ?? MAINNET_USDC_TYPE;
+const SUMMARY_AUTH_ERRORS = new Set([
+  'Authentication temporarily unavailable',
+  'Invalid or expired session',
+  'No X account linked',
+  'Not authenticated',
+]);
 
 function isEarnPreviewResponse(payload: unknown): payload is EarnPreviewResponse {
   if (typeof payload !== 'object' || payload === null) return false;
@@ -223,7 +229,7 @@ function actionLabel(action: EarnAction) {
 }
 
 export default function EarnPage() {
-  const { getAccessToken } = usePrivy();
+  const { ready, authenticated, getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
   const { generateAuthorizationSignature } = useAuthorizationSignature();
 
@@ -240,6 +246,15 @@ export default function EarnPage() {
 
   const refreshSummary = useCallback(async () => {
     abortRef.current?.abort();
+
+    if (!ready || !authenticated) {
+      abortRef.current = null;
+      setLoadingSummary(false);
+      setSummary(null);
+      setError(null);
+      return;
+    }
+
     const controller = new AbortController();
     abortRef.current = controller;
     setLoadingSummary(true);
@@ -265,12 +280,13 @@ export default function EarnPage() {
       setError(null);
     } catch (summaryError) {
       if (controller.signal.aborted) return;
+      const message = summaryError instanceof Error ? summaryError.message : 'Failed to load Earn summary';
       setSummary(null);
-      setError(summaryError instanceof Error ? summaryError.message : 'Failed to load Earn summary');
+      setError(SUMMARY_AUTH_ERRORS.has(message) ? null : message);
     } finally {
       if (!controller.signal.aborted) setLoadingSummary(false);
     }
-  }, [getAccessToken, identityToken]);
+  }, [authenticated, getAccessToken, identityToken, ready]);
 
   useEffect(() => {
     void refreshSummary();
