@@ -22,14 +22,13 @@ import { Button } from '@/components/ui/button';
 import { subscribeAccountDataRefresh } from '@/lib/account-refresh';
 import { getExplorerTransactionUrl } from '@/lib/coins';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
-import type { IncomingPaymentsResponse } from '@/lib/received-dashboard-client';
 import {
   buildRecentActivityItems,
   type RecentActivityItem,
 } from '@/lib/recent-activity';
 import { truncateAddress } from '@/lib/received-dashboard-client';
-import type { TransactionHistoryResponse } from '@/lib/transaction-history';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+import type { WalletActivityResponse } from '@/lib/wallet-activity';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const RECENT_LIMIT = 5;
@@ -41,7 +40,6 @@ export default function AccountPage() {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
   } = useEmbeddedWallet();
-  const twitterSubject = user?.twitter?.subject ?? null;
 
   const [recentItems, setRecentItems] = useState<RecentActivityItem[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -56,54 +54,27 @@ export default function AccountPage() {
     setRecentLoading(true);
 
     try {
-      const sentParams = new URLSearchParams({
-        senderAddress: embeddedWalletAddress,
+      const params = new URLSearchParams({
+        address: embeddedWalletAddress,
         limit: String(RECENT_LIMIT),
       });
-      const receivedParams = new URLSearchParams({
-        limit: String(RECENT_LIMIT),
-      });
-
-      const sentRequest = privyAuthenticatedFetch(
+      const res = await privyAuthenticatedFetch(
         getAccessToken,
-        `/api/v1/payments/history?${sentParams}`,
+        `/api/v1/activity?${params}`,
         { cache: 'no-store', signal: controller.signal },
-      ).then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load sent payments');
-        return res.json() as Promise<TransactionHistoryResponse>;
-      });
-
-      const receivedRequest = twitterSubject
-        ? privyAuthenticatedFetch(
-            getAccessToken,
-            `/api/v1/payments/received?${receivedParams}`,
-            { cache: 'no-store', signal: controller.signal },
-          ).then(async (res) => {
-            if (!res.ok) throw new Error('Failed to load received payments');
-            return res.json() as Promise<IncomingPaymentsResponse>;
-          })
-        : null;
-
-      const [sentResult, receivedResult] = await Promise.all([
-        sentRequest.catch(() => null),
-        receivedRequest?.catch(() => null) ?? Promise.resolve(null),
-      ]);
+      );
 
       if (controller.signal.aborted) return;
+      if (!res.ok) throw new Error('Failed to load activity');
 
-      setRecentItems(
-        buildRecentActivityItems(
-          sentResult?.items ?? [],
-          receivedResult?.items ?? [],
-          RECENT_LIMIT,
-        ),
-      );
+      const payload = (await res.json()) as WalletActivityResponse;
+      setRecentItems(buildRecentActivityItems(payload.items, RECENT_LIMIT));
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
     } finally {
       if (!controller.signal.aborted) setRecentLoading(false);
     }
-  }, [embeddedWalletAddress, getAccessToken, twitterSubject]);
+  }, [embeddedWalletAddress, getAccessToken]);
 
   useEffect(() => {
     if (ready && authenticated && embeddedWalletAddress) {
@@ -283,7 +254,12 @@ export default function AccountPage() {
                 counterpartySubLabel: item.counterpartySubLabel,
                 amount: item.amount,
                 status: 'Confirmed',
-                direction: item.direction === 'Received' ? 'incoming' : 'outgoing',
+                direction:
+                  item.direction === 'Received'
+                    ? 'incoming'
+                    : item.direction === 'Sent'
+                      ? 'outgoing'
+                      : undefined,
                 date: item.createdAt,
                 txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
               }))}
