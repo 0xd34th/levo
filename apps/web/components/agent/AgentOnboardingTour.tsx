@@ -41,7 +41,7 @@ export const AGENT_NEW_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
     body: 'Use the AI chat under Explore Sui or manage mandates to inspect Sui, check wallets or transactions, open trade handoffs, or start mandate requests.',
   },
   {
-    anchor: 'mandate-intent',
+    anchor: 'mandate-create',
     eyebrow: 'Mandate',
     title: 'Turn intent into an Earn mandate',
     body: 'Shape an Earn mandate from an intent.',
@@ -150,6 +150,7 @@ interface AgentOnboardingTourProps {
   steps: AgentOnboardingTourStep[];
   storageKey: string;
   onOpenSettings: () => void;
+  suppressAutoStart?: boolean;
 }
 
 export function AgentOnboardingTour(props: AgentOnboardingTourProps) {
@@ -160,6 +161,7 @@ function AgentOnboardingTourContent({
   steps,
   storageKey,
   onOpenSettings,
+  suppressAutoStart = false,
 }: AgentOnboardingTourProps) {
   const getSnapshot = useCallback(
     () => getTourStorageSnapshot(storageKey),
@@ -177,7 +179,7 @@ function AgentOnboardingTourContent({
   const activeAnchor = activeStep?.anchor;
   const activeOpensSettings = activeStep?.opensSettings ?? false;
   const isLastStep = stepIndex === steps.length - 1;
-  const open = steps.length > 0 && (manualOpen || storedState === 'new');
+  const open = steps.length > 0 && (manualOpen || (!suppressAutoStart && storedState === 'new'));
 
   useEffect(() => {
     if (open && activeOpensSettings) {

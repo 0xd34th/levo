@@ -26,6 +26,7 @@ import { SevenKSwapPanel } from './SevenKSwapPanel';
 interface Props {
   onMandateCreated: () => void | Promise<void>;
   initialSurface?: TradeSurface | null;
+  onCreateMandate?: (intent: string) => void;
 }
 
 type OnChainPresetKind = 'object' | 'digest' | 'collection';
@@ -34,6 +35,12 @@ type TradeSurface = 'swap' | 'send' | 'bridge';
 type PromptCommand = {
   label: string;
   prompt: string;
+};
+
+type MandateCommand = {
+  label: string;
+  prompt: string;
+  intent: string;
 };
 
 type InputCommand = {
@@ -46,7 +53,7 @@ type SurfaceCommand = {
   surface: TradeSurface;
 };
 
-type Command = PromptCommand | InputCommand | SurfaceCommand;
+type Command = PromptCommand | MandateCommand | InputCommand | SurfaceCommand;
 
 type OnChainPresetDescriptor = {
   kind: OnChainPresetKind;
@@ -132,9 +139,21 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
   {
     label: 'Mandates',
     commands: [
-      { label: 'Auto-harvest yield', prompt: 'Create a mandate to auto-harvest claimable Earn yield daily with conservative caps' },
-      { label: 'Deposit into Earn', prompt: 'Create a mandate to deposit into Earn manually with conservative caps' },
-      { label: 'Withdraw from Earn', prompt: 'Create a mandate to withdraw from Earn manually with conservative caps' },
+      {
+        label: 'Auto-harvest yield',
+        intent: 'Auto-harvest claimable Earn yield daily with conservative caps',
+        prompt: 'Create a mandate to auto-harvest claimable Earn yield daily with conservative caps',
+      },
+      {
+        label: 'Deposit into Earn',
+        intent: 'Deposit into Earn manually with conservative caps',
+        prompt: 'Create a mandate to deposit into Earn manually with conservative caps',
+      },
+      {
+        label: 'Withdraw from Earn',
+        intent: 'Withdraw from Earn manually with conservative caps',
+        prompt: 'Create a mandate to withdraw from Earn manually with conservative caps',
+      },
       { label: 'Show mandates', prompt: 'Show my mandates' },
     ],
   },
@@ -142,7 +161,7 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
 
 // Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
 // tools with mandate inspection/handoff while keeping signing outside chat.
-export function AgentChatPanel({ onMandateCreated, initialSurface = null }: Props) {
+export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCreateMandate }: Props) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
 
@@ -190,6 +209,14 @@ export function AgentChatPanel({ onMandateCreated, initialSurface = null }: Prop
 
   const pickCommand = async (command: Command) => {
     if (busy) return;
+    if ('intent' in command) {
+      if (onCreateMandate) {
+        onCreateMandate(command.intent);
+        return;
+      }
+      await submitPrompt(command.prompt);
+      return;
+    }
     if ('prompt' in command) {
       await submitPrompt(command.prompt);
       return;
@@ -298,7 +325,11 @@ function EmptyState({
       </p>
       <div className="mt-4 space-y-3">
         {COMMAND_GROUPS.map((group) => (
-          <div key={group.label} className="grid gap-2 sm:grid-cols-[76px_1fr] sm:items-start">
+          <div
+            key={group.label}
+            data-agent-tour={group.label === 'Mandates' ? 'mandate-create' : undefined}
+            className="grid gap-2 sm:grid-cols-[76px_1fr] sm:items-start"
+          >
             <p className="pt-1 text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--text-mute)' }}>
               {group.label}
             </p>

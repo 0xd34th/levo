@@ -1,10 +1,17 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import type { CreateMandatePayload } from '@/lib/agent/client';
 import {
@@ -41,9 +48,14 @@ export function AgentComposerWorkbench({
   const [proposal, setProposal] = useState<Proposal | null>(() =>
     initialProposal(initialConfig, intent),
   );
+  const [mandateIntent, setMandateIntent] = useState<string | null>(intent);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configReloadSignal, setConfigReloadSignal] = useState(0);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeMandateDialog = useCallback(() => {
+    setMandateIntent(null);
+    setProposal(null);
+  }, []);
   const tourStorageKey = ready
     ? getAgentOnboardingStorageKey({
         authenticated,
@@ -52,12 +64,8 @@ export function AgentComposerWorkbench({
       })
     : null;
 
-  const helperText = useMemo(() => {
-    if (!intent) return 'Describe the Earn task first. Options appear only after there is a request to shape.';
-    return `Draft intent: ${intent}`;
-  }, [intent]);
-
   return (
+    <>
     <div className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
       <section className="flex min-h-[620px] flex-col rounded-[16px] bg-[color:var(--surface)] p-4">
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
@@ -73,6 +81,7 @@ export function AgentComposerWorkbench({
                 steps={AGENT_NEW_ONBOARDING_STEPS}
                 storageKey={tourStorageKey}
                 onOpenSettings={openSettings}
+                suppressAutoStart={mandateIntent !== null}
               />
             ) : null}
             <Button
@@ -89,7 +98,11 @@ export function AgentComposerWorkbench({
           </div>
         </div>
         <div className="min-h-0 flex-1 pt-4">
-          <AgentChatPanel onMandateCreated={() => {}} initialSurface={initialSurface} />
+          <AgentChatPanel
+            onMandateCreated={() => {}}
+            initialSurface={initialSurface}
+            onCreateMandate={(nextIntent) => setMandateIntent(nextIntent)}
+          />
         </div>
       </section>
       {settingsOpen ? (
@@ -116,30 +129,38 @@ export function AgentComposerWorkbench({
           />
         </aside>
       ) : (
-        <aside className="flex min-h-[620px] flex-col gap-4">
-          <section className="rounded-[16px] bg-[color:var(--surface)] p-4">
-            <div className="border-b border-[color:var(--border)] pb-3">
-              <h2 className="text-[18px] font-semibold">New mandate</h2>
-              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-                {helperText}
-              </p>
-            </div>
-            <div className="pt-4">
-              <MandateCreateForm
-                initialIntent={intent}
-                initialConfig={initialConfig}
-                onDraftChange={setProposal}
-                onCreated={() => {}}
-                onOpenAgentSettings={openSettings}
-                configReloadSignal={configReloadSignal}
-                showIntentPrompt={false}
-              />
-            </div>
-          </section>
-          <MandateDraftPreview proposal={proposal} />
-        </aside>
+        <MandateDraftPreview proposal={proposal} />
       )}
     </div>
+    <Dialog
+      open={mandateIntent !== null}
+      onOpenChange={(open) => {
+        if (!open) closeMandateDialog();
+      }}
+    >
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create mandate</DialogTitle>
+          <DialogDescription>
+            Shape a bounded Earn mandate, then review the limits before signing.
+          </DialogDescription>
+        </DialogHeader>
+        <MandateCreateForm
+          key={mandateIntent ?? 'none'}
+          initialIntent={mandateIntent}
+          initialConfig={initialConfig}
+          onDraftChange={setProposal}
+          onCreated={closeMandateDialog}
+          onCancel={closeMandateDialog}
+          onOpenAgentSettings={() => {
+            closeMandateDialog();
+            openSettings();
+          }}
+          configReloadSignal={configReloadSignal}
+        />
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
