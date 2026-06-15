@@ -150,7 +150,6 @@ interface AgentOnboardingTourProps {
   steps: AgentOnboardingTourStep[];
   storageKey: string;
   onOpenSettings: () => void;
-  suppressAutoStart?: boolean;
 }
 
 export function AgentOnboardingTour(props: AgentOnboardingTourProps) {
@@ -161,7 +160,6 @@ function AgentOnboardingTourContent({
   steps,
   storageKey,
   onOpenSettings,
-  suppressAutoStart = false,
 }: AgentOnboardingTourProps) {
   const getSnapshot = useCallback(
     () => getTourStorageSnapshot(storageKey),
@@ -179,7 +177,7 @@ function AgentOnboardingTourContent({
   const activeAnchor = activeStep?.anchor;
   const activeOpensSettings = activeStep?.opensSettings ?? false;
   const isLastStep = stepIndex === steps.length - 1;
-  const open = steps.length > 0 && (manualOpen || (!suppressAutoStart && storedState === 'new'));
+  const open = steps.length > 0 && (manualOpen || storedState === 'new');
 
   useEffect(() => {
     if (open && activeOpensSettings) {

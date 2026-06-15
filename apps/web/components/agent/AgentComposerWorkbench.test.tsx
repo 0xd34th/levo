@@ -53,33 +53,18 @@ vi.mock('@/components/agent/MandateProposalCard', () => ({
 vi.mock('@/components/agent/AgentChatPanel', () => ({
   AgentChatPanel: ({
     initialSurface,
-    onCreateMandate,
+    onMandateDraftChange,
   }: {
     initialSurface?: string | null;
-    onCreateMandate?: (intent: string) => void;
+    onMandateDraftChange?: (proposal: unknown) => void;
   }) => (
     <div data-agent-tour="chat-start">
       <p>Explore Sui or manage mandates.</p>
       {initialSurface ? <p>Initial surface: {initialSurface}</p> : null}
-      {onCreateMandate ? <p>create-wired</p> : null}
-      <button
-        type="button"
-        onClick={() => onCreateMandate?.('Auto-harvest claimable Earn yield daily with conservative caps')}
-      >
-        Auto-harvest yield
-      </button>
-      <button
-        type="button"
-        onClick={() => onCreateMandate?.('Deposit into Earn manually with conservative caps')}
-      >
-        Deposit into Earn
-      </button>
-      <button
-        type="button"
-        onClick={() => onCreateMandate?.('Withdraw from Earn manually with conservative caps')}
-      >
-        Withdraw from Earn
-      </button>
+      {onMandateDraftChange ? <p>create-wired</p> : null}
+      <button type="button">Auto-harvest yield</button>
+      <button type="button">Deposit into Earn</button>
+      <button type="button">Withdraw from Earn</button>
     </div>
   ),
 }));
@@ -145,7 +130,7 @@ async function clickButton(host: HTMLElement, text: string) {
 }
 
 describe('Agent mandate creation UI', () => {
-  it('/agent/new keeps the form in a dialog and shows only chat + preview before opening it', () => {
+  it('/agent/new wires the inline create form into chat and keeps the sidebar preview', () => {
     searchParams = '';
     const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
 
@@ -153,18 +138,17 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Auto-harvest yield');
     expect(markup).toContain('Deposit into Earn');
     expect(markup).toContain('Withdraw from Earn');
-    // The chat panel receives the create-mandate handler that opens the dialog.
+    // The chat panel receives the draft handler that opens the inline create form.
     expect(markup).toContain('create-wired');
-    // The preview shell stays in the sidebar.
+    // The preview stays in the sidebar.
     expect(markup).toContain('Mandate preview');
-    // The form now lives inside the (closed) dialog, so its controls are not rendered yet.
+    // The form opens inline in the chat on demand, not on first paint.
     expect(markup).not.toContain('What should the agent do?');
     expect(markup).not.toContain('Mandate options');
     expect(markup).not.toContain('Cadence');
-    expect(markup).not.toContain('Bind agent');
   });
 
-  it('the create dialog form shows a bind agent action when no external runner is configured', () => {
+  it('the inline create form shows a bind agent action when no external runner is configured', () => {
     const markup = renderToStaticMarkup(
       <MandateCreateForm
         initialIntent="Auto-harvest claimable Earn yield daily with conservative caps"
@@ -178,7 +162,7 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Bind agent');
   });
 
-  it('the create dialog form keeps the bind agent action visible while agent configuration loads', () => {
+  it('the inline create form keeps the bind agent action visible while agent configuration loads', () => {
     const markup = renderToStaticMarkup(
       <MandateCreateForm
         initialIntent="Auto-harvest claimable Earn yield daily with conservative caps"
@@ -231,17 +215,17 @@ describe('Agent mandate creation UI', () => {
     expect(markup).toContain('Copy token');
   });
 
-  it('/agent/new with intent seeds the sidebar preview (form lives in the dialog)', () => {
+  it('/agent/new with intent seeds the sidebar preview (form opens inline in chat)', () => {
     searchParams = 'intent=auto-harvest%20claimable%20yield%20daily%20with%20conservative%20caps';
     const markup = renderToStaticMarkup(<AgentComposerWorkbench initialConfig={CONFIG} />);
 
     expect(markup).toContain('Mandate preview');
     expect(markup).toContain('The agent may');
-    // The guided controls render inside the dialog (client portal), not in the SSR markup.
+    // The guided controls render inline in the chat panel, not in this SSR markup.
     expect(markup).not.toContain('Mandate options');
   });
 
-  it('the create dialog form renders contextual options from an intent', () => {
+  it('the inline create form renders contextual options from an intent', () => {
     const markup = renderToStaticMarkup(
       <MandateCreateForm
         initialIntent="auto-harvest claimable yield daily with conservative caps"

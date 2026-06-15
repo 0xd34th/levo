@@ -5,13 +5,6 @@ import { useCallback, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import type { CreateMandatePayload } from '@/lib/agent/client';
 import {
@@ -26,7 +19,6 @@ import {
   getAgentOnboardingStorageKey,
 } from './AgentOnboardingTour';
 import { AgentSettings } from './AgentSettings';
-import { MandateCreateForm } from './MandateCreateForm';
 import { MandateDraftPreview } from './MandateDraftPreview';
 
 interface Proposal {
@@ -48,14 +40,9 @@ export function AgentComposerWorkbench({
   const [proposal, setProposal] = useState<Proposal | null>(() =>
     initialProposal(initialConfig, intent),
   );
-  const [mandateIntent, setMandateIntent] = useState<string | null>(intent);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [configReloadSignal, setConfigReloadSignal] = useState(0);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeMandateDialog = useCallback(() => {
-    setMandateIntent(null);
-    setProposal(null);
-  }, []);
   const tourStorageKey = ready
     ? getAgentOnboardingStorageKey({
         authenticated,
@@ -65,7 +52,6 @@ export function AgentComposerWorkbench({
     : null;
 
   return (
-    <>
     <div className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
       <section className="flex min-h-[620px] flex-col rounded-[16px] bg-[color:var(--surface)] p-4">
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
@@ -81,7 +67,6 @@ export function AgentComposerWorkbench({
                 steps={AGENT_NEW_ONBOARDING_STEPS}
                 storageKey={tourStorageKey}
                 onOpenSettings={openSettings}
-                suppressAutoStart={mandateIntent !== null}
               />
             ) : null}
             <Button
@@ -101,7 +86,10 @@ export function AgentComposerWorkbench({
           <AgentChatPanel
             onMandateCreated={() => {}}
             initialSurface={initialSurface}
-            onCreateMandate={(nextIntent) => setMandateIntent(nextIntent)}
+            initialMandateIntent={intent}
+            onMandateDraftChange={setProposal}
+            onOpenAgentSettings={openSettings}
+            configReloadSignal={configReloadSignal}
           />
         </div>
       </section>
@@ -132,35 +120,6 @@ export function AgentComposerWorkbench({
         <MandateDraftPreview proposal={proposal} />
       )}
     </div>
-    <Dialog
-      open={mandateIntent !== null}
-      onOpenChange={(open) => {
-        if (!open) closeMandateDialog();
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create mandate</DialogTitle>
-          <DialogDescription>
-            Shape a bounded Earn mandate, then review the limits before signing.
-          </DialogDescription>
-        </DialogHeader>
-        <MandateCreateForm
-          key={mandateIntent ?? 'none'}
-          initialIntent={mandateIntent}
-          initialConfig={initialConfig}
-          onDraftChange={setProposal}
-          onCreated={closeMandateDialog}
-          onCancel={closeMandateDialog}
-          onOpenAgentSettings={() => {
-            closeMandateDialog();
-            openSettings();
-          }}
-          configReloadSignal={configReloadSignal}
-        />
-      </DialogContent>
-    </Dialog>
-    </>
   );
 }
 

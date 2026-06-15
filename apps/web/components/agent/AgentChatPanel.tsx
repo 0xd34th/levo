@@ -22,11 +22,26 @@ import { detectRecipientType } from '@/lib/recipient';
 import { useCoinBalance } from '@/lib/use-coin-balance';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 import { SevenKSwapPanel } from './SevenKSwapPanel';
+import { MandateCreateForm } from './MandateCreateForm';
+import type { CreateMandatePayload } from '@/lib/agent/client';
+
+type MandateDraftProposal = {
+  spec?: CreateMandatePayload['spec'];
+  plan?: CreateMandatePayload['plan'];
+  metadataName?: string;
+  error?: string;
+};
 
 interface Props {
   onMandateCreated: () => void | Promise<void>;
   initialSurface?: TradeSurface | null;
-  onCreateMandate?: (intent: string) => void;
+  // When provided, the three Mandates commands open the guided create form
+  // inline in the chat and report draft changes here (drives the sidebar
+  // preview). When absent (e.g. the agent drawer), commands fall back to chat.
+  onMandateDraftChange?: (proposal: MandateDraftProposal | null) => void;
+  onOpenAgentSettings?: () => void;
+  initialMandateIntent?: string | null;
+  configReloadSignal?: number;
 }
 
 type OnChainPresetKind = 'object' | 'digest' | 'collection';
@@ -161,7 +176,14 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
 
 // Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
 // tools with mandate inspection/handoff while keeping signing outside chat.
-export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCreateMandate }: Props) {
+export function AgentChatPanel({
+  onMandateCreated,
+  initialSurface = null,
+  onMandateDraftChange,
+  onOpenAgentSettings,
+  initialMandateIntent = null,
+  configReloadSignal = 0,
+}: Props) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
 
@@ -169,6 +191,13 @@ export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCrea
   const [submitting, setSubmitting] = useState(false);
   const [activePreset, setActivePreset] = useState<OnChainPresetDescriptor | null>(null);
   const [activeSurface, setActiveSurface] = useState<TradeSurface | null>(initialSurface);
+  const [mandateIntent, setMandateIntent] = useState<string | null>(initialMandateIntent);
+  const inlineMandateEnabled = Boolean(onMandateDraftChange);
+
+  const closeMandate = () => {
+    setMandateIntent(null);
+    onMandateDraftChange?.(null);
+  };
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
@@ -210,8 +239,10 @@ export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCrea
   const pickCommand = async (command: Command) => {
     if (busy) return;
     if ('intent' in command) {
-      if (onCreateMandate) {
-        onCreateMandate(command.intent);
+      if (inlineMandateEnabled) {
+        setActivePreset(null);
+        setActiveSurface(null);
+        setMandateIntent(command.intent);
         return;
       }
       await submitPrompt(command.prompt);
@@ -222,10 +253,12 @@ export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCrea
       return;
     }
     if ('preset' in command) {
+      setMandateIntent(null);
       setActiveSurface(null);
       setActivePreset(command.preset);
       return;
     }
+    setMandateIntent(null);
     setActivePreset(null);
     setActiveSurface(command.surface);
   };
@@ -239,18 +272,35 @@ export function AgentChatPanel({ onMandateCreated, initialSurface = null, onCrea
         {messages.length === 0 && (
           <>
             <EmptyState onPick={pickCommand} disabled={busy} />
-            <PresetSurface
-              activePreset={activePreset}
-              activeSurface={activeSurface}
-              onClose={() => {
-                setActivePreset(null);
-                setActiveSurface(null);
-              }}
-              onSubmitPreset={async (prompt) => {
-                setActivePreset(null);
-                await submitPrompt(prompt);
-              }}
-            />
+            {mandateIntent !== null && inlineMandateEnabled ? (
+              <SurfaceShell onClose={closeMandate}>
+                <MandateCreateForm
+                  key={mandateIntent}
+                  initialIntent={mandateIntent}
+                  onDraftChange={onMandateDraftChange}
+                  onCreated={async () => {
+                    closeMandate();
+                    await onMandateCreated();
+                  }}
+                  onCancel={closeMandate}
+                  onOpenAgentSettings={onOpenAgentSettings}
+                  configReloadSignal={configReloadSignal}
+                />
+              </SurfaceShell>
+            ) : (
+              <PresetSurface
+                activePreset={activePreset}
+                activeSurface={activeSurface}
+                onClose={() => {
+                  setActivePreset(null);
+                  setActiveSurface(null);
+                }}
+                onSubmitPreset={async (prompt) => {
+                  setActivePreset(null);
+                  await submitPrompt(prompt);
+                }}
+              />
+            )}
           </>
         )}
         {messages.map((m) => (
