@@ -5,6 +5,7 @@ import { closeWelcomeScreen } from './testData/landingPageFunctions';
 const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const SOLANA_NATIVE = '11111111111111111111111111111111';
 const BASE_NATIVE = '0x0000000000000000000000000000000000000000';
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 const chains = [
   {
@@ -95,76 +96,120 @@ const tokens = {
       logoURI: '',
       verified: true,
     },
+    {
+      chainId: ChainId.BAS,
+      address: BASE_USDC,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      coinKey: 'USDC',
+      priceUSD: '1',
+      logoURI: '',
+      verified: true,
+    },
   ],
 };
 
 test.describe('chain-first token selection', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
     await installLifiMocks(page);
     await page.addInitScript(() => window.localStorage.clear());
   });
 
-  test('shows chain-first placeholders on the exchange form', async ({
+  test('shows asset placeholders on the exchange form', async ({
     page,
   }) => {
     await openWidget(page);
 
-    await expect(tokenPickerButton(page, 'From')).toContainText('Select chain');
-    await expect(tokenPickerButton(page, 'To')).toContainText('Select chain');
+    await expect(assetPickerButton(page, 'From')).toContainText('Select asset');
+    await expect(assetPickerButton(page, 'To')).toContainText('Select asset');
   });
 
-  test('opens From token selection on a chain list before showing tokens', async ({
+  test('opens From asset selection on the asset list', async ({
     page,
   }) => {
     await openWidget(page);
 
-    await openTokenPicker(page, 'From');
+    await openAssetPicker(page, 'From');
 
-    await expect(page.getByText('Select chain').first()).toBeVisible();
-    await expect(page.getByText(/All networks/i)).toHaveCount(0);
-    await expect(chainOption(page, 'Solana')).toBeVisible();
-    await expect(page.getByRole('button', { name: /USDC/i })).toHaveCount(0);
-
-    await chainOption(page, 'Solana').click();
-
+    await expect(page.getByText('Select asset to swap from')).toBeVisible();
     await expect(tokenOption(page, 'SOL')).toBeVisible();
     await expect(tokenOption(page, 'USDC')).toBeVisible();
+    await expect(tokenOption(page, 'ETH')).toBeVisible();
   });
 
-  test('opens To token selection on a chain list before showing tokens', async ({
+  test('opens To asset selection on the asset list', async ({
     page,
   }) => {
     await openWidget(page);
 
-    await openTokenPicker(page, 'To');
+    await openAssetPicker(page, 'To');
 
-    await expect(page.getByText('Select chain').first()).toBeVisible();
-    await expect(page.getByText(/All networks/i)).toHaveCount(0);
-    await expect(chainOption(page, 'Solana')).toBeVisible();
-    await expect(page.getByRole('button', { name: /USDC/i })).toHaveCount(0);
-
-    await chainOption(page, 'Solana').click();
-
+    await expect(page.getByText('Select asset to receive')).toBeVisible();
     await expect(tokenOption(page, 'SOL')).toBeVisible();
     await expect(tokenOption(page, 'USDC')).toBeVisible();
+    await expect(tokenOption(page, 'ETH')).toBeVisible();
   });
 
-  test('keeps fromChain and toChain deep links on scoped token lists', async ({
+  test('hydrates chain and token deep links into asset and chain selectors', async ({
     page,
   }) => {
-    await openWidget(page, `/?fromChain=${ChainId.SOL}&toChain=${ChainId.BAS}`);
+    await openWidget(
+      page,
+      `/?fromChain=${ChainId.SOL}&fromToken=${SOLANA_USDC}&toChain=${ChainId.BAS}&toToken=${BASE_USDC}`,
+    );
 
-    await expect(tokenPickerButton(page, 'From')).toContainText('Solana');
-    await expect(tokenPickerButton(page, 'From')).toContainText('Select token');
-    await expect(tokenPickerButton(page, 'To')).toContainText('Base');
-    await expect(tokenPickerButton(page, 'To')).toContainText('Select token');
+    await expect(assetPickerButton(page, 'From')).toContainText('USDC');
+    await expect(sourceChainChip(page)).toContainText('Solana');
+    await expect(assetPickerButton(page, 'To')).toContainText('USDC');
+    await expect(destinationChainChip(page)).toContainText('Base');
+  });
 
-    await openTokenPicker(page, 'From');
+  test('lets users manually select the destination chain for a multi-chain asset', async ({
+    page,
+  }) => {
+    await openWidget(page);
 
-    await expect(page.getByText('Select chain').first()).toHaveCount(0);
-    await expect(tokenOption(page, 'SOL')).toBeVisible();
-    await expect(tokenOption(page, 'USDC')).toBeVisible();
-    await expect(tokenOption(page, 'ETH')).toHaveCount(0);
+    await openAssetPicker(page, 'To');
+    await tokenOption(page, 'USDC').click();
+
+    await expect(page.getByText('Destination chain')).toBeVisible();
+    const initialDestinationChain =
+      (await destinationChainChip(page).textContent()) ?? '';
+    const targetDestination = initialDestinationChain.includes('Base')
+      ? { name: 'Solana', chainId: ChainId.SOL }
+      : { name: 'Base', chainId: ChainId.BAS };
+
+    await destinationChainChip(page).click();
+    await page
+      .getByRole('list')
+      .getByRole('button', {
+        name: new RegExp(targetDestination.name, 'i'),
+      })
+      .click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`[?&]toChain=${targetDestination.chainId}`),
+    );
+    await expect(destinationChainChip(page)).toContainText(
+      targetDestination.name,
+    );
+    await expect(assetPickerButton(page, 'To')).toContainText('USDC');
+  });
+
+  test('hydrates the destination chain selector from toChain and toToken deep links', async ({
+    page,
+  }) => {
+    await openWidget(
+      page,
+      `/?toChain=${ChainId.BAS}&toToken=${BASE_USDC}`,
+    );
+
+    await expect(page.getByText('Destination chain')).toBeVisible();
+    await expect(destinationChainChip(page)).toContainText('Base');
+    await expect(assetPickerButton(page, 'To')).toContainText('USDC');
   });
 });
 
@@ -174,20 +219,36 @@ async function openWidget(page: Page, url = '/') {
   await closeWelcomeScreen(page);
 }
 
-async function openTokenPicker(page: Page, label: 'From' | 'To') {
-  await tokenPickerButton(page, label).click();
+async function openAssetPicker(page: Page, label: 'From' | 'To') {
+  await assetPickerButton(page, label).click();
 }
 
-function tokenPickerButton(page: Page, label: 'From' | 'To') {
-  return page.getByRole('button', { name: new RegExp(`^${label}\\b`, 'i') });
-}
-
-function chainOption(page: Page, name: string) {
-  return page.getByRole('button').filter({ hasText: name }).first();
+function assetPickerButton(page: Page, label: 'From' | 'To') {
+  return page
+    .getByText(label, { exact: true })
+    .locator('..')
+    .getByRole('button')
+    .first();
 }
 
 function tokenOption(page: Page, symbol: string) {
   return page.getByText(symbol, { exact: true }).first();
+}
+
+function destinationChainChip(page: Page) {
+  return chainChip(page, 'Destination chain');
+}
+
+function sourceChainChip(page: Page) {
+  return chainChip(page, 'Source chain');
+}
+
+function chainChip(page: Page, label: 'Source chain' | 'Destination chain') {
+  return page
+    .getByText(label, { exact: true })
+    .locator('..')
+    .getByRole('button')
+    .first();
 }
 
 async function installLifiMocks(page: Page) {

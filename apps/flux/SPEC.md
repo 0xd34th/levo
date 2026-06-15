@@ -1,31 +1,43 @@
+# Flux Destination Chain Selector
+
 ## Goal
 
-修复 `apps/jumper` 当前线上 Privy JWT 合同拆分错误的问题：浏览器发起 Sui 交易时，`/api/privy/sui/sign` 不能再因为 `Invalid JWT token provided` 导致 `Failed to sign Sui transaction`；同时 `wallet-fleet` 读取链钱包列表时也不能因为误改成 identity-token 路径而把地址全部打成 `Wallet is being provisioned`。
+在 `apps/flux` 的自定义 chain-abstracted widget 中，Destination 侧和 Source 侧一样允许用户手动选择链。
+
+默认仍由 best-route fanout 自动选择收益最好的目的链；用户手选后，以用户选择为准，直到切换目的资产或反转资产后重新回到自动选择。
 
 ## Scope
 
-- 复现并修复浏览器到 `/api/privy/*` 的 JWT 传递与服务端校验链路。
-- 把 `wallet-fleet` 场景和 `rawSign` 场景拆成正确的双轨 token 合同：session/access token 负责用户会话读取，identity token 负责 Privy wallet authorization key exchange。
-- 保持现有 widget、wallet-fleet 响应结构和已部署的 same-origin jumper proxy 合同不变。
-- 为 JWT fallback、identity-token header 校验，以及 `useWalletFleet` token 来源增加回归测试。
+- 仅修改 Flux 自定义 widget controller 和相邻纯逻辑/测试。
+- 继续隐藏 LI.FI 内置 chain selector，不改 `WidgetProps`、URL 参数名或 LI.FI widget config shape。
+- 可选目的链只来自当前 destination asset 的实例，并继续受 widget allowed chains、widget config chain/token constraints、以及当前用户可接收 chain types 约束。
+- 通过现有 `formRef.setFieldValue('toChain'/'toToken', ..., { setUrlSearchParam: true })` 同步到底层 LI.FI form、URL、widget cache 和 tracking store。
 
 ## Non-Goals
 
-- 不改动 LI.FI route selection、桥接策略或 Sui 交易构造逻辑。
-- 不改动 Privy app 配置、上游 dashboard 设置或线上部署流程。
-- 不要求本轮直接 `commit/push/deploy`；发版属于后续显式动作。
-
-## Constraints
-
-- 修复要优先落在共享 Privy auth primitive，而不是在单个 Sui signer 上做特判。
-- 新合同不能要求浏览器暴露 server-only secret，也不能破坏现有 `walletFleet` / signer API 形状。
-- 需要兼容已存在的 bearer token 调用方，避免一次修复再引入 bitcoin 或 wallet-fleet 回归。
+- 不新增后端接口。
+- 不扩大 Flux 支持链集合。
+- 不改变 route quoting、fee、bridge/exchange allow/deny 或 relayer route 合同。
+- 不恢复 LI.FI 内置 `ChainSelect`。
 
 ## Acceptance
 
-1. Sui signer 不再因为 `/api/privy/sui/sign` 校验 JWT 失败而返回 `Failed to sign Sui transaction` 这一类共享 auth 错误。
-2. `wallet-fleet` 不再因为 identity-token 时序或空值问题把已有钱包地址统一打成 `Wallet is being provisioned`。
-3. `/api/privy/wallet-fleet` 继续接受稳定 session/access token；`/api/privy/sui/sign` 与 `/api/privy/bitcoin/sign-psbt` 则显式接收并校验 identity token，用于 Privy `rawSign`。
-4. 服务端会校验 identity token 与 session user 是否属于同一用户，避免把错误或串号的 identity token 直接下放到 `rawSign`。
-5. 新增回归测试覆盖 access-token session 路径、identity-token fallback 路径、identity-token header 校验，以及 `useWalletFleet` 的 token 来源。
-6. `apps/jumper` 的相关单测与必要 `typecheck` 通过。
+1. Destination asset 存在多个可选链实例时，页面显示 `Destination chain` selector。
+2. 初始状态继续自动选择 best-rate destination chain；没有 route quote 时回退到当前 asset 的第一个可用目的链实例。
+3. 用户手动选择 destination chain 后，`toChain` 与对应 `toToken` 写回 LI.FI form，并同步 URL 参数、widget cache 和 tracking store。
+4. `?toChain=...&toToken=...` deep link 或 widget config 的 `initialToChain/initialToToken` 会 hydrate destination override。
+5. 切换 destination asset 或点击 reverse 后清空 destination override，让新 asset 重新走自动最佳链。
+6. 当前 destination override 不在新 asset 实例中，或不满足可接收 chain type / allowed chain 约束时，会自动清空。
+7. Selector options 使用 `bestRoute.best + bestRoute.alternatives` 按 `toToken.chainId` 展示 best-rate 和 delta 信息。
+
+## Verification
+
+- Unit:
+  - `selection.spec.ts` 覆盖 destination override 优先级、无效 override 清理、allowed-chain 过滤、destination options 的 quote 映射。
+  - `useBestRoute.spec.ts` 保持候选链对和约束逻辑通过。
+- E2E:
+  - `chainFirstTokenSelection.spec.ts` 覆盖多链 destination asset 显示 selector、手选 destination chain 更新 URL 和 To picker，以及 `toChain/toToken` deep link hydrate。
+- Commands:
+  - `pnpm --dir apps/flux test:unit -- src/components/Widgets/ChainAbstractionController/selection.spec.ts src/hooks/useBestRoute.spec.ts src/components/Widgets/chainTokenFormSync.spec.ts`
+  - `pnpm --dir apps/flux typecheck`
+  - `pnpm --dir apps/flux test:ci:e2e -- tests/chainFirstTokenSelection.spec.ts`

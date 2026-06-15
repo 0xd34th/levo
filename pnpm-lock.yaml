@@ -140,7 +140,7 @@ importers:
         version: 1.12.3(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
       '@abstract-foundation/agw-react':
         specifier: ^1.11.0
-        version: 1.13.0(@privy-io/react-auth@3.22.1(11bbed12e9d06edbc4f0895c17174b4d))(@rainbow-me/rainbowkit@2.2.10(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3))(@tanstack/react-query@5.99.2(react@19.2.5))(@wagmi/core@3.4.4(@tanstack/query-core@5.99.2)(@types/react@19.2.14)(immer@11.1.4)(ox@0.14.17(typescript@5.9.3)(zod@4.3.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)))(react@19.2.5)(secp256k1@5.0.1)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)
+        version: 1.13.0(@privy-io/react-auth@3.22.1(68e9aea0edb97cef1eee0748a9cced62))(@rainbow-me/rainbowkit@2.2.10(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3))(@tanstack/react-query@5.99.2(react@19.2.5))(@wagmi/core@3.4.4(@tanstack/query-core@5.99.2)(@types/react@19.2.14)(immer@11.1.4)(ox@0.14.17(typescript@5.9.3)(zod@4.3.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)))(react@19.2.5)(secp256k1@5.0.1)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)
       '@base-org/account':
         specifier: ^2.5.3
         version: 2.5.4(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)
@@ -257,10 +257,10 @@ importers:
         version: 0.15.0(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
       '@privy-io/react-auth':
         specifier: ^3.22.1
-        version: 3.22.1(11bbed12e9d06edbc4f0895c17174b4d)
+        version: 3.22.1(68e9aea0edb97cef1eee0748a9cced62)
       '@privy-io/wagmi':
         specifier: ^4.0.5
-        version: 4.0.5(@privy-io/react-auth@3.22.1(11bbed12e9d06edbc4f0895c17174b4d))(react@19.2.5)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)
+        version: 4.0.5(@privy-io/react-auth@3.22.1(68e9aea0edb97cef1eee0748a9cced62))(react@19.2.5)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)
       '@safe-global/safe-apps-sdk':
         specifier: ^9.1.0
         version: 9.1.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)
@@ -273,6 +273,9 @@ importers:
       '@sentry/react':
         specifier: ^10.38.0
         version: 10.49.0(react@19.2.5)
+      '@solana-program/memo':
+        specifier: ^0.11.1
+        version: 0.11.1(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana/client':
         specifier: 1.7.0
         version: 1.7.0(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)
@@ -603,7 +606,7 @@ importers:
         version: 0.11.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
       '@privy-io/react-auth':
         specifier: ^3.17.0
-        version: 3.17.0(deb9c463c3c44fa0d2fc8f2a8762d408)
+        version: 3.17.0(f4d454887b816396a5dddb9248cb2435)
       '@pythnetwork/pyth-sui-js':
         specifier: 2.4.0
         version: 2.4.0(axios@1.13.6)(typescript@5.9.3)
@@ -4777,6 +4780,11 @@ packages:
     resolution: {integrity: sha512-7f1ePqB/eURkTwTOO9TNIdUXZcyrZoX3Uy2hNo7cXMfNhPFWp9AVgIyRNBc2jf15sdUa9gNpW+PfP2iV8AYAaw==}
     peerDependencies:
       '@solana/kit': ^5.0
+
+  '@solana-program/memo@0.11.1':
+    resolution: {integrity: sha512-acVlHWhGcRqwsTfCE0EpHasQbho1iHAd0s1a43GP2DZ3WIyYEu3Z+FETbQxT0kh1o3vVr1AWMADKUB7mgSRr5Q==}
+    peerDependencies:
+      '@solana/kit': ^6.4.0
 
   '@solana-program/stake@0.5.0':
     resolution: {integrity: sha512-G3G1kcyTDTqcDEUqJkKyPfHAGh6AociXnDu4dZ87LprWeV3qZ26tReiOu3HN7inf2wCyJ32BWJyxoKNFVL9C8w==}
@@ -13002,11 +13010,11 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@abstract-foundation/agw-react@1.13.0(@privy-io/react-auth@3.22.1(11bbed12e9d06edbc4f0895c17174b4d))(@rainbow-me/rainbowkit@2.2.10(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3))(@tanstack/react-query@5.99.2(react@19.2.5))(@wagmi/core@3.4.4(@tanstack/query-core@5.99.2)(@types/react@19.2.14)(immer@11.1.4)(ox@0.14.17(typescript@5.9.3)(zod@4.3.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)))(react@19.2.5)(secp256k1@5.0.1)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)':
+  '@abstract-foundation/agw-react@1.13.0(@privy-io/react-auth@3.22.1(68e9aea0edb97cef1eee0748a9cced62))(@rainbow-me/rainbowkit@2.2.10(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3))(@tanstack/react-query@5.99.2(react@19.2.5))(@wagmi/core@3.4.4(@tanstack/query-core@5.99.2)(@types/react@19.2.14)(immer@11.1.4)(ox@0.14.17(typescript@5.9.3)(zod@4.3.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)))(react@19.2.5)(secp256k1@5.0.1)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)':
     dependencies:
       '@abstract-foundation/agw-client': 1.12.3(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
       '@privy-io/cross-app-connect': 0.5.7(@rainbow-me/rainbowkit@2.2.10(@tanstack/react-query@5.99.2(react@19.2.5))(@types/react@19.2.14)(babel-plugin-macros@3.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3))(@wagmi/core@3.4.4(@tanstack/query-core@5.99.2)(@types/react@19.2.14)(immer@11.1.4)(ox@0.14.17(typescript@5.9.3)(zod@4.3.6))(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)))(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
-      '@privy-io/react-auth': 3.22.1(11bbed12e9d06edbc4f0895c17174b4d)
+      '@privy-io/react-auth': 3.22.1(68e9aea0edb97cef1eee0748a9cced62)
       '@tanstack/react-query': 5.99.2(react@19.2.5)
       react: 19.2.5
       secp256k1: 5.0.1
@@ -17170,7 +17178,7 @@ snapshots:
 
   '@privy-io/popup@0.0.3': {}
 
-  '@privy-io/react-auth@3.17.0(deb9c463c3c44fa0d2fc8f2a8762d408)':
+  '@privy-io/react-auth@3.17.0(f4d454887b816396a5dddb9248cb2435)':
     dependencies:
       '@base-org/account': 1.1.1(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.3)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.3))(utf-8-validate@6.0.6)(zod@4.3.6)
       '@coinbase/wallet-sdk': 4.3.2
@@ -17216,6 +17224,7 @@ snapshots:
       zustand: 5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     optionalDependencies:
       '@abstract-foundation/agw-client': 1.12.3(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
+      '@solana-program/memo': 0.11.1(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/system': 0.10.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana/kit': 5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -17258,7 +17267,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@privy-io/react-auth@3.22.1(11bbed12e9d06edbc4f0895c17174b4d)':
+  '@privy-io/react-auth@3.22.1(68e9aea0edb97cef1eee0748a9cced62)':
     dependencies:
       '@base-org/account': 1.1.1(@types/react@19.2.14)(bufferutil@4.1.0)(immer@11.1.4)(react@19.2.5)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.5))(utf-8-validate@6.0.6)(zod@4.3.6)
       '@coinbase/wallet-sdk': 4.3.2
@@ -17305,6 +17314,7 @@ snapshots:
       zustand: 5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))
     optionalDependencies:
       '@abstract-foundation/agw-client': 1.12.3(typescript@5.9.3)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))
+      '@solana-program/memo': 0.11.1(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/system': 0.10.0(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.9.0(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana/kit': 6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -17359,9 +17369,9 @@ snapshots:
 
   '@privy-io/urls@0.0.4': {}
 
-  '@privy-io/wagmi@4.0.5(@privy-io/react-auth@3.22.1(11bbed12e9d06edbc4f0895c17174b4d))(react@19.2.5)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)':
+  '@privy-io/wagmi@4.0.5(@privy-io/react-auth@3.22.1(68e9aea0edb97cef1eee0748a9cced62))(react@19.2.5)(viem@2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6))(wagmi@3.6.3)':
     dependencies:
-      '@privy-io/react-auth': 3.22.1(11bbed12e9d06edbc4f0895c17174b4d)
+      '@privy-io/react-auth': 3.22.1(68e9aea0edb97cef1eee0748a9cced62)
       react: 19.2.5
       viem: 2.48.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.3.6)
       wagmi: 3.6.3(d5b611c052da153058095360dd84675e)
@@ -20258,6 +20268,15 @@ snapshots:
   '@solana-program/compute-budget@0.11.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))':
     dependencies:
       '@solana/kit': 5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+
+  '@solana-program/memo@0.11.1(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))':
+    dependencies:
+      '@solana/kit': 5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+    optional: true
+
+  '@solana-program/memo@0.11.1(@solana/kit@6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))':
+    dependencies:
+      '@solana/kit': 6.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
 
   '@solana-program/stake@0.5.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))':
     dependencies:

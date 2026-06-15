@@ -54,6 +54,7 @@
     "@sentry/browser": "^10.38.0",
     "@sentry/nextjs": "^10.38.0",
     "@sentry/react": "^10.38.0",
+    "@solana-program/memo": "^0.11.1",
     "@solana/client": "1.7.0",
     "@solana/kit": "^6.5.0",
     "@solana/react-hooks": "1.4.1",
