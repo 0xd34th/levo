@@ -33,6 +33,19 @@ const toStringOrUndefined = (value: unknown): string | undefined => {
   return undefined;
 };
 
+export const isStaleAutoToAddress = ({
+  lastAutoToAddress,
+  toAddress,
+}: {
+  lastAutoToAddress?: string;
+  toAddress?: string;
+}) =>
+  Boolean(
+    toAddress &&
+      lastAutoToAddress &&
+      toAddress === lastAutoToAddress,
+  );
+
 interface UseWidgetSelectionProps {
   formRef?: RefObject<FormState | null>;
   allowToChains?: number[];
@@ -236,6 +249,18 @@ export const useBridgeConditions = ({
     }
 
     if (!destinationWalletAddress) {
+      if (
+        isStaleAutoToAddress({
+          lastAutoToAddress: lastAutoToAddressRef.current,
+          toAddress,
+        })
+      ) {
+        formRef.current.setFieldValue('toAddress', undefined, {
+          setUrlSearchParam: true,
+        });
+        lastAutoToAddressRef.current = undefined;
+        setToAddress(undefined);
+      }
       return;
     }
 

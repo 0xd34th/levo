@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AssetGroup } from '@/types/assets';
 import {
   buildDestinationChainOptions,
+  buildQuoteAllowedToChainIds,
   resolveEffectiveDestinationChainId,
   resolveInitialAssetSelection,
   sanitizeDestinationChainOverride,
@@ -47,6 +48,30 @@ const assetGroups: AssetGroup[] = [
       },
     ],
   },
+  {
+    id: 'coin:SUI',
+    symbol: 'SUI',
+    name: 'Sui',
+    instances: [
+      {
+        type: 'base',
+        chainId: ChainId.SUI,
+        address:
+          '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
+        symbol: 'SUI',
+        name: 'Sui',
+        decimals: 9,
+      },
+      {
+        type: 'base',
+        chainId: ChainId.SOL,
+        address: 'solana-sui-mint',
+        symbol: 'SUI',
+        name: 'Sui',
+        decimals: 9,
+      },
+    ],
+  },
 ];
 
 describe('resolveInitialAssetSelection', () => {
@@ -81,6 +106,21 @@ describe('resolveInitialAssetSelection', () => {
 
     expect(selection?.asset.id).toBe('coin:USDC');
     expect(selection?.chainId).toBe(ChainId.ETH);
+  });
+
+  it('hydrates Sui native token query params containing module separators', () => {
+    const selection = resolveInitialAssetSelection(
+      assetGroups,
+      {
+        chainId: ChainId.SUI,
+        tokenAddress:
+          '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
+      },
+      {},
+    );
+
+    expect(selection?.asset.id).toBe('coin:SUI');
+    expect(selection?.chainId).toBe(ChainId.SUI);
   });
 });
 
@@ -119,14 +159,31 @@ describe('destination chain selection', () => {
     ).toBeUndefined();
   });
 
-  it('clears a destination override when allowed destination constraints exclude it', () => {
+  it('keeps a destination override outside receivable wallet types', () => {
     expect(
       sanitizeDestinationChainOverride({
         asset: usdc,
         toChainOverride: ChainId.ARB,
-        allowedToChainIds: new Set([ChainId.ETH]),
       }),
-    ).toBeUndefined();
+    ).toBe(ChainId.ARB);
+    expect(
+      resolveEffectiveDestinationChainId({
+        asset: usdc,
+        autoAllowedToChainIds: new Set([ChainId.ETH]),
+        toChainOverride: ChainId.ARB,
+        autoToChainId: ChainId.ETH,
+      }),
+    ).toBe(ChainId.ARB);
+  });
+
+  it('uses receivable chains for auto fallback when there is no manual override', () => {
+    expect(
+      resolveEffectiveDestinationChainId({
+        asset: usdc,
+        autoAllowedToChainIds: new Set([ChainId.ETH]),
+        autoToChainId: ChainId.ARB,
+      }),
+    ).toBe(ChainId.ETH);
   });
 
   it('builds destination chain options from asset instances and route candidates', () => {
@@ -141,17 +198,50 @@ describe('destination chain selection', () => {
     ]);
   });
 
-  it('uses the best quote per destination chain and filters disallowed destinations', () => {
+  it('uses the best quote per destination chain without receivable filtering', () => {
     expect(
       buildDestinationChainOptions({
         asset: usdc,
-        allowedToChainIds: new Set([ChainId.ARB]),
         candidates: [
           quote(ChainId.ETH, 100),
           quote(ChainId.ARB, 93),
           quote(ChainId.ARB, 97),
         ],
       }),
-    ).toEqual([{ chainId: ChainId.ARB, netUSD: 97, isBest: true }]);
+    ).toEqual([
+      { chainId: ChainId.ETH, netUSD: 100, isBest: true },
+      { chainId: ChainId.ARB, netUSD: 97, isBest: false },
+    ]);
+  });
+
+  it('shows all destination options even when only Sui is receivable', () => {
+    const sui = assetGroups[2];
+
+    expect(
+      buildDestinationChainOptions({
+        asset: sui,
+        candidates: [quote(ChainId.SUI, 100)],
+      }),
+    ).toEqual([
+      { chainId: ChainId.SUI, netUSD: 100, isBest: true },
+      { chainId: ChainId.SOL, netUSD: undefined, isBest: false },
+    ]);
+  });
+
+  it('adds the manual override to quote destination ids', () => {
+    expect(
+      buildQuoteAllowedToChainIds({
+        receivableToChainIds: new Set([ChainId.SUI]),
+        toChainOverride: ChainId.SOL,
+      }),
+    ).toEqual(new Set([ChainId.SUI, ChainId.SOL]));
+  });
+
+  it('quotes only the manual destination when there is no receivable set yet', () => {
+    expect(
+      buildQuoteAllowedToChainIds({
+        toChainOverride: ChainId.SOL,
+      }),
+    ).toEqual(new Set([ChainId.SOL]));
   });
 });

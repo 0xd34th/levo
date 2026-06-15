@@ -64,38 +64,44 @@ export interface DestinationChainOption {
 
 interface DestinationChainConstraints {
   asset?: AssetGroup;
-  allowedToChainIds?: Set<number>;
 }
 
 interface DestinationChainSelection extends DestinationChainConstraints {
+  autoAllowedToChainIds?: Set<number>;
   toChainOverride?: number;
   autoToChainId?: number;
 }
 
-export const getAllowedDestinationInstances = ({
+export const getDestinationInstances = ({
   asset,
-  allowedToChainIds,
 }: DestinationChainConstraints) => {
   if (!asset) {
     return [];
   }
-  if (!allowedToChainIds) {
-    return asset.instances;
+  return asset.instances;
+};
+
+export const getAutoDestinationInstances = ({
+  asset,
+  autoAllowedToChainIds,
+}: DestinationChainConstraints & { autoAllowedToChainIds?: Set<number> }) => {
+  const instances = getDestinationInstances({ asset });
+  if (!autoAllowedToChainIds) {
+    return instances;
   }
-  return asset.instances.filter((token) =>
-    allowedToChainIds.has(token.chainId),
+  return instances.filter((token) =>
+    autoAllowedToChainIds.has(token.chainId),
   );
 };
 
 export const sanitizeDestinationChainOverride = ({
   asset,
-  allowedToChainIds,
   toChainOverride,
 }: DestinationChainSelection): number | undefined => {
   if (typeof toChainOverride !== 'number') {
     return undefined;
   }
-  return getAllowedDestinationInstances({ asset, allowedToChainIds }).some(
+  return getDestinationInstances({ asset }).some(
     (token) => token.chainId === toChainOverride,
   )
     ? toChainOverride
@@ -104,35 +110,46 @@ export const sanitizeDestinationChainOverride = ({
 
 export const resolveEffectiveDestinationChainId = ({
   asset,
-  allowedToChainIds,
+  autoAllowedToChainIds,
   toChainOverride,
   autoToChainId,
 }: DestinationChainSelection): number | undefined => {
-  const instances = getAllowedDestinationInstances({ asset, allowedToChainIds });
-  if (!instances.length) {
+  const allInstances = getDestinationInstances({ asset });
+  const autoInstances = getAutoDestinationInstances({
+    asset,
+    autoAllowedToChainIds,
+  });
+  if (!allInstances.length) {
     return undefined;
   }
-  const hasChain = (chainId: number | undefined) =>
-    typeof chainId === 'number' &&
-    instances.some((token) => token.chainId === chainId);
 
-  if (hasChain(toChainOverride)) {
+  const hasAnyChain = (chainId: number | undefined) =>
+    typeof chainId === 'number' &&
+    allInstances.some((token) => token.chainId === chainId);
+  if (hasAnyChain(toChainOverride)) {
     return toChainOverride;
   }
-  if (hasChain(autoToChainId)) {
+
+  if (!autoInstances.length) {
+    return undefined;
+  }
+  const hasAutoChain = (chainId: number | undefined) =>
+    typeof chainId === 'number' &&
+    autoInstances.some((token) => token.chainId === chainId);
+
+  if (hasAutoChain(autoToChainId)) {
     return autoToChainId;
   }
-  return instances[0]?.chainId;
+  return autoInstances[0]?.chainId;
 };
 
 export const buildDestinationChainOptions = ({
   asset,
-  allowedToChainIds,
   candidates = [],
 }: DestinationChainConstraints & {
   candidates?: DestinationRouteCandidate[];
 }): DestinationChainOption[] => {
-  const instances = getAllowedDestinationInstances({ asset, allowedToChainIds });
+  const instances = getDestinationInstances({ asset });
   const instanceChainIds = new Set(instances.map((token) => token.chainId));
   const bestCandidateByChainId = new Map<number, DestinationRouteCandidate>();
 
@@ -168,4 +185,21 @@ export const buildDestinationChainOptions = ({
       isBest: bestChainId === token.chainId,
     };
   });
+};
+
+export const buildQuoteAllowedToChainIds = ({
+  receivableToChainIds,
+  toChainOverride,
+}: {
+  receivableToChainIds?: Set<number>;
+  toChainOverride?: number;
+}): Set<number> | undefined => {
+  if (!receivableToChainIds && typeof toChainOverride !== 'number') {
+    return undefined;
+  }
+  const allowed = new Set(receivableToChainIds ?? []);
+  if (typeof toChainOverride === 'number') {
+    allowed.add(toChainOverride);
+  }
+  return allowed;
 };

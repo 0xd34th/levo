@@ -5,53 +5,77 @@ interface ChainToken {
   token: string | undefined;
 }
 
-interface ChainTokenSelection {
+export interface ChainTokenSelection {
   sourceChainToken: ChainToken;
   destinationChainToken: ChainToken;
   toAddress?: string;
   fromAmount?: string;
 }
 
-export const useUrlParams = (): ChainTokenSelection => {
-  const [urlParams, setUrlParams] = useState<ChainTokenSelection>({
+const emptySelection: ChainTokenSelection = {
+  sourceChainToken: {
+    chainId: undefined,
+    token: undefined,
+  },
+  destinationChainToken: {
+    chainId: undefined,
+    token: undefined,
+  },
+  toAddress: undefined,
+  fromAmount: undefined,
+};
+
+const parseChainId = (value: string | null): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const chainId = Number(value);
+  return Number.isFinite(chainId) ? chainId : undefined;
+};
+
+export const parseChainTokenUrlParams = (
+  search: string | undefined,
+): ChainTokenSelection => {
+  if (!search) {
+    return emptySelection;
+  }
+
+  const queryParameters = new URLSearchParams(search);
+  const fromChain = queryParameters.get('fromChain');
+  const toChain = queryParameters.get('toChain');
+  const fromToken = queryParameters.get('fromToken');
+  const toToken = queryParameters.get('toToken');
+  const toAddress = queryParameters.get('toAddress');
+  const fromAmount = queryParameters.get('fromAmount');
+
+  return {
     sourceChainToken: {
-      chainId: undefined,
-      token: undefined,
+      chainId: parseChainId(fromChain),
+      token: fromToken ?? undefined,
     },
     destinationChainToken: {
-      chainId: undefined,
-      token: undefined,
+      chainId: parseChainId(toChain),
+      token: toToken ?? undefined,
     },
-    toAddress: undefined,
-    fromAmount: undefined,
-  });
+    toAddress: toAddress ?? undefined,
+    fromAmount: fromAmount ?? undefined,
+  };
+};
+
+const getCurrentUrlParams = (): ChainTokenSelection => {
+  if (typeof window === 'undefined') {
+    return emptySelection;
+  }
+  return parseChainTokenUrlParams(window.location.search);
+};
+
+export const useUrlParams = (): ChainTokenSelection => {
+  const [urlParams, setUrlParams] =
+    useState<ChainTokenSelection>(getCurrentUrlParams);
 
   useEffect(() => {
     const updateSelection = () => {
-      if (typeof window === 'undefined') {
-        return;
-      }
-
-      const queryParameters = new URLSearchParams(window.location.search);
-      const fromChain = queryParameters.get('fromChain');
-      const toChain = queryParameters.get('toChain');
-      const fromToken = queryParameters.get('fromToken');
-      const toToken = queryParameters.get('toToken');
-      const toAddress = queryParameters.get('toAddress');
-      const fromAmount = queryParameters.get('fromAmount');
-
-      setUrlParams({
-        sourceChainToken: {
-          chainId: !!fromChain ? parseInt(fromChain) : undefined,
-          token: fromToken ?? undefined,
-        },
-        destinationChainToken: {
-          chainId: !!toChain ? parseInt(toChain) : undefined,
-          token: toToken ?? undefined,
-        },
-        toAddress: toAddress ?? undefined,
-        fromAmount: fromAmount ?? undefined,
-      });
+      setUrlParams(getCurrentUrlParams());
     };
 
     // Initial update

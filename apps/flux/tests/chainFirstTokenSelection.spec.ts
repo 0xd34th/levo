@@ -1,13 +1,35 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ChainId, ChainType } from '@lifi/sdk';
+import { ChainId, ChainType, CoinKey } from '@lifi/sdk';
 import { closeWelcomeScreen } from './testData/landingPageFunctions';
 
 const SOLANA_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const SOLANA_NATIVE = '11111111111111111111111111111111';
+const SOLANA_SUI = 'sui-on-solana';
+const SUI_NATIVE =
+  '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
 const BASE_NATIVE = '0x0000000000000000000000000000000000000000';
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 const chains = [
+  {
+    id: ChainId.SUI,
+    key: 'sui',
+    name: 'Sui',
+    chainType: ChainType.MVM,
+    coin: 'SUI',
+    mainnet: true,
+    logoURI: '',
+    nativeToken: {
+      chainId: ChainId.SUI,
+      address: SUI_NATIVE,
+      symbol: 'SUI',
+      name: 'Sui',
+      decimals: 9,
+      coinKey: CoinKey.SUI,
+      priceUSD: '3',
+      logoURI: '',
+    },
+  },
   {
     id: ChainId.SOL,
     key: 'sol',
@@ -60,6 +82,19 @@ const chains = [
 ];
 
 const tokens = {
+  [ChainId.SUI]: [
+    {
+      chainId: ChainId.SUI,
+      address: SUI_NATIVE,
+      symbol: 'SUI',
+      name: 'Sui',
+      decimals: 9,
+      coinKey: CoinKey.SUI,
+      priceUSD: '3',
+      logoURI: '',
+      verified: true,
+    },
+  ],
   [ChainId.SOL]: [
     {
       chainId: ChainId.SOL,
@@ -69,6 +104,17 @@ const tokens = {
       decimals: 9,
       coinKey: 'SOL',
       priceUSD: '150',
+      logoURI: '',
+      verified: true,
+    },
+    {
+      chainId: ChainId.SOL,
+      address: SOLANA_SUI,
+      symbol: 'SUI',
+      name: 'Sui',
+      decimals: 9,
+      coinKey: undefined,
+      priceUSD: '3',
       logoURI: '',
       verified: true,
     },
@@ -136,6 +182,7 @@ test.describe('chain-first token selection', () => {
 
     await expect(page.getByText('Select asset to swap from')).toBeVisible();
     await expect(tokenOption(page, 'SOL')).toBeVisible();
+    await expect(tokenOption(page, 'SUI')).toBeVisible();
     await expect(tokenOption(page, 'USDC')).toBeVisible();
     await expect(tokenOption(page, 'ETH')).toBeVisible();
   });
@@ -149,6 +196,7 @@ test.describe('chain-first token selection', () => {
 
     await expect(page.getByText('Select asset to receive')).toBeVisible();
     await expect(tokenOption(page, 'SOL')).toBeVisible();
+    await expect(tokenOption(page, 'SUI')).toBeVisible();
     await expect(tokenOption(page, 'USDC')).toBeVisible();
     await expect(tokenOption(page, 'ETH')).toBeVisible();
   });
@@ -158,44 +206,45 @@ test.describe('chain-first token selection', () => {
   }) => {
     await openWidget(
       page,
-      `/?fromChain=${ChainId.SOL}&fromToken=${SOLANA_USDC}&toChain=${ChainId.BAS}&toToken=${BASE_USDC}`,
+      `/en?fromChain=${ChainId.SUI}&fromToken=${SUI_NATIVE}&toChain=${ChainId.SOL}&toToken=${SOLANA_USDC}`,
     );
 
-    await expect(assetPickerButton(page, 'From')).toContainText('USDC');
-    await expect(sourceChainChip(page)).toContainText('Solana');
+    await expect(assetPickerButton(page, 'From')).toContainText('SUI');
+    await expect(sourceChainChip(page)).toContainText('Sui');
     await expect(assetPickerButton(page, 'To')).toContainText('USDC');
-    await expect(destinationChainChip(page)).toContainText('Base');
+    await expect(destinationChainChip(page)).toContainText('Solana');
   });
 
-  test('lets users manually select the destination chain for a multi-chain asset', async ({
+  test('lets users manually select Solana USDC as the destination after choosing Sui SUI', async ({
     page,
   }) => {
     await openWidget(page);
+
+    await openAssetPicker(page, 'From');
+    await tokenOption(page, 'SUI').click();
+
+    await expect(assetPickerButton(page, 'From')).toContainText('SUI');
+    await expect(sourceChainChip(page)).toContainText('Sui');
 
     await openAssetPicker(page, 'To');
     await tokenOption(page, 'USDC').click();
 
     await expect(page.getByText('Destination chain')).toBeVisible();
-    const initialDestinationChain =
-      (await destinationChainChip(page).textContent()) ?? '';
-    const targetDestination = initialDestinationChain.includes('Base')
-      ? { name: 'Solana', chainId: ChainId.SOL }
-      : { name: 'Base', chainId: ChainId.BAS };
 
     await destinationChainChip(page).click();
-    await page
+    const solanaOption = page
       .getByRole('list')
       .getByRole('button', {
-        name: new RegExp(targetDestination.name, 'i'),
-      })
-      .click();
+        name: /Solana/i,
+      });
+    await expect(solanaOption).toBeVisible();
+    await solanaOption.click();
 
     await expect(page).toHaveURL(
-      new RegExp(`[?&]toChain=${targetDestination.chainId}`),
+      new RegExp(`[?&]toChain=${ChainId.SOL}`),
     );
-    await expect(destinationChainChip(page)).toContainText(
-      targetDestination.name,
-    );
+    await expect(page).toHaveURL(new RegExp(`[?&]toToken=${SOLANA_USDC}`));
+    await expect(destinationChainChip(page)).toContainText('Solana');
     await expect(assetPickerButton(page, 'To')).toContainText('USDC');
   });
 
@@ -204,7 +253,7 @@ test.describe('chain-first token selection', () => {
   }) => {
     await openWidget(
       page,
-      `/?toChain=${ChainId.BAS}&toToken=${BASE_USDC}`,
+      `/en?toChain=${ChainId.BAS}&toToken=${BASE_USDC}`,
     );
 
     await expect(page.getByText('Destination chain')).toBeVisible();
@@ -213,7 +262,7 @@ test.describe('chain-first token selection', () => {
   });
 });
 
-async function openWidget(page: Page, url = '/') {
+async function openWidget(page: Page, url = '/en') {
   await page.goto(url);
   await page.waitForLoadState('domcontentloaded');
   await closeWelcomeScreen(page);
