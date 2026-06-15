@@ -440,21 +440,19 @@ export function MandateCreateForm({
         />
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        {onCancel ? (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        ) : (
-          <div />
-        )}
+      <div className="space-y-2">
         {build.payload ? (
           <MandateProposalCard proposal={build.payload} onCreated={onCreated} />
         ) : (
-          <Button type="button" variant="default" disabled>
+          <Button type="button" variant="default" disabled className="w-full">
             Review permission
           </Button>
         )}
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+            Cancel
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-[12px]" style={{ color: 'var(--text-soft)' }}>
