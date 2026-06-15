@@ -10,7 +10,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
-import { MAINNET_USDC_TYPE, SUI_COIN_TYPE } from '@/lib/coins';
+import { SUI_COIN_TYPE } from '@/lib/coins';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import {
   buildCreateMandatePayload,
@@ -369,10 +369,7 @@ export function MandateCreateForm({
               <SelectField
                 label="Coin type"
                 value={state.coinType}
-                options={[
-                  { value: MAINNET_USDC_TYPE, label: 'USDC' },
-                  { value: SUI_COIN_TYPE, label: 'SUI' },
-                ]}
+                options={[{ value: SUI_COIN_TYPE, label: 'SUI' }]}
                 onChange={(value) => setField('coinType', value)}
                 disabled={disabled}
               />

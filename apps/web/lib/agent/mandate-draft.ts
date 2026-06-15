@@ -1,4 +1,4 @@
-import { getCoinDecimals, MAINNET_USDC_TYPE } from '@/lib/coins';
+import { getCoinDecimals, SUI_COIN_TYPE } from '@/lib/coins';
 import { nextCronRun } from './cron-util';
 import type { AgentMandateConfig, AgentMandateTemplate } from './config';
 import type { CreateMandatePayload } from './client';
@@ -84,7 +84,10 @@ export function createInitialAgentMandateDraftState(
     perTxCap: amount,
     periodCap: multiplyDecimalString(amount, 10),
     expiryDays: '30',
-    coinType: MAINNET_USDC_TYPE,
+    // Agent flows run on Sui testnet (see lib/agent/sui-client.ts), where the
+    // mainnet USDC package does not exist. SUI resolves on every network, so the
+    // create-mandate transaction can be checked/built on testnet.
+    coinType: SUI_COIN_TYPE,
     templateId: template?.id ?? 'stablelayer-earn',
     customCron: DAILY_CRON,
     periodMs: CADENCE_PERIOD_MS[cadence],

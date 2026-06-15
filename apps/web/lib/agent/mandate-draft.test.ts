@@ -63,9 +63,9 @@ describe('mandate draft builder', () => {
       target: TARGET,
     });
     expect(result.payload?.spec.coinLimits[0]).toMatchObject({
-      coinType: MAINNET_USDC_TYPE,
-      perTxCap: '1000000',
-      periodCap: '10000000',
+      coinType: SUI_COIN_TYPE,
+      perTxCap: '1000000000',
+      periodCap: '10000000000',
     });
   });
 
