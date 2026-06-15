@@ -1,31 +1,10 @@
-import { fromBase58, fromHex } from "@mysten/sui/utils";
-import {
-  publicKeyFromRawBytes,
-  publicKeyFromSuiBytes,
-} from "@mysten/sui/verify";
 import type { PublicKey } from "@mysten/sui/cryptography";
 import { Signer, type SignatureScheme } from "@mysten/sui/cryptography";
 import { postPrivySigningRequest } from "@/lib/privy/clientSigning";
+import { decodeSuiPublicKey } from "@/lib/sui/publicKey";
 
 export function decodeStoredSuiPublicKey(publicKey: string): PublicKey {
-  const normalizedHex = publicKey.startsWith("0x")
-    ? publicKey.slice(2)
-    : publicKey;
-
-  if (normalizedHex.length > 0 && /^[0-9a-fA-F]+$/.test(normalizedHex)) {
-    const bytes = fromHex(normalizedHex);
-
-    if (bytes.length === 33) {
-      return publicKeyFromSuiBytes(bytes);
-    }
-
-    if (bytes.length === 32) {
-      return publicKeyFromRawBytes("ED25519", bytes);
-    }
-  }
-
-  const rawBytes = fromBase58(publicKey);
-  return publicKeyFromRawBytes("ED25519", rawBytes);
+  return decodeSuiPublicKey(publicKey);
 }
 
 async function signSuiDigest(params: {

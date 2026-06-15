@@ -1,7 +1,46 @@
 import { LiFiErrorCode } from "@lifi/sdk";
+import { toBase64 } from "@mysten/sui/utils";
+import {
+  publicKeyFromSuiBytes,
+  verifyTransactionSignature,
+} from "@mysten/sui/verify";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PrivySuiSigner } from "./sui";
+import { decodeStoredSuiPublicKey, PrivySuiSigner } from "./sui";
+
+describe("decodeStoredSuiPublicKey", () => {
+  it("decodes raw 32-byte Ed25519 public keys", () => {
+    const keypair = new Ed25519Keypair();
+    const publicKey = decodeStoredSuiPublicKey(
+      Buffer.from(keypair.getPublicKey().toRawBytes()).toString("hex"),
+    );
+
+    expect(publicKey.toSuiAddress()).toBe(
+      keypair.getPublicKey().toSuiAddress(),
+    );
+  });
+
+  it("decodes 33-byte Sui public keys with a signature scheme flag", () => {
+    const keypair = new Ed25519Keypair();
+    const suiPublicKey = Uint8Array.from([
+      keypair.getPublicKey().flag(),
+      ...keypair.getPublicKey().toRawBytes(),
+    ]);
+    const publicKey = decodeStoredSuiPublicKey(
+      Buffer.from(suiPublicKey).toString("hex"),
+    );
+
+    expect(publicKey.toSuiAddress()).toBe(
+      publicKeyFromSuiBytes(suiPublicKey).toSuiAddress(),
+    );
+  });
+
+  it("throws an explicit local error for malformed public keys", () => {
+    expect(() => decodeStoredSuiPublicKey("not a sui public key")).toThrow(
+      "Invalid Sui public key",
+    );
+  });
+});
 
 describe("PrivySuiSigner", () => {
   beforeEach(() => {
@@ -41,9 +80,12 @@ describe("PrivySuiSigner", () => {
 
   it("surfaces backend auth failures as provider errors", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ error: "Invalid or expired Privy session" }), {
-        status: 401,
-      }),
+      new Response(
+        JSON.stringify({ error: "Invalid or expired Privy session" }),
+        {
+          status: 401,
+        },
+      ),
     );
 
     const keypair = new Ed25519Keypair();
@@ -99,6 +141,46 @@ describe("PrivySuiSigner", () => {
         Authorization: "Bearer fresh-session-access-token",
         "Content-Type": "application/json",
       },
+    });
+  });
+
+  it("serializes backend raw transaction signatures into verifiable Sui signatures", async () => {
+    const keypair = new Ed25519Keypair();
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { digest: string };
+      const signature = await keypair.sign(
+        new Uint8Array(Buffer.from(body.digest, "hex")),
+      );
+
+      return new Response(
+        JSON.stringify({
+          signature: `0x${Buffer.from(signature).toString("hex")}`,
+        }),
+        { status: 200 },
+      );
+    });
+
+    const transactionBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+    const signer = new PrivySuiSigner({
+      publicKey: Buffer.from(keypair.getPublicKey().toRawBytes()).toString(
+        "hex",
+      ),
+      sessionJwt: "session-access-token",
+    });
+
+    const signedTransaction = await signer.signTransaction(transactionBytes);
+
+    expect(signedTransaction.bytes).toBe(toBase64(transactionBytes));
+    await expect(
+      verifyTransactionSignature(
+        transactionBytes,
+        signedTransaction.signature,
+        {
+          address: keypair.getPublicKey().toSuiAddress(),
+        },
+      ),
+    ).resolves.toMatchObject({
+      toSuiAddress: expect.any(Function),
     });
   });
 });
