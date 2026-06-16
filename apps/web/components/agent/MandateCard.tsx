@@ -47,7 +47,7 @@ export function MandateCard({ mandate, onChanged }: Props) {
         setInfo(`Confirmed (tx ${shortDigest(outcome.txDigest)})`);
         await onChanged();
       } else if (outcome.status === 'queued') {
-        setInfo(`Queued for external runner (${shortDigest(outcome.job.id)})`);
+        setInfo(`Execution queued (${shortDigest(outcome.job.id)})`);
       } else if (outcome.status === 'no_steps_pending') {
         setInfo('All planned runs consumed.');
       } else if (outcome.status === 'blocked_by_seal') {
@@ -244,7 +244,7 @@ export function MandateCard({ mandate, onChanged }: Props) {
         <div className="mt-3 rounded-[10px] bg-background p-3 text-[12px] ring-1 ring-[color:var(--border)]">
           <p className="font-medium">Confirm one agent execution</p>
           <p className="mt-1" style={{ color: 'var(--text-soft)' }}>
-            This queues the next witness step. Your external runner will decrypt with its agent key and submit the bounded action.
+            Levo will run one hosted testnet witness step with the mandate agent key and submit the bounded action.
           </p>
           <div className="mt-3 flex gap-2">
             <Button

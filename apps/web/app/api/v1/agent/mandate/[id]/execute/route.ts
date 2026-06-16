@@ -5,7 +5,7 @@ import {
   noStoreJson,
   verifySameOrigin,
 } from '@/lib/api';
-import { queueNextExecutionJob } from '@/lib/agent/user-agent';
+import { executeNextStep, type ExecuteOutcome } from '@/lib/agent/executor';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
@@ -14,8 +14,8 @@ import { acquireRedisLock } from '@/lib/redis-lock';
 
 // POST /api/v1/agent/mandate/[id]/execute
 //
-// Single-step trigger: queue the next unconsumed witness for the user's external
-// runner. The web runtime never signs or submits the agent transaction.
+// Single-step trigger: after explicit user confirmation, run the next hosted
+// agent witness step inside Levo using the mandate's per-user hosted agent key.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -66,22 +66,17 @@ export async function POST(
   }
 
   try {
-    const outcome = await queueNextExecutionJob({
+    const outcome = await executeNextStep({
       mandateId: id,
       trigger: ActionTrigger.CHAT,
     });
     const httpStatus =
-      outcome.status === 'queued'
+      outcome.status === 'confirmed' ||
+      outcome.status === 'blocked_by_seal' ||
+      outcome.status === 'no_steps_pending'
         ? 200
-        : outcome.status === 'no_steps_pending'
-          ? 200
-          : 409;
-    return noStoreJson(
-      outcome.status === 'queued'
-        ? { status: 'queued', job: { id: outcome.job.id } }
-        : outcome,
-      { status: httpStatus },
-    );
+        : 409;
+    return noStoreJson(serializeExecuteOutcome(outcome), { status: httpStatus });
   } catch (error) {
     return noStoreJson(
       { error: error instanceof Error ? error.message : 'Execute failed' },
@@ -90,4 +85,12 @@ export async function POST(
   } finally {
     await lock.release();
   }
+}
+
+function serializeExecuteOutcome(outcome: ExecuteOutcome) {
+  if (outcome.status !== 'confirmed') return outcome;
+  return {
+    ...outcome,
+    nonceAfter: outcome.nonceAfter.toString(),
+  };
 }

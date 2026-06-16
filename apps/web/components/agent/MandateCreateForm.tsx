@@ -44,7 +44,6 @@ interface MandateCreateFormProps {
   initialIntent?: string | null;
   initialConfig?: AgentMandateConfig;
   onDraftChange?: (proposal: ProposalPayload | null) => void;
-  onOpenAgentSettings?: () => void;
   configReloadSignal?: number;
   showIntentPrompt?: boolean;
 }
@@ -68,7 +67,9 @@ const FALLBACK_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
   agentLabel: null,
-  executionMode: 'external_runner',
+  custodyMode: null,
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [],
   error: 'Loading agent configuration...',
 };
@@ -77,7 +78,9 @@ const SIGN_IN_REQUIRED_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
   agentLabel: null,
-  executionMode: 'external_runner',
+  custodyMode: null,
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [],
   error: 'Sign in with X to load your Earn account target.',
 };
@@ -86,7 +89,9 @@ const WALLET_PREPARING_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
   agentLabel: null,
-  executionMode: 'external_runner',
+  custodyMode: null,
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [],
   error: 'Preparing your wallet for Agent approvals...',
 };
@@ -97,7 +102,6 @@ export function MandateCreateForm({
   initialIntent,
   initialConfig,
   onDraftChange,
-  onOpenAgentSettings,
   configReloadSignal = 0,
   showIntentPrompt = true,
 }: MandateCreateFormProps) {
@@ -218,7 +222,6 @@ export function MandateCreateForm({
           {(effectiveConfig.error || activeConfigError) && (
             <AgentConfigNotice
               message={effectiveConfig.error ?? activeConfigError ?? ''}
-              onOpenAgentSettings={onOpenAgentSettings}
               onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
             />
           )}
@@ -249,7 +252,6 @@ export function MandateCreateForm({
         {(effectiveConfig.error || activeConfigError) && (
           <AgentConfigNotice
             message={effectiveConfig.error ?? activeConfigError ?? ''}
-            onOpenAgentSettings={onOpenAgentSettings}
             onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
           />
         )}
@@ -270,7 +272,7 @@ export function MandateCreateForm({
               Based on: {activeIntent}
             </p>
             <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-              Agent: {effectiveConfig.agentAddress ? shortAddress(effectiveConfig.agentAddress) : 'not bound'} · External runner
+              Agent: {effectiveConfig.agentAddress ? shortAddress(effectiveConfig.agentAddress) : 'provisioning'} · Hosted testnet
             </p>
           </div>
           <Button
@@ -432,7 +434,6 @@ export function MandateCreateForm({
       {(effectiveConfig.error || activeConfigError || build.errors.length > 0) && (
         <AgentConfigNotice
           message={effectiveConfig.error ?? activeConfigError ?? build.errors[0]}
-          onOpenAgentSettings={onOpenAgentSettings}
           onRetryWalletSetup={walletSetupError ? embeddedWallet.refetch : undefined}
         />
       )}
@@ -472,17 +473,11 @@ function shortAddress(addr: string): string {
 
 function AgentConfigNotice({
   message,
-  onOpenAgentSettings,
   onRetryWalletSetup,
 }: {
   message: string;
-  onOpenAgentSettings?: () => void;
   onRetryWalletSetup?: () => void;
 }) {
-  const shouldOfferAgentSettings =
-    message.includes('No active external agent') ||
-    message.includes('Loading agent configuration');
-
   return (
     <div
       className="flex flex-col gap-3 rounded-[10px] bg-background px-3 py-2 text-[12px] ring-1 ring-[color:var(--border)] sm:flex-row sm:items-center sm:justify-between"
@@ -498,17 +493,6 @@ function AgentConfigNotice({
           onClick={onRetryWalletSetup}
         >
           Retry wallet setup
-        </Button>
-      )}
-      {shouldOfferAgentSettings && onOpenAgentSettings && (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="self-start whitespace-nowrap sm:self-auto"
-          onClick={onOpenAgentSettings}
-        >
-          Bind agent
         </Button>
       )}
     </div>

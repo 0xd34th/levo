@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { getRedis } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
 import { extractSchedule, nextCronRun } from './cron-util';
-import { queueNextExecutionJob } from './user-agent';
+import { executeNextStep } from './executor';
 
 export { extractSchedule, nextCronRun };
 
-// Agent scheduler — minute-grain loop that queues runner jobs for any ACTIVE
+// Agent scheduler — minute-grain loop that runs hosted agent jobs for any ACTIVE
 // mandate whose `metadata.schedule` cron expression has fired since the
 // last recorded SCHEDULED action. Persistent across worker restarts: the
 // scheduler reads the latest SCHEDULED `AgentAction` per mandate to know when
@@ -82,7 +82,7 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
 
     stats.fired += 1;
     const outcome = await fireForMandate(mandate.id);
-    if (outcome.status === 'queued') stats.queued += 1;
+    if (outcome.status === 'confirmed') stats.queued += 1;
     else if (outcome.status === 'no_steps_pending') stats.exhausted += 1;
     else stats.failed += 1;
   }
@@ -92,17 +92,18 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
 }
 
 async function fireForMandate(mandateId: string): Promise<
-  Awaited<ReturnType<typeof queueNextExecutionJob>>
+  Awaited<ReturnType<typeof executeNextStep>>
 > {
   const lock = await acquireRedisLock(`agent-execute:${mandateId}`, 60);
   if (lock.status !== 'acquired') {
     return {
       status: 'failed',
       reason: lock.status === 'busy' ? 'another execution in progress' : 'lock unavailable',
+      actionId: '',
     };
   }
   try {
-    return await queueNextExecutionJob({
+    return await executeNextStep({
       mandateId,
       trigger: ActionTrigger.SCHEDULED,
     });
@@ -110,6 +111,7 @@ async function fireForMandate(mandateId: string): Promise<
     return {
       status: 'failed',
       reason: err instanceof Error ? err.message : 'unknown error',
+      actionId: '',
     };
   } finally {
     await lock.release();

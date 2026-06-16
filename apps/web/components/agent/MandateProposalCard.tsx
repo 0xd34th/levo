@@ -164,7 +164,7 @@ export function MandateProposalCard({
           <DialogHeader>
             <DialogTitle>Approve agent mandate</DialogTitle>
             <DialogDescription>
-              Review what your external runner agent can do before the wallet signs create and initialize transactions.
+              Review what your Levo-hosted testnet agent can do before the wallet signs create and initialize transactions.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 text-[13px]">
@@ -191,7 +191,7 @@ export function MandateProposalCard({
                 <li>1. Create and share the mandate object.</li>
                 <li>2. Initialize the witness chain.</li>
                 <li>3. Future runs consume one witness and authorize one Earn action.</li>
-                <li>4. Levo queues jobs; your runner signs and submits each execution.</li>
+                <li>4. Levo signs and submits each hosted testnet execution with the mandate agent key.</li>
               </ol>
               <details className="mt-3">
                 <summary className="cursor-pointer text-[12px] font-medium">Developer details</summary>

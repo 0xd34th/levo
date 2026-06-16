@@ -5,14 +5,14 @@ const {
   loadOwnerWalletMock,
   rateLimitMock,
   resolveEarnMandateTargetMock,
-  getDefaultUserAgentMock,
+  getOrCreateHostedUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveEarnMandateTargetMock: vi.fn(),
-  getDefaultUserAgentMock: vi.fn(),
+  getOrCreateHostedUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -32,11 +32,13 @@ vi.mock('@/lib/agent/mandate-flow', () => ({
 }));
 
 vi.mock('@/lib/agent/config', () => ({
-  getAgentMandateConfig: (targetAddress: string, userAgent: { id: string; agentAddress: string; label: string } | null) => ({
+  getAgentMandateConfig: (targetAddress: string, userAgent: { id: string; agentAddress: string; label: string; custodyMode?: string } | null) => ({
     agentAddress: userAgent?.agentAddress ?? '',
     userAgentId: userAgent?.id ?? null,
     agentLabel: userAgent?.label ?? null,
-    executionMode: 'external_runner',
+    custodyMode: userAgent?.custodyMode ?? null,
+    executionMode: 'hosted',
+    network: 'testnet',
     templates: [
       {
         id: 'stablelayer-earn',
@@ -50,7 +52,9 @@ vi.mock('@/lib/agent/config', () => ({
     agentAddress: '',
     userAgentId: null,
     agentLabel: null,
-    executionMode: 'external_runner',
+    custodyMode: null,
+    executionMode: 'hosted',
+    network: 'testnet',
     templates: [],
     error,
   }),
@@ -58,7 +62,7 @@ vi.mock('@/lib/agent/config', () => ({
 }));
 
 vi.mock('@/lib/agent/user-agent', () => ({
-  getDefaultUserAgent: getDefaultUserAgentMock,
+  getOrCreateHostedUserAgent: getOrCreateHostedUserAgentMock,
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
@@ -94,10 +98,11 @@ describe('GET /api/v1/agent/config', () => {
       ok: true,
       targetAddress: TARGET,
     });
-    getDefaultUserAgentMock.mockResolvedValue({
+    getOrCreateHostedUserAgentMock.mockResolvedValue({
       id: 'user-agent-id',
       agentAddress: AGENT,
-      label: 'External agent',
+      label: 'Levo hosted agent',
+      custodyMode: 'HOSTED',
     });
   });
 
@@ -117,7 +122,7 @@ describe('GET /api/v1/agent/config', () => {
     expect(resolveEarnMandateTargetMock).not.toHaveBeenCalled();
   });
 
-  it('returns the current wallet StableLayer Earn account target', async () => {
+  it('provisions and returns the hosted testnet StableLayer Earn agent config', async () => {
     const req = new NextRequest('http://localhost/api/v1/agent/config', {
       headers: { origin: 'http://localhost' },
     });
@@ -128,8 +133,10 @@ describe('GET /api/v1/agent/config', () => {
     await expect(res.json()).resolves.toEqual({
       agentAddress: AGENT,
       userAgentId: 'user-agent-id',
-      agentLabel: 'External agent',
-      executionMode: 'external_runner',
+      agentLabel: 'Levo hosted agent',
+      custodyMode: 'HOSTED',
+      executionMode: 'hosted',
+      network: 'testnet',
       templates: [
         {
           id: 'stablelayer-earn',
@@ -139,6 +146,7 @@ describe('GET /api/v1/agent/config', () => {
         },
       ],
     });
+    expect(getOrCreateHostedUserAgentMock).toHaveBeenCalledWith('12345');
     expect(resolveEarnMandateTargetMock).toHaveBeenCalledWith({
       xUserId: '12345',
       senderAddress: OWNER_ADDRESS,
@@ -162,9 +170,32 @@ describe('GET /api/v1/agent/config', () => {
       agentAddress: '',
       userAgentId: null,
       agentLabel: null,
-      executionMode: 'external_runner',
+      custodyMode: null,
+      executionMode: 'hosted',
+      network: 'testnet',
       templates: [],
       error: 'Wallet binding has an invalid Sui address.',
+    });
+  });
+
+  it('returns a disabled config when hosted provision fails without bind-agent copy', async () => {
+    getOrCreateHostedUserAgentMock.mockRejectedValue(new Error('Hosted agent key encryption is not configured.'));
+    const req = new NextRequest('http://localhost/api/v1/agent/config', {
+      headers: { origin: 'http://localhost' },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      agentAddress: '',
+      userAgentId: null,
+      agentLabel: null,
+      custodyMode: null,
+      executionMode: 'hosted',
+      network: 'testnet',
+      templates: [],
+      error: 'Hosted agent key encryption is not configured.',
     });
   });
 });

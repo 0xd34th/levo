@@ -86,7 +86,7 @@ cp apps/web/.env.example apps/web/.env
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `TWITTER_API_KEY` | From [twitterapi.io](https://twitterapi.io) |
+| `TWITTER_API_KEY` | Optional [twitterapi.io](https://twitterapi.io) fallback key for X lookups when FxTwitter is temporarily unavailable |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | From Privy dashboard |
 | `PRIVY_APP_SECRET` | From Privy dashboard |
 | `HMAC_SECRET` | `openssl rand -hex 32` |

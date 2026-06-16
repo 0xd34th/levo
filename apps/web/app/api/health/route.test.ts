@@ -53,7 +53,7 @@ describe('GET /api/health', () => {
     vi.stubEnv('PRIVY_APP_SECRET', 'test-secret');
     vi.stubEnv('HMAC_SECRET', 'a'.repeat(64));
     vi.stubEnv('GAS_STATION_SECRET_KEY', 'replace-me');
-    vi.stubEnv('LEVO_AGENT_SIGNER_SECRET_KEY', 'replace-me');
+    vi.stubEnv('LEVO_HOSTED_AGENT_ENCRYPTION_KEY', Buffer.alloc(32, 1).toString('base64'));
     getGasStationAddressMock.mockReturnValue(null);
     getGasStationHealthSummaryMock.mockResolvedValue({
       address: '0xgasstation',
@@ -80,7 +80,7 @@ describe('GET /api/health', () => {
         redis: { status: 'ok' },
         env: { status: 'ok' },
         gasStation: { status: 'degraded' },
-        agentScheduler: { status: 'degraded' },
+        agentScheduler: { status: 'ok' },
       },
     });
     expect(JSON.stringify(payload)).not.toContain('test-secret');

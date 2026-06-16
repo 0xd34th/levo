@@ -23,19 +23,11 @@ export async function GET(req: NextRequest) {
     return invalidInputResponse();
   }
 
-  const apiKey = process.env.TWITTER_API_KEY;
-  if (!apiKey) {
-    return noStoreJson(
-      { error: 'Server configuration error' },
-      { status: 500 },
-    );
-  }
-
   const { username } = parsed.data;
 
   let userInfo;
   try {
-    userInfo = await resolveFreshXUser(username, apiKey);
+    userInfo = await resolveFreshXUser(username, process.env.TWITTER_API_KEY);
   } catch (error) {
     if (error instanceof TwitterApiError) {
       const lookupError = getXLookupErrorDetails(error);

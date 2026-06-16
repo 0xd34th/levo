@@ -6,28 +6,29 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MandateSummary } from '@/lib/agent/client';
+import type { AgentMandateConfig } from '@/lib/agent/config';
+import type { MandateDetailResponse, MandateSummary } from '@/lib/agent/client';
 
 const {
-  privyState,
+  fetchAgentConfigMock,
+  fetchMandateMock,
   fetchMandatesMock,
   getAccessTokenMock,
-  generateAuthorizationSignatureMock,
+  privyState,
 } = vi.hoisted(() => ({
+  fetchAgentConfigMock: vi.fn(),
+  fetchMandateMock: vi.fn(),
+  fetchMandatesMock: vi.fn<() => Promise<MandateSummary[]>>(async () => []),
+  getAccessTokenMock: vi.fn(async () => 'access-token'),
   privyState: {
     ready: true,
     authenticated: false,
     user: null as { id?: string; twitter?: { subject?: string } } | null,
   },
-  fetchMandatesMock: vi.fn<() => Promise<MandateSummary[]>>(async () => []),
-  getAccessTokenMock: vi.fn(async () => 'access-token'),
-  generateAuthorizationSignatureMock: vi.fn(),
 }));
 
 vi.mock('@privy-io/react-auth', () => ({
-  useAuthorizationSignature: () => ({
-    generateAuthorizationSignature: generateAuthorizationSignatureMock,
-  }),
+  useAuthorizationSignature: () => ({ generateAuthorizationSignature: vi.fn() }),
   useIdentityToken: () => ({ identityToken: 'identity-token' }),
   usePrivy: () => ({
     ready: privyState.ready,
@@ -37,45 +38,66 @@ vi.mock('@privy-io/react-auth', () => ({
   }),
 }));
 
-vi.mock('@/lib/agent/client', () => ({
-  destroyMandate: vi.fn(),
-  executeMandate: vi.fn(),
-  fetchMandate: vi.fn(),
-  fetchMandates: fetchMandatesMock,
-  pauseMandate: vi.fn(),
-  resumeMandate: vi.fn(),
-  revokeMandate: vi.fn(),
-  statusLabel: (status: string) => status,
-}));
+vi.mock('@/lib/agent/client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/agent/client')>('@/lib/agent/client');
+  return {
+    ...actual,
+    destroyMandate: vi.fn(),
+    executeMandate: vi.fn(),
+    fetchAgentConfig: fetchAgentConfigMock,
+    fetchMandate: fetchMandateMock,
+    fetchMandates: fetchMandatesMock,
+    pauseMandate: vi.fn(),
+    resumeMandate: vi.fn(),
+    revokeMandate: vi.fn(),
+    statusLabel: (status: string) => status,
+  };
+});
 
-vi.mock('./AgentSettings', () => ({
-  AgentSettings: () => (
-    <div>
-      <section data-agent-tour="runner-bind">Bind external agent</section>
-      <section data-agent-tour="runner-token">Copy setup prompt</section>
+vi.mock('./AgentChatPanel', () => ({
+  AgentChatPanel: ({
+    onMandateDraftChange,
+  }: {
+    onMandateDraftChange?: (proposal: unknown) => void;
+  }) => (
+    <div data-agent-tour="chat-start">
+      <p>Explore Sui or manage mandates.</p>
+      {onMandateDraftChange ? <p>create-wired</p> : null}
     </div>
   ),
 }));
 
 import { MandateWorkbench } from './MandateWorkbench';
 
-const DASHBOARD_TOUR_BASE_KEY = 'levo.agentOnboarding.dashboard.v3';
-const SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.signed-out`;
-const ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-a`;
-const ACCOUNT_B_DASHBOARD_TOUR_STORAGE_KEY = `${DASHBOARD_TOUR_BASE_KEY}.account.twitter-user-b`;
+const AGENT_CONFIG: AgentMandateConfig = {
+  agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
+  userAgentId: 'user-agent-id',
+  agentLabel: 'Levo hosted agent',
+  custodyMode: 'HOSTED',
+  executionMode: 'hosted',
+  network: 'testnet',
+  templates: [
+    {
+      id: 'stablelayer-earn',
+      label: 'StableLayer Earn',
+      description: 'Earn target',
+      targetAddress: '0x000000000000000000000000000000000000000000000000000000000000be11',
+    },
+  ],
+};
 
 const ACTIVE_MANDATE: MandateSummary = {
   id: 'mandate-1',
-  userAgentId: null,
-  agentAddress: '0xagent',
+  userAgentId: 'user-agent-id',
+  agentAddress: AGENT_CONFIG.agentAddress,
   mandateObjectId: '0xmandate',
   name: 'Earn mandate',
-  actions: 1,
+  actions: 8,
   coinLimits: [],
   periodMs: '86400000',
   allowedTargets: [],
   expiryMs: String(Date.now() + 86400000),
-  metadata: {},
+  metadata: { schedule: '0 9 * * *' },
   status: 'ACTIVE',
   nonce: '0',
   witnessCommit: '0xwitness',
@@ -89,48 +111,43 @@ const ACTIVE_MANDATE: MandateSummary = {
   updatedAt: '2026-06-05T00:00:00.000Z',
 };
 
-function findButton(host: HTMLElement, text: string) {
-  const button = Array.from(host.querySelectorAll('button')).find((candidate) =>
-    candidate.textContent?.includes(text),
-  );
-  if (!button) throw new Error(`Button not found: ${text}`);
-  return button;
-}
+const DETAIL: MandateDetailResponse = {
+  mandate: ACTIVE_MANDATE,
+  actions: [
+    {
+      id: 'action-1',
+      mandateId: 'mandate-1',
+      actionType: 8,
+      coinType: '0x2::sui::SUI',
+      amount: '1000000000',
+      target: '0x000000000000000000000000000000000000000000000000000000000000be11',
+      status: 'CONFIRMED',
+      txDigest: '9rL2txDigest',
+      trigger: 'CHAT',
+      sealApproved: true,
+      errorReason: null,
+      nonceAfter: '1',
+      commitBefore: '0xbefore',
+      commitAfter: '0xafter',
+      createdAt: '2026-06-05T00:00:00.000Z',
+      confirmedAt: '2026-06-05T00:01:00.000Z',
+    },
+  ],
+};
 
-async function clickButton(host: HTMLElement, text: string) {
-  await act(async () => {
-    findButton(host, text).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-  await flushTourEffects();
-}
-
-async function flushTourEffects() {
-  await act(async () => {
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
-  });
-}
-
-function deferredMandates() {
-  let resolve!: (value: MandateSummary[]) => void;
-  const promise = new Promise<MandateSummary[]>((next) => {
-    resolve = next;
-  });
-  return { promise, resolve };
-}
-
-describe('/agent mandate workbench onboarding', () => {
+describe('/agent hosted chat workspace', () => {
   let host: HTMLDivElement;
   let root: Root | null;
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.clearAllMocks();
     privyState.ready = true;
     privyState.authenticated = false;
     privyState.user = null;
-    fetchMandatesMock.mockClear();
-    getAccessTokenMock.mockClear();
-    generateAuthorizationSignatureMock.mockClear();
-    window.localStorage.clear();
+    fetchAgentConfigMock.mockResolvedValue(AGENT_CONFIG);
+    fetchMandatesMock.mockResolvedValue([]);
+    fetchMandateMock.mockResolvedValue(DETAIL);
     host = document.createElement('div');
     document.body.append(host);
     root = null;
@@ -143,7 +160,6 @@ describe('/agent mandate workbench onboarding', () => {
       });
     }
     host.remove();
-    window.localStorage.clear();
   });
 
   async function renderWorkbench() {
@@ -151,175 +167,42 @@ describe('/agent mandate workbench onboarding', () => {
     await act(async () => {
       root?.render(<MandateWorkbench />);
     });
-    await flushTourEffects();
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
   }
 
-  it('signed-out render still contains the Agent shell and Guide', () => {
+  it('renders chat as the primary signed-out surface without runner setup copy', () => {
     const markup = renderToStaticMarkup(<MandateWorkbench />);
 
-    expect(markup).toContain('Agent');
-    expect(markup).toContain('Guide');
-    expect(markup).toContain('Sign in to manage Agent mandates.');
+    expect(markup).toContain('Agent chat');
+    expect(markup).toContain('Explore Sui or manage mandates.');
+    expect(markup).toContain('Sign in to load hosted agent status.');
+    expect(markup).not.toContain('Bind external agent');
+    expect(markup).not.toContain('runner token');
   });
 
-  it('signed-out tour auto-starts with dashboard copy', async () => {
-    await renderWorkbench();
-
-    expect(host.textContent).toContain('Sign in to review and manage your Agent mandates.');
-    expect(host.textContent).toContain('Use New mandate to open the guided composer.');
-  });
-
-  it('Close writes the signed-out dashboard dismissed state', async () => {
-    await renderWorkbench();
-
-    await clickButton(host, 'Close');
-
-    expect(JSON.parse(window.localStorage.getItem(SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
-      version: 3,
-      status: 'dismissed',
-    });
-    expect(host.textContent).not.toContain('Sign in to review and manage your Agent mandates.');
-  });
-
-  it('Done writes the signed-out dashboard completed state', async () => {
-    await renderWorkbench();
-
-    await clickButton(host, 'Next');
-    await clickButton(host, 'Done');
-
-    expect(JSON.parse(window.localStorage.getItem(SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY) ?? '{}')).toMatchObject({
-      version: 3,
-      status: 'completed',
-    });
-  });
-
-  it.each(['dismissed', 'completed'] as const)('Guide reopens after %s state', async (status) => {
-    window.localStorage.setItem(
-      SIGNED_OUT_DASHBOARD_TOUR_STORAGE_KEY,
-      JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
-    );
-
-    await renderWorkbench();
-
-    expect(host.textContent).toContain('Guide');
-    expect(host.textContent).not.toContain('Sign in to review and manage your Agent mandates.');
-
-    await clickButton(host, 'Guide');
-
-    expect(host.textContent).toContain('Sign in to review and manage your Agent mandates.');
-  });
-
-  it('signed-in tour switches to Settings and reveals the runner bind anchor', async () => {
+  it('renders hosted testnet status, Earn mandates, and recent runs for signed-in users', async () => {
     privyState.authenticated = true;
     privyState.user = {
       id: 'privy-user-a',
       twitter: { subject: 'twitter-user-a' },
     };
     fetchMandatesMock.mockResolvedValueOnce([ACTIVE_MANDATE]);
-    await renderWorkbench();
-
-    expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
-
-    await clickButton(host, 'Next');
-    expect(host.textContent).toContain('Use New mandate to open the guided composer.');
-
-    await clickButton(host, 'Next');
-    expect(host.textContent).toContain('Switch to Settings to manage external runners.');
-    expect(host.querySelector('[data-agent-tour="runner-bind"]')).toBeTruthy();
-    expect(host.textContent).toContain('Bind external agent');
-  });
-
-  it('does not open the signed-in dashboard tour before mandates finish loading', async () => {
-    privyState.authenticated = true;
-    privyState.user = {
-      id: 'privy-user-a',
-      twitter: { subject: 'twitter-user-a' },
-    };
-    const pending = deferredMandates();
-    fetchMandatesMock.mockReturnValueOnce(pending.promise);
+    fetchMandateMock.mockResolvedValueOnce(DETAIL);
 
     await renderWorkbench();
 
-    expect(host.textContent).toContain('Guide');
-    expect(host.textContent).not.toContain('Review active mandates');
-
-    await act(async () => {
-      pending.resolve([]);
-      await pending.promise;
-    });
-    await flushTourEffects();
-
-    expect(host.textContent).toContain('Create your first mandate');
-  });
-
-  it('signed-in empty dashboard tour starts at the main New mandate CTA', async () => {
-    privyState.authenticated = true;
-    privyState.user = {
-      id: 'privy-user-a',
-      twitter: { subject: 'twitter-user-a' },
-    };
-    fetchMandatesMock.mockResolvedValueOnce([]);
-
-    await renderWorkbench();
-
-    expect(host.textContent).toContain('Create your first mandate');
-    expect(host.textContent).toContain('Use the main New mandate action to create your first bounded Earn mandate.');
-    expect(host.textContent).not.toContain('Review mandates and recent runs from this dashboard.');
-    expect(host.querySelector('[data-agent-tour="agent-empty-new-mandate"]')).toBeTruthy();
-    expect(host.querySelector('[data-agent-tour="agent-mandates"] [data-agent-tour="agent-empty-new-mandate"]')).toBeNull();
-  });
-
-  it.each(['dismissed', 'completed'] as const)('signed-in %s state is scoped to one account', async (status) => {
-    privyState.authenticated = true;
-    privyState.user = {
-      id: 'privy-user-a',
-      twitter: { subject: 'twitter-user-a' },
-    };
-    fetchMandatesMock.mockResolvedValue([ACTIVE_MANDATE]);
-    window.localStorage.setItem(
-      ACCOUNT_A_DASHBOARD_TOUR_STORAGE_KEY,
-      JSON.stringify({ version: 3, status, updatedAt: '2026-06-05T00:00:00.000Z' }),
-    );
-
-    await renderWorkbench();
-
-    expect(host.textContent).not.toContain('Review mandates and recent runs from this dashboard.');
-
-    privyState.user = {
-      id: 'privy-user-b',
-      twitter: { subject: 'twitter-user-b' },
-    };
-    await act(async () => {
-      root?.render(<MandateWorkbench />);
-    });
-    await flushTourEffects();
-
-    expect(window.localStorage.getItem(ACCOUNT_B_DASHBOARD_TOUR_STORAGE_KEY)).toBeNull();
-    expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
-  });
-
-  it('account switching restarts the tour at the first step', async () => {
-    privyState.authenticated = true;
-    privyState.user = {
-      id: 'privy-user-a',
-      twitter: { subject: 'twitter-user-a' },
-    };
-    fetchMandatesMock.mockResolvedValue([ACTIVE_MANDATE]);
-    await renderWorkbench();
-
-    await clickButton(host, 'Next');
-    expect(host.textContent).toContain('Use New mandate to open the guided composer.');
-
-    privyState.user = {
-      id: 'privy-user-b',
-      twitter: { subject: 'twitter-user-b' },
-    };
-    await act(async () => {
-      root?.render(<MandateWorkbench />);
-    });
-    await flushTourEffects();
-
-    expect(host.textContent).toContain('Review mandates and recent runs from this dashboard.');
-    expect(host.textContent).not.toContain('Use New mandate to open the guided composer.');
+    expect(host.textContent).toContain('Agent chat');
+    expect(host.textContent).toContain('create-wired');
+    expect(host.textContent).toContain('Hosted agent');
+    expect(host.textContent).toContain('Testnet');
+    expect(host.textContent).toContain('Earn mandates');
+    expect(host.textContent).toContain('Earn mandate');
+    expect(host.textContent).toContain('Recent runs');
+    expect(host.textContent).toContain('CONFIRMED');
+    expect(host.textContent).not.toContain('Bind external agent');
+    expect(host.textContent).not.toContain('Copy setup prompt');
+    expect(host.textContent).not.toContain('runner token');
   });
 });

@@ -111,8 +111,8 @@ async function checkGasStation(): Promise<HealthCheck> {
 
 async function checkAgentScheduler(): Promise<HealthCheck> {
   const issues: string[] = [];
-  if (!configured('LEVO_AGENT_SIGNER_SECRET_KEY')) {
-    issues.push('agent signer is not configured');
+  if (!configured('LEVO_HOSTED_AGENT_ENCRYPTION_KEY')) {
+    issues.push('hosted agent encryption key is not configured');
   }
 
   try {

@@ -14,8 +14,10 @@ const NOW = Date.UTC(2026, 4, 18, 0, 0, 0);
 const CONFIG: AgentMandateConfig = {
   agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
   userAgentId: 'user-agent-id',
-  agentLabel: 'External agent',
-  executionMode: 'external_runner',
+  agentLabel: 'Levo hosted agent',
+  custodyMode: 'HOSTED',
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [
     {
       id: 'stablelayer-earn',
@@ -114,7 +116,9 @@ describe('mandate draft builder', () => {
         agentAddress: CONFIG.agentAddress,
         userAgentId: CONFIG.userAgentId,
         agentLabel: CONFIG.agentLabel,
-        executionMode: 'external_runner',
+        custodyMode: 'HOSTED',
+        executionMode: 'hosted',
+        network: 'testnet',
         templates: [],
         error: 'Wallet binding has an invalid Sui address.',
       },

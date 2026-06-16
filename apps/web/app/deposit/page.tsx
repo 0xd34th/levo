@@ -1,20 +1,29 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { usePrivy } from '@privy-io/react-auth';
 import { Check, Copy, Twitter } from 'lucide-react';
 import { MobileTopBar } from '@/components/mobile-top-bar';
+import { PaymentTable } from '@/components/payment-table';
+import { getExplorerTransactionUrl } from '@/lib/coins';
+import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 import { cn } from '@/lib/utils';
+import type { WalletActivityItem, WalletActivityResponse } from '@/lib/wallet-activity';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
 const STABLECOIN_LABEL = NETWORK === 'mainnet' ? 'USDC' : 'TEST_USDC';
+const RECEIVED_REFRESH_INTERVAL_MS = 15_000;
 
 export default function DepositPage() {
+  const { getAccessToken } = usePrivy();
   const { suiAddress, loading, error } = useEmbeddedWallet();
   const [copied, setCopied] = useState(false);
   const [currency, setCurrency] = useState<'USDC' | 'SUI'>('USDC');
+  const [receivedItems, setReceivedItems] = useState<WalletActivityItem[]>([]);
   const copyTimeoutRef = useRef<number | null>(null);
+  const activityControllerRef = useRef<AbortController | null>(null);
 
   const copyAddress = useCallback(() => {
     if (!suiAddress) return;
@@ -32,6 +41,81 @@ export default function DepositPage() {
       })
       .catch(() => {});
   }, [suiAddress]);
+
+  const fetchReceivedTransfers = useCallback(async () => {
+    if (!suiAddress || (typeof document !== 'undefined' && document.hidden)) return;
+
+    activityControllerRef.current?.abort();
+    const controller = new AbortController();
+    activityControllerRef.current = controller;
+
+    try {
+      const params = new URLSearchParams({
+        address: suiAddress,
+        limit: '20',
+      });
+      const response = await privyAuthenticatedFetch(
+        getAccessToken,
+        `/api/v1/activity?${params}`,
+        { cache: 'no-store', signal: controller.signal },
+      );
+
+      if (controller.signal.aborted) return;
+      if (!response.ok) {
+        throw new Error('Failed to load received transfers');
+      }
+
+      const payload = (await response.json()) as WalletActivityResponse;
+      if (controller.signal.aborted) return;
+      setReceivedItems(payload.items.filter((item) => item.direction === 'incoming'));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+    }
+  }, [getAccessToken, suiAddress]);
+
+  useEffect(() => {
+    if (!suiAddress) {
+      setReceivedItems([]);
+      activityControllerRef.current?.abort();
+      return;
+    }
+
+    void fetchReceivedTransfers();
+    const intervalId = window.setInterval(() => {
+      void fetchReceivedTransfers();
+    }, RECEIVED_REFRESH_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        activityControllerRef.current?.abort();
+        return;
+      }
+      void fetchReceivedTransfers();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      activityControllerRef.current?.abort();
+    };
+  }, [fetchReceivedTransfers, suiAddress]);
+
+  const receivedRows = useMemo(() => {
+    return [...receivedItems]
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .slice(0, 10)
+      .map((item) => ({
+        id: item.id,
+        counterpartyLabel: item.counterpartyLabel,
+        counterpartySubLabel: item.counterpartySubLabel,
+        counterpartyAvatarUrl: item.counterpartyAvatarUrl,
+        amount: item.amountLabel,
+        status: 'Confirmed',
+        direction: 'incoming' as const,
+        date: item.createdAt,
+        txUrl: getExplorerTransactionUrl(NETWORK, item.txDigest),
+      }));
+  }, [receivedItems]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,6 +232,24 @@ export default function DepositPage() {
                 </p>
               </div>
             </div>
+
+            <section className="pt-2">
+              <div className="flex items-center justify-between px-1 pb-2">
+                <div
+                  className="text-[15px] font-semibold"
+                  style={{ color: 'var(--text-soft)' }}
+                >
+                  Received transfers
+                </div>
+              </div>
+              <PaymentTable
+                counterpartyColumnLabel="Sender"
+                emptyTitle="No received transfers yet"
+                emptyDescription="Incoming wallet activity will show here after it settles."
+                rows={receivedRows}
+                showTxLink
+              />
+            </section>
           </div>
         ) : null}
       </main>

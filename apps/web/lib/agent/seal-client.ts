@@ -1,4 +1,5 @@
 import { SealClient, SessionKey } from '@mysten/seal';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { getAgentKeypair } from './kms';
 import { getLevoAgentPackageId } from './package';
@@ -16,7 +17,7 @@ const SESSION_KEY_TTL_MIN = 30;
 
 let _sealClient: SealClient | null = null;
 // Session keys are TTL-bound; cache by agent address. Re-create on expiry.
-let _sessionKey: SessionKey | null = null;
+let _sessionKeys = new Map<string, SessionKey>();
 
 function loadSealConfig(): { objectId: string; aggregatorUrl: string } {
   const objectId = process.env.LEVO_AGENT_SEAL_OBJECT_ID?.trim();
@@ -48,25 +49,27 @@ export function getSealClient(): SealClient {
   return _sealClient;
 }
 
-export async function getAgentSessionKey(): Promise<SessionKey> {
-  if (_sessionKey && !_sessionKey.isExpired()) {
-    return _sessionKey;
+export async function getAgentSessionKey(signer: Ed25519Keypair = getAgentKeypair()): Promise<SessionKey> {
+  const address = signer.getPublicKey().toSuiAddress();
+  const existing = _sessionKeys.get(address);
+  if (existing && !existing.isExpired()) {
+    return existing;
   }
-  const keypair = getAgentKeypair();
-  _sessionKey = await SessionKey.create({
-    address: keypair.getPublicKey().toSuiAddress(),
+  const sessionKey = await SessionKey.create({
+    address,
     packageId: getLevoAgentPackageId(),
     ttlMin: SESSION_KEY_TTL_MIN,
-    signer: keypair,
+    signer,
     suiClient: getAgentSuiClient(),
   });
-  return _sessionKey;
+  _sessionKeys.set(address, sessionKey);
+  return sessionKey;
 }
 
 // Test-only escape hatch — production code does not call this.
 export function __resetSealStateForTests(): void {
   _sealClient = null;
-  _sessionKey = null;
+  _sessionKeys = new Map();
 }
 
 // ---------- Encrypt a witness preimage ----------
@@ -143,6 +146,7 @@ export interface DecryptWitnessArgs extends ActionContext {
   encryptedObject: Uint8Array;
   approvalIdentity: Uint8Array; // must match the identity used at encrypt-time
   nextCommit: Uint8Array;
+  signer?: Ed25519Keypair;
 }
 
 /**
@@ -152,7 +156,7 @@ export interface DecryptWitnessArgs extends ActionContext {
  * disallowed target, ...), Seal throws a typed error we surface unchanged.
  */
 export async function decryptWitnessForAction(args: DecryptWitnessArgs): Promise<Uint8Array> {
-  const sessionKey = await getAgentSessionKey();
+  const sessionKey = await getAgentSessionKey(args.signer);
   const sealApproveTx: Transaction = buildSealApproveTx({
     identity: args.approvalIdentity,
     mandateId: args.mandateId,

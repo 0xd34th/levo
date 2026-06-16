@@ -39,7 +39,6 @@ interface Props {
   // inline in the chat and report draft changes here (drives the sidebar
   // preview). When absent (e.g. the agent drawer), commands fall back to chat.
   onMandateDraftChange?: (proposal: MandateDraftProposal | null) => void;
-  onOpenAgentSettings?: () => void;
   initialMandateIntent?: string | null;
   configReloadSignal?: number;
 }
@@ -180,7 +179,6 @@ export function AgentChatPanel({
   onMandateCreated,
   initialSurface = null,
   onMandateDraftChange,
-  onOpenAgentSettings,
   initialMandateIntent = null,
   configReloadSignal = 0,
 }: Props) {
@@ -283,7 +281,6 @@ export function AgentChatPanel({
                     await onMandateCreated();
                   }}
                   onCancel={closeMandate}
-                  onOpenAgentSettings={onOpenAgentSettings}
                   configReloadSignal={configReloadSignal}
                 />
               </SurfaceShell>

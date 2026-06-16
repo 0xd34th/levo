@@ -64,7 +64,7 @@ describe('resolveFreshXUser', () => {
     });
   });
 
-  it('falls back to the provider when no fresh cache entry exists', async () => {
+  it('passes the optional paid fallback key to the provider when no fresh cache entry exists', async () => {
     findFirst.mockResolvedValueOnce(null);
     resolveXUser.mockResolvedValueOnce({
       xUserId: '456',
@@ -82,6 +82,21 @@ describe('resolveFreshXUser', () => {
       profilePicture: null,
       isBlueVerified: false,
     });
+  });
+
+  it('allows cache misses to resolve without a paid fallback key', async () => {
+    findFirst.mockResolvedValueOnce(null);
+    resolveXUser.mockResolvedValueOnce({
+      xUserId: '789',
+      username: 'free_user',
+      profilePicture: null,
+      isBlueVerified: false,
+    });
+
+    const result = await resolveFreshXUser('free_user');
+
+    expect(resolveXUser).toHaveBeenCalledWith('free_user', undefined);
+    expect(result?.xUserId).toBe('789');
   });
 });
 

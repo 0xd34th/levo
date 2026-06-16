@@ -249,17 +249,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── X_HANDLE branch: resolve via Twitter API and derive vault ──
-  const apiKey = process.env.TWITTER_API_KEY;
-  if (!apiKey) {
-    return noStoreJson(
-      { error: 'Server configuration error' },
-      { status: 500 },
-    );
-  }
-
   let userInfo;
   try {
-    userInfo = await resolveFreshXUser(username!, apiKey);
+    userInfo = await resolveFreshXUser(username!, process.env.TWITTER_API_KEY);
   } catch (error) {
     const lookupError = getXLookupErrorDetails(error);
     if (lookupError.status === 429) {

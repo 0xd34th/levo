@@ -5,7 +5,7 @@ import {
   resolveEarnMandateTarget,
 } from '@/lib/agent/config';
 import { loadOwnerWallet } from '@/lib/agent/mandate-flow';
-import { getDefaultUserAgent } from '@/lib/agent/user-agent';
+import { getOrCreateHostedUserAgent } from '@/lib/agent/user-agent';
 import {
   getClientIp,
   noStoreJson,
@@ -50,6 +50,15 @@ export async function GET(req: NextRequest) {
     return noStoreJson(getDisabledAgentMandateConfig(target.error));
   }
 
-  const userAgent = await getDefaultUserAgent(auth.identity.xUserId);
+  let userAgent;
+  try {
+    userAgent = await getOrCreateHostedUserAgent(auth.identity.xUserId);
+  } catch (error) {
+    return noStoreJson(
+      getDisabledAgentMandateConfig(
+        error instanceof Error ? error.message : 'Hosted agent provisioning failed.',
+      ),
+    );
+  }
   return noStoreJson(getAgentMandateConfig(target.targetAddress, userAgent));
 }

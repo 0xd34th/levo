@@ -132,7 +132,7 @@ export function buildCreateMandatePayload(
   const errors: string[] = [];
   const template = config.templates.find((t) => t.id === state.templateId);
   if (config.error) errors.push(config.error);
-  if (!config.agentAddress) errors.push('No active external agent is configured.');
+  if (!config.agentAddress) errors.push('Hosted agent is not available.');
   if (!template) errors.push('StableLayer Earn target is not configured.');
 
   const amount = parseDisplayAmountToBaseUnitsWithOverride(

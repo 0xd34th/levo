@@ -1,5 +1,6 @@
-import type { AgentMandate, AgentWitness } from '@/lib/generated/prisma/client';
-import { ActionTrigger } from '@/lib/generated/prisma/client';
+import type { AgentMandate, AgentWitness, UserAgent } from '@/lib/generated/prisma/client';
+import { ActionTrigger, UserAgentStatus } from '@/lib/generated/prisma/client';
+import { normalizeSuiAddress } from '@mysten/sui/utils';
 import { buildTransactionBytesWithGasPreference } from '@/lib/address-balance';
 import { getGasStationKeypair } from '@/lib/gas-station';
 import { prisma } from '@/lib/prisma';
@@ -9,12 +10,12 @@ import {
   markActionConfirmed,
   markActionFailed,
 } from './audit';
-import { signTransactionAsAgent } from './kms';
 import { decryptWitnessForAction } from './seal-client';
 import { getAgentSuiClient } from './sui-client';
 import { buildConsumeAndAuthorizeTx } from './tx';
 import { bytesToHex, hexToBytes } from './witness';
 import { getMandateExecutionBlockReason } from './execution-guard';
+import { getHostedAgentKeypair } from './user-agent';
 
 export type ExecuteOutcome =
   | {
@@ -30,6 +31,7 @@ export type ExecuteOutcome =
 
 interface MandateWithWitness extends AgentMandate {
   agentWitnesses: AgentWitness[];
+  userAgent: UserAgent | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export async function executeNextStep(args: {
   const mandate = await prisma.agentMandate.findUnique({
     where: { id: args.mandateId },
     include: {
+      userAgent: true,
       agentWitnesses: {
         where: { consumed: false },
         orderBy: { chainIndex: 'asc' },
@@ -70,7 +73,31 @@ export async function executeNextStep(args: {
     return { status: 'failed', reason: blockedReason, actionId: '' };
   }
 
-  const step = (mandate as MandateWithWitness).agentWitnesses[0];
+  const typedMandate = mandate as MandateWithWitness;
+  if (!typedMandate.userAgent || typedMandate.userAgent.status !== UserAgentStatus.ACTIVE) {
+    return { status: 'failed', reason: 'mandate has no active hosted agent', actionId: '' };
+  }
+
+  let hostedKeypair;
+  try {
+    hostedKeypair = getHostedAgentKeypair(typedMandate.userAgent);
+  } catch (err) {
+    return {
+      status: 'failed',
+      reason: err instanceof Error ? err.message : 'hosted agent signer unavailable',
+      actionId: '',
+    };
+  }
+  const agentAddress = normalizeSuiAddress(hostedKeypair.getPublicKey().toSuiAddress());
+  if (normalizeSuiAddress(typedMandate.agentAddress) !== agentAddress) {
+    return {
+      status: 'failed',
+      reason: 'hosted agent signer does not match mandate agent',
+      actionId: '',
+    };
+  }
+
+  const step = typedMandate.agentWitnesses[0];
   if (!step) {
     return { status: 'no_steps_pending', mandateId: mandate.id };
   }
@@ -114,6 +141,7 @@ export async function executeNextStep(args: {
       approvalIdentity: hexToBytes(step.approvalIdentity),
       nextCommit: hexToBytes(step.nextCommit),
       encryptedObject: Uint8Array.from(step.encryptedObject),
+      signer: hostedKeypair,
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'seal decrypt failed';
@@ -134,7 +162,6 @@ export async function executeNextStep(args: {
   // preserving legacy Coin<SUI> sponsor gas as fallback. Sender and gas owner
   // still both sign sponsored transaction bytes.
   const client = getAgentSuiClient();
-  const agentAddress = await agentAddressForTx();
   const gasStation = getGasStationKeypair();
   const useSponsor = gasStation !== null && gasStation.toSuiAddress() !== agentAddress;
 
@@ -171,7 +198,7 @@ export async function executeNextStep(args: {
     return { status: 'failed', reason, actionId: action.id };
   }
 
-  const { signature: agentSig } = await signTransactionAsAgent(txBytes);
+  const { signature: agentSig } = await hostedKeypair.signTransaction(txBytes);
   const signatures: string[] = [agentSig];
   if (useSponsor && gasStation) {
     const { signature: gasSig } = await gasStation.signTransaction(txBytes);
@@ -257,13 +284,6 @@ async function readOnChainWitnessCommit(mandateObjectId: string): Promise<string
     return commit.startsWith('0x') ? commit : `0x${commit}`;
   }
   throw new Error(`mandate ${mandateObjectId} witness_commit missing or unsupported encoding`);
-}
-
-// Read agent address lazily inside this module to avoid pulling kms.ts before
-// `LEVO_AGENT_SIGNER_SECRET_KEY` is configured (the route layer enforces this).
-async function agentAddressForTx(): Promise<string> {
-  const { getAgentAddress } = await import('./kms');
-  return getAgentAddress();
 }
 
 // Re-export bytesToHex so tests and routes can format the on-chain commit consistently.

@@ -1,10 +1,8 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
-import { SlidersHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import type { CreateMandatePayload } from '@/lib/agent/client';
 import {
@@ -18,7 +16,6 @@ import {
   AgentOnboardingTour,
   getAgentOnboardingStorageKey,
 } from './AgentOnboardingTour';
-import { AgentSettings } from './AgentSettings';
 import { MandateDraftPreview } from './MandateDraftPreview';
 
 interface Proposal {
@@ -40,9 +37,7 @@ export function AgentComposerWorkbench({
   const [proposal, setProposal] = useState<Proposal | null>(() =>
     initialProposal(initialConfig, intent),
   );
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [configReloadSignal, setConfigReloadSignal] = useState(0);
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const configReloadSignal = 0;
   const tourStorageKey = ready
     ? getAgentOnboardingStorageKey({
         authenticated,
@@ -66,20 +61,8 @@ export function AgentComposerWorkbench({
               <AgentOnboardingTour
                 steps={AGENT_NEW_ONBOARDING_STEPS}
                 storageKey={tourStorageKey}
-                onOpenSettings={openSettings}
               />
             ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant={settingsOpen ? 'default' : 'outline'}
-              onClick={openSettings}
-              data-agent-tour="agent-settings-toggle"
-              aria-pressed={settingsOpen}
-            >
-              <SlidersHorizontal className="size-3.5" />
-              Agent settings
-            </Button>
           </div>
         </div>
         <div className="min-h-0 flex-1 pt-4">
@@ -88,37 +71,11 @@ export function AgentComposerWorkbench({
             initialSurface={initialSurface}
             initialMandateIntent={intent}
             onMandateDraftChange={setProposal}
-            onOpenAgentSettings={openSettings}
             configReloadSignal={configReloadSignal}
           />
         </div>
       </section>
-      {settingsOpen ? (
-        <aside className="min-h-[620px] rounded-[16px] bg-[color:var(--surface)] p-4">
-          <div className="mb-4 flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
-            <div>
-              <h2 className="text-[18px] font-semibold">Agent settings</h2>
-              <p className="mt-1 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-                Bind an external runner before creating mandates.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(false)}
-              className="rounded-full border border-[color:var(--border)] px-3 py-1 text-[12px] font-medium transition hover:border-[color:var(--border-strong)]"
-            >
-              Preview
-            </button>
-          </div>
-          <AgentSettings
-            onAgentsChanged={() => {
-              setConfigReloadSignal((value) => value + 1);
-            }}
-          />
-        </aside>
-      ) : (
-        <MandateDraftPreview proposal={proposal} />
-      )}
+      <MandateDraftPreview proposal={proposal} />
     </div>
   );
 }

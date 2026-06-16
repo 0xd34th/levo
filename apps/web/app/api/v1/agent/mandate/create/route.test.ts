@@ -6,7 +6,7 @@ const {
   loadOwnerWalletMock,
   rateLimitMock,
   resolveEarnMandateTargetMock,
-  getDefaultUserAgentMock,
+  getOrCreateHostedUserAgentMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
@@ -14,7 +14,7 @@ const {
   loadOwnerWalletMock: vi.fn(),
   rateLimitMock: vi.fn(),
   resolveEarnMandateTargetMock: vi.fn(),
-  getDefaultUserAgentMock: vi.fn(),
+  getOrCreateHostedUserAgentMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
 }));
@@ -39,7 +39,7 @@ vi.mock('@/lib/agent/config', () => ({
 }));
 
 vi.mock('@/lib/agent/user-agent', () => ({
-  getDefaultUserAgent: getDefaultUserAgentMock,
+  getOrCreateHostedUserAgent: getOrCreateHostedUserAgentMock,
 }));
 
 vi.mock('@/lib/privy-auth', () => ({
@@ -115,10 +115,11 @@ describe('POST /api/v1/agent/mandate/create', () => {
       ok: true,
       targetAddress: TARGET,
     });
-    getDefaultUserAgentMock.mockResolvedValue({
+    getOrCreateHostedUserAgentMock.mockResolvedValue({
       id: 'user-agent-id',
       agentAddress: AGENT,
-      label: 'External agent',
+      label: 'Levo hosted agent',
+      custodyMode: 'HOSTED',
     });
     createMandateMock.mockResolvedValue({
       status: 'authorization_required',
@@ -146,6 +147,27 @@ describe('POST /api/v1/agent/mandate/create', () => {
       expect.objectContaining({
         userAgent: expect.objectContaining({ id: 'user-agent-id', agentAddress: AGENT }),
         metadataName: 'Earn harvest - StableLayer Earn',
+      }),
+    );
+  });
+
+  it('uses hosted provisioning instead of failing when no external runner exists', async () => {
+    const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+      body: JSON.stringify(makeBody()),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(getOrCreateHostedUserAgentMock).toHaveBeenCalledWith('12345');
+    expect(createMandateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userAgent: expect.objectContaining({
+          id: 'user-agent-id',
+          agentAddress: AGENT,
+        }),
       }),
     );
   });
@@ -198,7 +220,24 @@ describe('POST /api/v1/agent/mandate/create', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: 'Mandate agent does not match your active external agent',
+      error: 'Mandate agent does not match your hosted agent',
+    });
+    expect(createMandateMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects when hosted provisioning fails', async () => {
+    getOrCreateHostedUserAgentMock.mockRejectedValue(new Error('Hosted agent key encryption is not configured.'));
+    const req = new NextRequest('http://localhost/api/v1/agent/mandate/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+      body: JSON.stringify(makeBody()),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: 'Hosted agent key encryption is not configured.',
     });
     expect(createMandateMock).not.toHaveBeenCalled();
   });

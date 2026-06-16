@@ -226,6 +226,10 @@ model UserAgent {
   label                String
   status               UserAgentStatus @default(ACTIVE)
   isDefault            Boolean         @default(false) @map("is_default")
+  custodyMode          UserAgentCustodyMode @default(EXTERNAL_RUNNER) @map("custody_mode")
+  hostedEncryptedSeed  Bytes?          @map("hosted_encrypted_seed")
+  hostedKeyVersion     String?         @map("hosted_key_version")
+  hostedProvisionedAt  DateTime?       @map("hosted_provisioned_at")
   runnerTokenHash      String?         @unique @map("runner_token_hash")
   runnerTokenRotatedAt DateTime?       @map("runner_token_rotated_at")
   lastHeartbeatAt      DateTime?       @map("last_heartbeat_at")
@@ -239,12 +243,18 @@ model UserAgent {
 
   @@unique([xUserId, agentAddress])
   @@index([xUserId, status, isDefault])
+  @@index([xUserId, custodyMode, status, isDefault])
   @@map("user_agent")
 }
 
 enum UserAgentStatus {
   ACTIVE
   REVOKED
+}
+
+enum UserAgentCustodyMode {
+  EXTERNAL_RUNNER
+  HOSTED
 }
 
 // One row per pre-generated witness chain step. Witness preimage is NOT stored

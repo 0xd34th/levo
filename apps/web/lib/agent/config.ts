@@ -12,7 +12,9 @@ export interface AgentMandateConfig {
   agentAddress: string;
   userAgentId: string | null;
   agentLabel: string | null;
-  executionMode: 'external_runner';
+  custodyMode: 'HOSTED' | 'EXTERNAL_RUNNER' | null;
+  executionMode: 'hosted';
+  network: 'testnet';
   templates: AgentMandateTemplate[];
   error?: string;
 }
@@ -26,7 +28,9 @@ export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig
     agentAddress: '',
     userAgentId: null,
     agentLabel: null,
-    executionMode: 'external_runner',
+    custodyMode: null,
+    executionMode: 'hosted',
+    network: 'testnet',
     templates: [],
     error,
   };
@@ -34,16 +38,18 @@ export function getDisabledAgentMandateConfig(error: string): AgentMandateConfig
 
 export function getAgentMandateConfig(
   targetAddress: string,
-  userAgent: Pick<UserAgent, 'id' | 'agentAddress' | 'label'> | null,
+  userAgent: Pick<UserAgent, 'id' | 'agentAddress' | 'label' | 'custodyMode'> | null,
 ): AgentMandateConfig {
   if (!userAgent) {
     return {
       agentAddress: '',
       userAgentId: null,
       agentLabel: null,
-      executionMode: 'external_runner',
+      custodyMode: null,
+      executionMode: 'hosted',
+      network: 'testnet',
       templates: [],
-      error: 'No active external agent is configured. Bind an agent before creating mandates.',
+      error: 'Hosted agent is not available for this wallet.',
     };
   }
 
@@ -51,7 +57,9 @@ export function getAgentMandateConfig(
     agentAddress: normalizeSuiAddress(userAgent.agentAddress),
     userAgentId: userAgent.id,
     agentLabel: userAgent.label,
-    executionMode: 'external_runner',
+    custodyMode: userAgent.custodyMode,
+    executionMode: 'hosted',
+    network: 'testnet',
     templates: [
       {
         id: 'stablelayer-earn',

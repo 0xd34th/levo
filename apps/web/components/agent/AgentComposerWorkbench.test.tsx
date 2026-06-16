@@ -72,8 +72,10 @@ vi.mock('@/components/agent/AgentChatPanel', () => ({
 const CONFIG: AgentMandateConfig = {
   agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
   userAgentId: 'user-agent-id',
-  agentLabel: 'External agent',
-  executionMode: 'external_runner',
+  agentLabel: 'Levo hosted agent',
+  custodyMode: 'HOSTED',
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [
     {
       id: 'stablelayer-earn',
@@ -88,16 +90,20 @@ const NO_AGENT_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
   agentLabel: null,
-  executionMode: 'external_runner',
+  custodyMode: null,
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [],
-  error: 'No active external agent is configured. Bind an agent before creating mandates.',
+  error: 'Hosted agent is not available for this wallet.',
 };
 
 const LOADING_CONFIG: AgentMandateConfig = {
   agentAddress: '',
   userAgentId: null,
   agentLabel: null,
-  executionMode: 'external_runner',
+  custodyMode: null,
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [],
   error: 'Loading agent configuration...',
 };
@@ -105,7 +111,6 @@ const LOADING_CONFIG: AgentMandateConfig = {
 import { AgentWorkspace } from './AgentDashboard';
 import { AgentComposerWorkbench } from './AgentComposerWorkbench';
 import { MandateCreateForm } from './MandateCreateForm';
-import { buildRunnerSetupPrompt, RunnerTokenPanel, AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
 import { MandateWorkbench } from './MandateWorkbench';
 
@@ -148,71 +153,32 @@ describe('Agent mandate creation UI', () => {
     expect(markup).not.toContain('Cadence');
   });
 
-  it('the inline create form shows a bind agent action when no external runner is configured', () => {
+  it('the inline create form shows hosted agent unavailable without external runner setup', () => {
     const markup = renderToStaticMarkup(
       <MandateCreateForm
         initialIntent="Auto-harvest claimable Earn yield daily with conservative caps"
         initialConfig={NO_AGENT_CONFIG}
         onCreated={() => {}}
-        onOpenAgentSettings={() => {}}
       />,
     );
 
-    expect(markup).toContain('No active external agent is configured. Bind an agent before creating mandates.');
-    expect(markup).toContain('Bind agent');
+    expect(markup).toContain('Hosted agent is not available for this wallet.');
+    expect(markup).not.toContain('Bind agent');
+    expect(markup).not.toContain('Bind external agent');
   });
 
-  it('the inline create form keeps the bind agent action visible while agent configuration loads', () => {
+  it('the inline create form does not offer runner binding while agent configuration loads', () => {
     const markup = renderToStaticMarkup(
       <MandateCreateForm
         initialIntent="Auto-harvest claimable Earn yield daily with conservative caps"
         initialConfig={LOADING_CONFIG}
         onCreated={() => {}}
-        onOpenAgentSettings={() => {}}
       />,
     );
 
     expect(markup).toContain('Loading agent configuration...');
-    expect(markup).toContain('Bind agent');
-  });
-
-  it('agent settings binds through wallet confirmation instead of manual challenges', () => {
-    const markup = renderToStaticMarkup(<AgentSettings />);
-
-    expect(markup).toContain('Bind external agent');
-    expect(markup).not.toContain('Generate challenge');
-    expect(markup).not.toContain('Signature');
-    expect(markup).not.toContain('Sign this personal message');
-  });
-
-  it('runner token panel offers a setup prompt that includes the runner API contract', () => {
-    const prompt = buildRunnerSetupPrompt({
-      baseUrl: 'https://levo.krilly.ai',
-      runnerToken: 'lvo_runner_test',
-      agentAddress: CONFIG.agentAddress,
-      agentLabel: 'Home runner',
-    });
-    const markup = renderToStaticMarkup(
-      <RunnerTokenPanel
-        runnerToken="lvo_runner_test"
-        agentAddress={CONFIG.agentAddress}
-        agentLabel="Home runner"
-        baseUrl="https://levo.krilly.ai"
-      />,
-    );
-
-    expect(prompt).toContain('LEVO_RUNNER_TOKEN=lvo_runner_test');
-    expect(prompt).toContain(`LEVO_AGENT_ADDRESS=${CONFIG.agentAddress}`);
-    expect(prompt).toContain('LEVO_BASE_URL=https://levo.krilly.ai');
-    expect(prompt).toContain('Authorization: Bearer ${LEVO_RUNNER_TOKEN}');
-    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/heartbeat');
-    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/claim');
-    expect(prompt).toContain('{"limit":5}');
-    expect(prompt).toContain('GET ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId}');
-    expect(prompt).toContain('POST ${LEVO_BASE_URL}/api/v1/agent/runner/jobs/{jobId}/result');
-    expect(prompt).toContain('{"txDigest":"<submitted transaction digest>"}');
-    expect(markup).toContain('Copy setup prompt');
-    expect(markup).toContain('Copy token');
+    expect(markup).not.toContain('Bind agent');
+    expect(markup).not.toContain('Bind external agent');
   });
 
   it('/agent/new with intent seeds the sidebar preview (form opens inline in chat)', () => {
@@ -231,7 +197,6 @@ describe('Agent mandate creation UI', () => {
         initialIntent="auto-harvest claimable yield daily with conservative caps"
         initialConfig={CONFIG}
         onCreated={() => {}}
-        onOpenAgentSettings={() => {}}
       />,
     );
 
@@ -303,12 +268,13 @@ describe('Agent mandate creation UI', () => {
     expect(markup).not.toContain('Execute now');
   });
 
-  it('/agent exposes settings as a page-level tab next to mandates', () => {
+  it('/agent exposes chat as the primary hosted workspace', () => {
     const markup = renderToStaticMarkup(<MandateWorkbench />);
 
-    expect(markup).toContain('Mandates');
-    expect(markup).toContain('Settings');
-    expect(markup).toContain('Mandates and recent runs');
+    expect(markup).toContain('Agent chat');
+    expect(markup).toContain('Hosted agent');
+    expect(markup).not.toContain('Settings');
+    expect(markup).not.toContain('Bind external agent');
   });
 });
 
@@ -371,7 +337,7 @@ describe('Agent onboarding tour', () => {
     expect(host.textContent).toContain(AI_CHAT_TOUR_COPY);
   });
 
-  it('first-run tour copy covers chat start, mandate creation, approval, runner binding, and runner setup storage', async () => {
+  it('first-run tour copy covers chat start, mandate creation, and approval preview', async () => {
     await renderWorkbench();
 
     expect(host.textContent).toContain('Ask the AI chat');
@@ -382,13 +348,8 @@ describe('Agent onboarding tour', () => {
 
     await clickButton(host, 'Next');
     expect(host.textContent).toContain('Review caps, cadence, expiry, and preview before signing.');
-
-    await clickButton(host, 'Next');
-    expect(host.textContent).toContain('Open settings and bind an external runner.');
-    expect(host.textContent).toContain('Bind external agent');
-
-    await clickButton(host, 'Next');
-    expect(host.textContent).toContain('Copy and store the one-time runner setup prompt after binding.');
+    expect(host.textContent).not.toContain('external runner');
+    expect(host.textContent).not.toContain('runner setup');
   });
 
   it('closing the tour writes dismissed state', async () => {
@@ -406,8 +367,6 @@ describe('Agent onboarding tour', () => {
   it('finishing the tour writes completed state', async () => {
     await renderWorkbench();
 
-    await clickButton(host, 'Next');
-    await clickButton(host, 'Next');
     await clickButton(host, 'Next');
     await clickButton(host, 'Next');
     await clickButton(host, 'Done');

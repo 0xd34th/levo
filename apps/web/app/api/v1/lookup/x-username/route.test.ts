@@ -63,6 +63,7 @@ describe('GET /api/v1/lookup/x-username', () => {
   });
 
   afterEach(() => {
+    delete process.env.TWITTER_API_KEY;
     vi.restoreAllMocks();
   });
 
@@ -113,6 +114,35 @@ describe('GET /api/v1/lookup/x-username', () => {
       },
       1,
     );
+    expect(res.status).toBe(200);
+  });
+
+  it('uses the free resolver path when the paid fallback key is not configured', async () => {
+    delete process.env.TWITTER_API_KEY;
+    resolveFreshXUserMock.mockResolvedValueOnce({
+      xUserId: '12345',
+      username: 'testuser',
+      profilePicture: null,
+      isBlueVerified: false,
+    });
+    persistReceivedDashboardXUserMock.mockResolvedValueOnce(1);
+    buildPublicLookupResponseMock.mockResolvedValueOnce({
+      xUserId: '12345',
+      username: 'testuser',
+      profilePicture: null,
+      isBlueVerified: false,
+      derivationVersion: 1,
+      recipientAddress: `0x${'1'.repeat(64)}`,
+      walletReady: true,
+      pendingBalances: [],
+      recordedTotals: [],
+      recentIncomingPayments: [],
+    });
+
+    const req = new NextRequest('http://localhost/api/v1/lookup/x-username?username=testuser');
+    const res = await GET(req);
+
+    expect(resolveFreshXUserMock).toHaveBeenCalledWith('testuser', undefined);
     expect(res.status).toBe(200);
   });
 });

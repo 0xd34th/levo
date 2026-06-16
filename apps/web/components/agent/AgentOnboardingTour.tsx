@@ -52,80 +52,51 @@ export const AGENT_NEW_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
     title: 'Review limits before signing',
     body: 'Review caps, cadence, expiry, and preview before signing.',
   },
-  {
-    anchor: 'runner-bind',
-    eyebrow: 'Runner',
-    title: 'Bind your external runner',
-    body: 'Open settings and bind an external runner.',
-    opensSettings: true,
-  },
-  {
-    anchor: 'runner-token',
-    eyebrow: 'Token',
-    title: 'Store the setup prompt',
-    body: 'Copy and store the one-time runner setup prompt after binding.',
-    opensSettings: true,
-  },
 ];
 
 export const AGENT_DASHBOARD_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
+    anchor: 'chat-start',
+    eyebrow: 'Chat',
+    title: 'Start with chat',
+    body: 'Ask the agent about Sui, transfers, swaps, or bounded Earn mandates from the primary workspace.',
+  },
+  {
+    anchor: 'hosted-agent-status',
+    eyebrow: 'Hosted',
+    title: 'Hosted testnet agent',
+    body: 'Levo provisions a hosted testnet agent key for mandate execution.',
+  },
+  {
     anchor: 'agent-mandates',
-    eyebrow: 'Dashboard',
-    title: 'Review active mandates',
-    body: 'Review mandates and recent runs from this dashboard.',
-  },
-  {
-    anchor: 'agent-new-mandate',
-    eyebrow: 'Create',
-    title: 'Open the guided composer',
-    body: 'Use New mandate to open the guided composer.',
-  },
-  {
-    anchor: 'agent-settings-tab',
-    eyebrow: 'Settings',
-    title: 'Switch to runner settings',
-    body: 'Switch to Settings to manage external runners.',
-    opensSettings: true,
-  },
-  {
-    anchor: 'runner-bind',
-    eyebrow: 'Runner',
-    title: 'Bind your external runner',
-    body: 'Bind an external runner before creating mandates.',
-    opensSettings: true,
-  },
-  {
-    anchor: 'runner-token',
-    eyebrow: 'Token',
-    title: 'Store the setup prompt',
-    body: 'Copy and store the one-time runner setup prompt after binding.',
-    opensSettings: true,
+    eyebrow: 'Mandates',
+    title: 'Review Earn mandates',
+    body: 'Track active Earn mandates and recent hosted runs in the side panel.',
   },
 ];
 
 export const AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
-    anchor: 'agent-empty-new-mandate',
+    anchor: 'mandate-create',
     eyebrow: 'Create',
     title: 'Create your first mandate',
-    body: 'Use the main New mandate action to create your first bounded Earn mandate.',
+    body: 'Use the Mandates commands in chat to create your first bounded Earn mandate.',
   },
-  ...AGENT_DASHBOARD_ONBOARDING_STEPS.slice(2),
+  ...AGENT_DASHBOARD_ONBOARDING_STEPS.slice(1),
 ];
 
 export const AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
     anchor: 'agent-dashboard',
     eyebrow: 'Agent',
-    title: 'Sign in to manage mandates',
-    body: 'Sign in to review and manage your Agent mandates. Use New mandate to open the guided composer.',
+    title: 'Sign in to use Agent',
+    body: 'Sign in to load your hosted testnet agent, Earn mandates, and recent runs.',
   },
   {
-    anchor: 'agent-new-mandate',
-    eyebrow: 'Create',
-    title: 'Start guided creation',
-    body: 'Use New mandate to open the guided composer.',
+    anchor: 'chat-start',
+    eyebrow: 'Chat',
+    title: 'Agent chat',
+    body: 'The main Agent workspace starts with chat.',
   },
 ];
 
@@ -149,7 +120,7 @@ export function getAgentOnboardingStorageKey({
 interface AgentOnboardingTourProps {
   steps: AgentOnboardingTourStep[];
   storageKey: string;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function AgentOnboardingTour(props: AgentOnboardingTourProps) {
@@ -181,7 +152,7 @@ function AgentOnboardingTourContent({
 
   useEffect(() => {
     if (open && activeOpensSettings) {
-      onOpenSettings();
+      onOpenSettings?.();
     }
   }, [activeOpensSettings, onOpenSettings, open]);
 

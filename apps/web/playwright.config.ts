@@ -30,7 +30,7 @@ export default defineConfig({
       PRIVY_APP_SECRET: 'e2e-placeholder',
       GAS_STATION_SECRET_KEY: '',
       STABLE_LAYER_MANAGER_SECRET_KEY: '',
-      LEVO_AGENT_SIGNER_SECRET_KEY: '',
+      LEVO_HOSTED_AGENT_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     },
   },
   projects: [

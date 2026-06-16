@@ -46,8 +46,10 @@ vi.mock('@/lib/use-embedded-wallet', () => ({
 const CONFIG: AgentMandateConfig = {
   agentAddress: '0x7bca6f160f30cfc99389e0db8d4a453701da16365fb128588bc7df9348031f9b',
   userAgentId: 'user-agent-id',
-  agentLabel: 'External agent',
-  executionMode: 'external_runner',
+  agentLabel: 'Levo hosted agent',
+  custodyMode: 'HOSTED',
+  executionMode: 'hosted',
+  network: 'testnet',
   templates: [
     {
       id: 'stablelayer-earn',

@@ -344,6 +344,26 @@ describe('POST /api/v1/payments/quote', () => {
     });
   });
 
+  it('resolves X handle quotes without requiring a paid fallback key', async () => {
+    vi.stubEnv('TWITTER_API_KEY', '');
+
+    const req = new NextRequest('http://localhost/api/v1/payments/quote', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: 'alice',
+        coinType: '0x2::sui::SUI',
+        amount: '1000000000',
+        senderAddress: '0x2',
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+
+    expect(resolveFreshXUserMock).toHaveBeenCalledWith('alice', '');
+    expect(res.status).toBe(200);
+  });
+
   it('resolves .sui direct recipients into canonical SUI_ADDRESS quotes', async () => {
     const req = new NextRequest('http://localhost/api/v1/payments/quote', {
       method: 'POST',

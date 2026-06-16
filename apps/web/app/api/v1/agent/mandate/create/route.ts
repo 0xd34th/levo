@@ -17,7 +17,7 @@ import {
 import { MandateSpecSchema } from '@/lib/agent/mandate-spec';
 import type { MandateSpec } from '@/lib/agent/types';
 import { MANDATE_LIMITS } from '@/lib/agent/package';
-import { getDefaultUserAgent } from '@/lib/agent/user-agent';
+import { getOrCreateHostedUserAgent } from '@/lib/agent/user-agent';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -102,17 +102,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const userAgent = await getDefaultUserAgent(auth.identity.xUserId);
-  if (!userAgent) {
+  let userAgent;
+  try {
+    userAgent = await getOrCreateHostedUserAgent(auth.identity.xUserId);
+  } catch (error) {
     return noStoreJson(
-      { error: 'No active external agent is configured. Bind an agent before creating mandates.' },
+      { error: error instanceof Error ? error.message : 'Hosted agent provisioning failed.' },
       { status: 400 },
     );
   }
 
   if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(userAgent.agentAddress)) {
     return noStoreJson(
-      { error: 'Mandate agent does not match your active external agent' },
+      { error: 'Mandate agent does not match your hosted agent' },
       { status: 400 },
     );
   }

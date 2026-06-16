@@ -40,7 +40,7 @@ function toXUserInfo(user: {
  */
 export async function resolveFreshXUser(
   rawUsername: string,
-  apiKey: string,
+  twitterApiFallbackKey?: string,
 ): Promise<XUserInfo | null> {
   const username = normalizeXUsername(rawUsername);
   const cachedUser = await prisma.xUser.findFirst({
@@ -60,7 +60,7 @@ export async function resolveFreshXUser(
     return cachedUserInfo;
   }
 
-  return resolveXUser(username, apiKey);
+  return resolveXUser(username, twitterApiFallbackKey);
 }
 
 export function getXLookupErrorDetails(error: unknown): XLookupErrorDetails {

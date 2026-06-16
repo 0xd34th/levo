@@ -4,6 +4,7 @@ import {
   parsePrivyAuthorizationRequiredResponse,
   type PrivyAuthorizationRequest,
 } from '@/lib/privy-authorization';
+import type { AgentMandateConfig } from '@/lib/agent/config';
 import {
   privyAuthenticatedFetch,
   type GetPrivyAccessToken,
@@ -213,6 +214,20 @@ export async function fetchMandates(
   if (!res.ok) throw new Error(`list failed: HTTP ${res.status}`);
   const data: ListMandatesResponse = await res.json();
   return data.mandates;
+}
+
+export async function fetchAgentConfig(
+  getAccessToken: GetPrivyAccessToken,
+  identityToken?: string | null,
+): Promise<AgentMandateConfig> {
+  const res = await privyAuthenticatedFetch(
+    getAccessToken,
+    '/api/v1/agent/config',
+    { method: 'GET', cache: 'no-store' },
+    { identityToken },
+  );
+  if (!res.ok) throw new Error(`agent config failed: HTTP ${res.status}`);
+  return res.json();
 }
 
 export async function fetchMandate(
