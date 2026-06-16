@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   ArrowRight,
   BadgeCheck,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/recent-activity';
 import { truncateAddress } from '@/lib/received-dashboard-client';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 import type { WalletActivityResponse } from '@/lib/wallet-activity';
 
 const NETWORK = process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet';
@@ -35,7 +36,7 @@ const RECENT_LIMIT = 5;
 
 export default function AccountPage() {
   const { ready, authenticated, user, getAccessToken } = usePrivy();
-  const { initOAuth } = useLoginWithOAuth();
+  const { signIn: signInWithX } = useXSignIn();
   const {
     suiAddress: embeddedWalletAddress,
     loading: walletLoading,
@@ -113,9 +114,7 @@ export default function AccountPage() {
         </p>
         <Button
           className="mt-8 h-[54px] w-full max-w-sm rounded-[16px] text-[16px]"
-          onClick={() => {
-            void initOAuth({ provider: 'twitter' }).catch(() => {});
-          }}
+          onClick={signInWithX}
         >
           <span className="inline-flex items-center gap-2">
             Sign in with X

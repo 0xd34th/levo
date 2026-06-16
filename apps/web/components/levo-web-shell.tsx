@@ -12,12 +12,13 @@ import {
   Settings,
   Wallet,
 } from 'lucide-react';
-import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import { FloatingAgentButton } from '@/components/agent/FloatingAgentButton';
 import { MobileTopBar } from '@/components/mobile-top-bar';
 import { SegmentedTabs } from '@/components/segmented-tabs';
 import { Wordmark } from '@/components/wordmark';
 import { cn } from '@/lib/utils';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 
 const nav = [
   { href: '/', label: 'Account', icon: Home, match: (p: string) => p === '/' },
@@ -40,7 +41,7 @@ export function LevoWebShell({
 }: LevoWebShellProps) {
   const pathname = usePathname();
   const { ready, authenticated, user, logout } = usePrivy();
-  const { initOAuth } = useLoginWithOAuth();
+  const { signIn: signInWithX } = useXSignIn();
   const twitterHandle = user?.twitter?.username ?? null;
 
   return (
@@ -105,9 +106,7 @@ export function LevoWebShell({
               <button
                 type="button"
                 className="absolute bottom-4 left-4 right-4 z-30 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[color:var(--border)] bg-background px-3 text-[13px] font-medium shadow-sm transition hover:bg-[color:var(--surface)]"
-                onClick={() => {
-                  void initOAuth({ provider: 'twitter' }).catch(() => {});
-                }}
+                onClick={signInWithX}
               >
                 <LogIn className="size-4" />
                 Sign in

@@ -3,6 +3,7 @@
 import { PrivyProvider } from '@privy-io/react-auth';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { EmbeddedWalletBootstrapProvider } from '@/lib/embedded-wallet-bootstrap';
+import { LoginErrorBanner } from '@/components/login-error-banner';
 
 function PrivyThemeProvider({ children }: { children: React.ReactNode }) {
   const { resolvedTheme } = useTheme();
@@ -21,6 +22,7 @@ function PrivyThemeProvider({ children }: { children: React.ReactNode }) {
     >
       <EmbeddedWalletBootstrapProvider>
         {children}
+        <LoginErrorBanner />
       </EmbeddedWalletBootstrapProvider>
     </PrivyProvider>
   );

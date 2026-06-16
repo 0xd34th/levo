@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
-import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import { Button } from '@/components/ui/button';
 import { Wordmark } from '@/components/wordmark';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 
 interface MobileTopBarProps {
   title?: string;
@@ -14,7 +15,7 @@ interface MobileTopBarProps {
 
 export function MobileTopBar({ title, backHref, handle }: MobileTopBarProps) {
   const { ready, authenticated, user, logout } = usePrivy();
-  const { initOAuth } = useLoginWithOAuth();
+  const { signIn: signInWithX } = useXSignIn();
 
   const twitterHandle = handle ?? user?.twitter?.username ?? null;
   const centered = title ?? null;
@@ -69,9 +70,7 @@ export function MobileTopBar({ title, backHref, handle }: MobileTopBarProps) {
             <Button
               variant="ghost"
               className="h-9 rounded-full px-3 text-[13px] font-medium"
-              onClick={() => {
-                void initOAuth({ provider: 'twitter' }).catch(() => {});
-              }}
+              onClick={signInWithX}
             >
               Sign in
             </Button>

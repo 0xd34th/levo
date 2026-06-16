@@ -1,11 +1,7 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import {
-  useIdentityToken,
-  useLoginWithOAuth,
-  usePrivy,
-} from '@privy-io/react-auth';
+import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Plus, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +10,7 @@ import {
   type MandateSummary,
 } from '@/lib/agent/client';
 import { cn } from '@/lib/utils';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 import { AgentChatPanel } from './AgentChatPanel';
 import { AgentSettings } from './AgentSettings';
 import { MandateCard } from './MandateCard';
@@ -75,7 +72,7 @@ interface AgentWorkspaceProps {
 export function AgentWorkspace({ className, headerAction, initialView = 'chat' }: AgentWorkspaceProps) {
   const { getAccessToken, ready, authenticated } = usePrivy();
   const { identityToken } = useIdentityToken();
-  const { initOAuth } = useLoginWithOAuth();
+  const { signIn: signInWithX } = useXSignIn();
   const [view, setView] = useState<View>(initialView);
   const [mandates, setMandates] = useState<MandateSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -141,9 +138,7 @@ export function AgentWorkspace({ className, headerAction, initialView = 'chat' }
           <Button
             type="button"
             className="mt-5 rounded-full px-5"
-            onClick={() => {
-              void initOAuth({ provider: 'twitter' }).catch(() => {});
-            }}
+            onClick={signInWithX}
           >
             Sign in with X
           </Button>

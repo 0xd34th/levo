@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import { ArrowUpRight } from 'lucide-react';
 import { PaymentTable } from '@/components/payment-table';
 import { Button } from '@/components/ui/button';
 import { getExplorerTransactionUrl } from '@/lib/coins';
 import { privyAuthenticatedFetch } from '@/lib/privy-fetch';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 import { cn } from '@/lib/utils';
 import type {
   WalletActivityDirection,
@@ -62,7 +63,7 @@ function tableDirection(direction: WalletActivityDirection) {
 
 export default function ActivityPage() {
   const { ready, authenticated, getAccessToken } = usePrivy();
-  const { initOAuth } = useLoginWithOAuth();
+  const { signIn: signInWithX } = useXSignIn();
   const { suiAddress: embeddedWalletAddress } = useEmbeddedWallet();
   const [tab, setTab] = useState<SubTab>('all');
   const [items, setItems] = useState<WalletActivityItem[]>([]);
@@ -170,9 +171,7 @@ export default function ActivityPage() {
         </p>
         <Button
           className="mt-4 h-11 rounded-full px-5"
-          onClick={() => {
-            void initOAuth({ provider: 'twitter' }).catch(() => {});
-          }}
+          onClick={signInWithX}
         >
           Sign in with X
         </Button>
