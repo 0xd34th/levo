@@ -67,7 +67,7 @@ describe("LoginModal", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the Email, Google, and X CTAs alongside the empty Sui hint", () => {
+  it("renders the Email and Google CTAs alongside the empty Sui hint", () => {
     render(<LoginModal />);
 
     expect(
@@ -75,9 +75,6 @@ describe("LoginModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Continue with Google/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Continue with X/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/No Sui wallets detected/i)).toBeInTheDocument();
   });
@@ -127,15 +124,6 @@ describe("LoginModal", () => {
 
     expect(login).toHaveBeenCalledTimes(1);
     expect(login).toHaveBeenCalledWith({ loginMethods: ["google"] });
-  });
-
-  it("triggers Privy X-only login when the X CTA is clicked", () => {
-    render(<LoginModal />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Continue with X/i }));
-
-    expect(login).toHaveBeenCalledTimes(1);
-    expect(login).toHaveBeenCalledWith({ loginMethods: ["twitter"] });
   });
 
   it("dismisses the modal before opening the Privy login flow", () => {

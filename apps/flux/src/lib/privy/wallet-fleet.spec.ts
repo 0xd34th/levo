@@ -134,32 +134,6 @@ describe('wallet-fleet', () => {
     expect(response.wallets.evm?.walletId).toBe('wallet-evm');
   });
 
-  it('reports X login with a null email when the user signs in with X', () => {
-    const response = buildWalletFleetResponse({
-      linkedAccounts: [
-        {
-          type: 'twitter_oauth',
-        },
-        {
-          address: '0xembedded',
-          chain_type: 'ethereum',
-          connector_type: 'embedded',
-          id: 'wallet-evm',
-          type: 'wallet',
-          wallet_client: 'privy',
-        },
-      ],
-      userId: 'privy-user-x',
-    });
-
-    expect(response.user).toEqual({
-      email: null,
-      id: 'privy-user-x',
-      loginMethod: 'twitter',
-    });
-    expect(response.wallets.evm?.walletId).toBe('wallet-evm');
-  });
-
   it('reports which canonical wallets are still missing', () => {
     const response = buildWalletFleetResponse({
       linkedAccounts: [

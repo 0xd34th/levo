@@ -1,7 +1,7 @@
 "use client";
 
 import { useMenuStore } from "@/stores/menu";
-import { CloseRounded, EmailRounded, Google, X } from "@mui/icons-material";
+import { CloseRounded, EmailRounded, Google } from "@mui/icons-material";
 import { Modal, Stack, Typography } from "@mui/material";
 import {
   useCurrentAccount,
@@ -91,11 +91,6 @@ export const LoginModal: FC = () => {
     login({ loginMethods: ["google"] });
   };
 
-  const handlePrivyXLogin = () => {
-    setLoginModalState(false);
-    login({ loginMethods: ["twitter"] });
-  };
-
   const handleConnectSui = async (wallet: UiWallet) => {
     // Same reasoning as Privy: hand the screen over to the wallet's
     // own approval popup (browser extension or Slush web wallet popup).
@@ -135,14 +130,6 @@ export const LoginModal: FC = () => {
             variant="outlined"
           >
             Continue with Google
-          </LoginPrimaryButton>
-          <LoginPrimaryButton
-            color="primary"
-            onClick={handlePrivyXLogin}
-            startIcon={<X />}
-            variant="outlined"
-          >
-            Continue with X
           </LoginPrimaryButton>
         </Stack>
 

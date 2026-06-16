@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { buildPrivyClientConfig } from "./privyConfig";
 
 describe("buildPrivyClientConfig", () => {
-  it("limits Privy to email, google, and X identity verification only", () => {
+  it("limits Privy to email and google identity verification only", () => {
     const config = buildPrivyClientConfig({
       defaultChain: mainnet,
       supportedChains: [mainnet],
     });
 
-    expect(config.loginMethods).toEqual(["email", "google", "twitter"]);
+    expect(config.loginMethods).toEqual(["email", "google"]);
     expect(config.externalWallets).toMatchObject({
       disableAllExternalWallets: true,
     });
