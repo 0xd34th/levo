@@ -49,6 +49,7 @@ const loginMethodLabels: Record<
 > = {
   email: "Email",
   google: "Google",
+  twitter: "X",
   unknown: "Privy",
   wallet: "Wallet",
 };

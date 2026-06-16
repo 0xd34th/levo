@@ -20,7 +20,7 @@ export interface WalletFleetEntry {
 export interface WalletFleetUserSummary {
   email: string | null;
   id: string;
-  loginMethod: 'email' | 'google' | 'wallet' | 'unknown';
+  loginMethod: 'email' | 'google' | 'twitter' | 'wallet' | 'unknown';
 }
 
 export interface WalletFleetResponse {
@@ -146,6 +146,21 @@ export function extractUserSummary(params: {
       id: params.userId,
       email: googleAccount.email,
       loginMethod: 'google',
+    };
+  }
+
+  // X (Twitter) OAuth does not return an email, so the identifier stays null
+  // and falls back to the wallet/address label downstream — same as a
+  // wallet-only login. We only need to surface the login method here.
+  const twitterAccount = params.linkedAccounts.find(
+    (account) => account.type === 'twitter_oauth',
+  );
+
+  if (twitterAccount) {
+    return {
+      id: params.userId,
+      email: null,
+      loginMethod: 'twitter',
     };
   }
 
