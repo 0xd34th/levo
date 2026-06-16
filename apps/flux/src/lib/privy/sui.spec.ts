@@ -35,6 +35,17 @@ describe("decodeStoredSuiPublicKey", () => {
     );
   });
 
+  it("decodes base64 Sui public key strings", () => {
+    const keypair = new Ed25519Keypair();
+    const publicKey = decodeStoredSuiPublicKey(
+      keypair.getPublicKey().toSuiPublicKey(),
+    );
+
+    expect(publicKey.toSuiAddress()).toBe(
+      keypair.getPublicKey().toSuiAddress(),
+    );
+  });
+
   it("throws an explicit local error for malformed public keys", () => {
     expect(() => decodeStoredSuiPublicKey("not a sui public key")).toThrow(
       "Invalid Sui public key",

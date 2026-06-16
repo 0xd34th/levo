@@ -67,6 +67,27 @@ describe("buildDappKitSuiSdkProvider", () => {
     expect(signer.toSuiAddress()).toBe(keypair.getPublicKey().toSuiAddress());
   });
 
+  it("decodes encoded external wallet public keys provided as bytes", async () => {
+    const keypair = new Ed25519Keypair();
+    const provider = buildDappKitSuiSdkProvider({
+      dAppKit: createFakeDAppKit({
+        account: {
+          address: keypair.getPublicKey().toSuiAddress(),
+          publicKey: new TextEncoder().encode(
+            keypair.getPublicKey().toSuiPublicKey(),
+          ),
+        },
+      }) as never,
+      getClient: vi.fn() as never,
+    }) as unknown as {
+      getSigner: () => Promise<{ toSuiAddress: () => string }>;
+    };
+
+    const signer = await provider.getSigner();
+
+    expect(signer.toSuiAddress()).toBe(keypair.getPublicKey().toSuiAddress());
+  });
+
   it("delegates signTransaction to dapp-kit and returns the wallet result", async () => {
     const signedTransaction = {
       bytes: "signed-transaction-bytes",
