@@ -190,6 +190,10 @@ vi.mock('@/lib/stable-layer', () => ({
   getStableLayerClient: getStableLayerClientMock,
 }));
 
+vi.mock('@/lib/stable-layer-apr', () => ({
+  getStableLayerApr: vi.fn(async () => ({ aprBps: 693, aprReliable: true })),
+}));
+
 vi.mock('@/lib/sui', () => ({
   getSuiClient: vi.fn(() => ({
     devInspectTransactionBlock: devInspectTransactionBlockMock,
@@ -591,6 +595,8 @@ describe('stable-layer earn helpers', () => {
       claimAllowed: false,
       claimMinimumYieldUsdc: '40000',
       claimBlockedReason: null,
+      aprBps: 693,
+      aprReliable: true,
     });
 
     expect(stableLayerBuildClaimTxMock).not.toHaveBeenCalled();
@@ -641,6 +647,8 @@ describe('stable-layer earn helpers', () => {
       claimAllowed: false,
       claimMinimumYieldUsdc: '40000',
       claimBlockedReason: 'below_minimum_net_yield',
+      aprBps: 693,
+      aprReliable: true,
     });
 
     await expect(previewEarnAction({

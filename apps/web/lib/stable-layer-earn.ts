@@ -28,6 +28,7 @@ import { acquireRedisLock } from '@/lib/redis-lock';
 import { getRedis } from '@/lib/rate-limit';
 import { getStableLayerManagerKeypair } from '@/lib/stable-layer-manager';
 import { getStableLayerClient } from '@/lib/stable-layer';
+import { getStableLayerApr } from '@/lib/stable-layer-apr';
 import { getSuiClient } from '@/lib/sui';
 import {
   annotateNoValidGasCoinsError,
@@ -48,6 +49,8 @@ export interface EarnSummary {
   claimAllowed: boolean;
   claimMinimumYieldUsdc: string;
   claimBlockedReason: ClaimBlockedReason | null;
+  aprBps: number;
+  aprReliable: boolean;
 }
 
 export interface EarnPreview extends EarnSummary {
@@ -261,7 +264,10 @@ function getPendingEarnKey(txDigest: string) {
   return `earn-pending:${txDigest}`;
 }
 
-function zeroSummary(yieldSettlementMode: YieldSettlementMode): EarnSummary {
+function zeroSummary(
+  yieldSettlementMode: YieldSettlementMode,
+  apr: { aprBps: number; aprReliable: boolean },
+): EarnSummary {
   return {
     walletReady: false,
     availableUsdc: '0',
@@ -272,6 +278,8 @@ function zeroSummary(yieldSettlementMode: YieldSettlementMode): EarnSummary {
     claimAllowed: false,
     claimMinimumYieldUsdc: serializeBigInt(MIN_EARN_CLAIM_YIELD_USDC),
     claimBlockedReason: null,
+    aprBps: apr.aprBps,
+    aprReliable: apr.aprReliable,
   };
 }
 
@@ -1967,9 +1975,10 @@ export async function getEarnSummary(params: {
   const { stableCoinType } = assertEarnConfig();
   const walletBinding = await getWalletBinding(params.xUserId);
   const yieldSettlementMode = getYieldSettlementMode();
+  const apr = await getStableLayerApr();
 
   if (!walletBinding?.suiAddress) {
-    return zeroSummary(yieldSettlementMode);
+    return zeroSummary(yieldSettlementMode, apr);
   }
 
   const position = await getEarnPosition({
@@ -1993,6 +2002,8 @@ export async function getEarnSummary(params: {
     claimAllowed: claimAvailability.claimAllowed,
     claimMinimumYieldUsdc: serializeBigInt(MIN_EARN_CLAIM_YIELD_USDC),
     claimBlockedReason: claimAvailability.claimBlockedReason,
+    aprBps: apr.aprBps,
+    aprReliable: apr.aprReliable,
   };
 }
 

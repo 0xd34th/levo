@@ -49,6 +49,8 @@ interface EarnSummaryResponse {
   claimAllowed: boolean;
   claimMinimumYieldUsdc: string;
   claimBlockedReason: 'below_minimum_net_yield' | null;
+  aprBps?: number;
+  aprReliable?: boolean;
 }
 
 interface EarnPreviewResponse extends EarnSummaryResponse {
@@ -334,6 +336,24 @@ export default function EarnPage() {
     [amount],
   );
 
+  const apr = useMemo(() => {
+    const aprBps = summary?.aprReliable ? summary.aprBps ?? 0 : 0;
+    const reliable = Boolean(summary?.aprReliable) && aprBps > 0;
+    return {
+      reliable,
+      aprBps,
+      label: reliable ? `${(aprBps / 100).toFixed(2)}% APR` : null,
+    };
+  }, [summary]);
+
+  const estimatedAnnualYield = useMemo(() => {
+    if (!apr.reliable || parsedAmountBaseUnits === null || parsedAmountBaseUnits <= 0n) {
+      return null;
+    }
+    const yieldBaseUnits = (parsedAmountBaseUnits * BigInt(apr.aprBps)) / 10000n;
+    return formatEarnEstimateAmount(yieldBaseUnits.toString(), USER_FACING_USDC_TYPE);
+  }, [apr, parsedAmountBaseUnits]);
+
   const actionAvailability = useMemo(
     () =>
       getEarnActionAvailability({
@@ -518,7 +538,15 @@ export default function EarnPage() {
         <div className="flex flex-col gap-3">
           {/* Hero card */}
           <section className="rounded-[20px] bg-surface px-5 py-5">
-            <p className="eyebrow">Claimable yield</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="eyebrow">Claimable yield</p>
+              <span
+                className="shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums"
+                style={{ background: 'var(--up-soft)', color: 'var(--up)' }}
+              >
+                {loadingSummary && !summary ? '…' : apr.label ?? '—'}
+              </span>
+            </div>
             <div
               className="mt-4 flex items-baseline gap-0 tabular-nums"
               style={{
@@ -589,6 +617,20 @@ export default function EarnPage() {
             <p className="mt-2 text-[12px]" style={{ color: 'var(--text-mute)' }}>
               Add funds and withdraw use USDC input. Claim doesn&rsquo;t need an amount.
             </p>
+
+            {estimatedAnnualYield ? (
+              <div className="mt-3 flex items-center justify-between rounded-[14px] bg-background px-4 py-2.5 text-[13px]">
+                <span style={{ color: 'var(--text-mute)' }}>Est. yield / year</span>
+                <span className="tabular-nums font-semibold" style={{ color: 'var(--up)' }}>
+                  +{estimatedAnnualYield} USDC
+                  {apr.label ? (
+                    <span className="ml-2 font-medium" style={{ color: 'var(--text-mute)' }}>
+                      · {apr.label}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+            ) : null}
 
             <div className="mt-4 grid grid-cols-3 gap-2">
               <Button
