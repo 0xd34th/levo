@@ -10,6 +10,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-store, max-age=0',
       },
     },
   );
