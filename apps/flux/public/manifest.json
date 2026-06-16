@@ -1,6 +1,6 @@
 {
-  "short_name": "Flux",
-  "name": "Flux",
+  "short_name": "xterm.fi",
+  "name": "xterm.fi",
   "description": "Multi-Chain Bridging & Swapping",
   "icons": [
     {
@@ -41,7 +41,7 @@
     {
       "name": "Swap/Bridge",
       "short_name": "swap/bridge",
-      "description": "Swap/bridge via Flux",
+      "description": "Swap/bridge via xterm.fi",
       "url": "/?source=pwa",
       "icons": [
         {

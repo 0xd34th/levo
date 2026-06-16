@@ -100,7 +100,7 @@ export default function FinalLayout({
             textAlign: 'center',
           }}
         >
-          The Flux team will contact you shortly.
+          The xterm.fi team will contact you shortly.
         </StyledTypography>
 
         <div

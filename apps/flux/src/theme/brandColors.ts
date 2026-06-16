@@ -129,7 +129,7 @@ export interface BrandColors {
   };
 }
 
-// Sourced from apps/web/app/globals.css — Flux institutional palette.
+// Sourced from apps/web/app/globals.css — xterm.fi institutional palette.
 // accent1 = ink (primary CTA, matches web --primary)
 // accent2 = forest green (semantic accent, matches web --accent / --up)
 export const defaultBrandColors: BrandColors = {

@@ -32,16 +32,17 @@ const walletAvatarSvgPath = path.resolve(
 );
 
 describe("selectSuiProviderTag", () => {
-  it("uses the Flux wallet avatar asset instead of the cached legacy avatar", () => {
+  it("uses the xterm.fi wallet avatar asset instead of the cached legacy avatar", () => {
     expect(WALLET_CONNECTOR_ICON).toBe("/flux-wallet-avatar.svg");
     expect(dappKitSuiConnector.icon).toBe(WALLET_CONNECTOR_ICON);
   });
 
-  it("uses Flux branding for the dedicated wallet avatar", () => {
+  it("uses xterm.fi branding for the dedicated wallet avatar", () => {
     const walletAvatarSvg = readFileSync(walletAvatarSvgPath, "utf8");
 
-    expect(walletAvatarSvg).toContain('aria-label="Flux wallet"');
-    expect(walletAvatarSvg).toContain(">F</text>");
+    expect(walletAvatarSvg).toContain('aria-label="xterm.fi wallet"');
+    expect(walletAvatarSvg).toContain(">x</text>");
+    expect(walletAvatarSvg).not.toContain(">F</text>");
     expect(walletAvatarSvg).not.toContain(">L</text>");
     expect(walletAvatarSvg).not.toContain("Levo wallet");
   });

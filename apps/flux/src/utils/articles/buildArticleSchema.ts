@@ -20,12 +20,12 @@ export function buildArticleSchema(articleData: BlogArticleData) {
       url: pageUrl,
       author: {
         '@type': articleData.author?.Name ? 'Person' : 'Organization',
-        name: articleData.author?.Name ?? 'Flux',
+        name: articleData.author?.Name ?? 'xterm.fi',
         url: articleData.author?.Name ? undefined : getSiteUrl(),
       },
       publisher: {
         '@type': 'Organization',
-        name: 'Flux',
+        name: 'xterm.fi',
         url: getSiteUrl(),
         logo: {
           '@type': 'ImageObject',

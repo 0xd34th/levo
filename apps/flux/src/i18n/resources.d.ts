@@ -32,13 +32,13 @@ export default interface Resources {
       "withdrawButtonLabel": "Withdraw"
     },
     "completedMissionsInformation": {
-      "description": "As Jumper organize ad-hoc campaigns, the missions are updated on a monthly basis to create the associated graphics. Keep in mind: XP coming from specific campaigns will be updated on a monthly basis as well.",
+      "description": "As xterm.fi organize ad-hoc campaigns, the missions are updated on a monthly basis to create the associated graphics. Keep in mind: XP coming from specific campaigns will be updated on a monthly basis as well.",
       "title": ""
     },
     "contribution": {
       "confirm": "Confirm",
       "custom": "Custom",
-      "description": "Show your appreciation by adding a contribution. 100% of it goes to improve Jumper.",
+      "description": "Show your appreciation by adding a contribution. 100% of it goes to improve xterm.fi.",
       "error": {
         "amountTooSmall": "The contribution amount is too small for this token. Please try a larger amount.",
         "errorSending": "Error sending contribution:",

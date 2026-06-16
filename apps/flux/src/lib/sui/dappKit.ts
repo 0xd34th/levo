@@ -7,6 +7,6 @@ export const dAppKit = createDAppKit({
   createClient: () => getSuiClient(),
   networks: ["mainnet"],
   slushWalletConfig: {
-    appName: "Flux",
+    appName: "xterm.fi",
   },
 });

@@ -76,10 +76,10 @@ export const metadata: Metadata = {
       version: 'next',
       imageUrl: baseMiniApp.iconUrl,
       button: {
-        title: `Launch Flux`,
+        title: `Launch xterm.fi`,
         action: {
           type: 'launch_miniapp',
-          name: 'Flux',
+          name: 'xterm.fi',
           url: PUBLIC_URL,
           splashImageUrl: baseMiniApp.splashImageUrl,
           splashBackgroundColor: baseMiniApp.splashBackgroundColor,

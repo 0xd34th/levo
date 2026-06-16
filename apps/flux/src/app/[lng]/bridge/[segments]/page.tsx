@@ -44,11 +44,11 @@ export async function generateMetadata({
     const destinationTokenSymbol = destinationTokenSymbolParam.toUpperCase();
     const destinationChain = slugToDisplayLabel(destinationChainNameParam);
 
-    const title = `Flux | Best way to bridge from ${sourceTokenSymbol} on ${sourceChain} to ${destinationTokenSymbol} on ${destinationChain}`;
+    const title = `xterm.fi | Best way to bridge from ${sourceTokenSymbol} on ${sourceChain} to ${destinationTokenSymbol} on ${destinationChain}`;
 
     const openGraph: Metadata['openGraph'] = {
       title: title,
-      description: `Flux offers the best way to do cross-chain bridging of ${sourceTokenSymbol} on ${sourceChain} to ${destinationTokenSymbol} on ${destinationChain} with the fastest speeds, lowest costs, and most secure bridge and swap providers available.`,
+      description: `xterm.fi offers the best way to do cross-chain bridging of ${sourceTokenSymbol} on ${sourceChain} to ${destinationTokenSymbol} on ${destinationChain} with the fastest speeds, lowest costs, and most secure bridge and swap providers available.`,
       siteName: siteName,
       url: `${getSiteUrl()}/bridge/${segments}`,
       type: 'article',
@@ -65,9 +65,9 @@ export async function generateMetadata({
     };
   } catch (err) {
     return {
-      title: 'Flux | Cross-Chain Bridge',
+      title: 'xterm.fi | Cross-Chain Bridge',
       description:
-        'Flux offers the best way to bridge tokens across different blockchains with the fastest speeds, lowest costs, and most secure bridge providers.',
+        'xterm.fi offers the best way to bridge tokens across different blockchains with the fastest speeds, lowest costs, and most secure bridge providers.',
       alternates: {
         canonical: `${getSiteUrl()}/bridge`,
       },

@@ -1,5 +1,5 @@
 /**
- * "Flux" wordmark — round 1 placeholder.
+ * "xterm.fi" wordmark.
  * Renders as an IBM Plex Sans 700 wordmark; fill is driven by `.main-color`
  * via Logo.style.ts (palette.logoPrimary), so dark/light mode and partner
  * themes pick up the correct color automatically.
@@ -11,9 +11,9 @@ export const JumperLogoBase = () => (
     className="main-color"
     fontFamily="'IBM Plex Sans','system-ui',sans-serif"
     fontWeight={700}
-    fontSize={44}
-    letterSpacing={-1.6}
+    fontSize={40}
+    letterSpacing={0}
   >
-    Flux
+    xterm.fi
   </text>
 );

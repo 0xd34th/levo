@@ -21,7 +21,7 @@ export function DefaultThemeProvider({ children, themes }: ThemeProviderProps) {
       ? formatTheme(partnerThemeConfig)
       : null;
 
-    // The Flux redesign is light-only. Keep the dark slots populated with the
+    // The xterm.fi redesign is light-only. Keep the dark slots populated with the
     // light config because downstream widget types still expect both keys.
     const defaultWidgetLight = getDefaultWidgetThemeV2('light');
     const defaultWidgetDark = defaultWidgetLight;
