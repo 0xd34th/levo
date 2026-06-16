@@ -60,7 +60,7 @@ describe('TransactionResult', () => {
       username: '@death_xyz',
       amount: '12.5',
       coinLabel: 'SUI',
-      appUrl: 'https://levo.krilly.ai',
+      appUrl: 'https://levo.finance',
     });
 
     const url = new URL(href);
@@ -68,7 +68,7 @@ describe('TransactionResult', () => {
     expect(url.searchParams.get('text')).toBe(
       '@death_xyz I sent you 12.5 SUI on Levo. Sign in with X to view it.',
     );
-    expect(url.searchParams.get('url')).toBe('https://levo.krilly.ai');
+    expect(url.searchParams.get('url')).toBe('https://levo.finance');
   });
 
   it('renders a Notify on X link for successful X handle sends', () => {
@@ -86,7 +86,7 @@ describe('TransactionResult', () => {
     expect(url.searchParams.get('text')).toContain('12.5');
     expect(url.searchParams.get('text')).toContain('SUI');
     expect(url.searchParams.get('text')).toContain('Sign in with X to view it');
-    expect(url.searchParams.get('url')).toBe('https://levo.krilly.ai');
+    expect(url.searchParams.get('url')).toBe('https://levo.finance');
   });
 
   it('does not render Notify on X for direct Sui address sends', () => {

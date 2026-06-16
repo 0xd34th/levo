@@ -55,7 +55,7 @@ describe('GET /api/v1/agent/mandate/list', () => {
   });
 
   it('allows authenticated same-site browser GET requests without an Origin header', async () => {
-    const req = new NextRequest('https://levo.krilly.ai/api/v1/agent/mandate/list');
+    const req = new NextRequest('https://levo.finance/api/v1/agent/mandate/list');
 
     const res = await GET(req);
 

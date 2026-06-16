@@ -310,7 +310,7 @@ export function buildRunnerSetupPrompt({
 }
 
 function getBrowserBaseUrl(): string {
-  if (typeof window === 'undefined') return 'https://levo.krilly.ai';
+  if (typeof window === 'undefined') return 'https://levo.finance';
   return window.location.origin;
 }
 

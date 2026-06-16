@@ -398,13 +398,13 @@ describe('AgentResponseText', () => {
     const markup = renderToStaticMarkup(
       <AgentResponseText
         text={
-          'Earn mandate handoff: [Open guided form](levo.krilly.ai/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn).'
+          'Earn mandate handoff: [Open guided form](levo.finance/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn).'
         }
       />,
     );
 
     expect(markup).toContain('<a');
-    expect(markup).toContain('href="https://levo.krilly.ai/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn"');
+    expect(markup).toContain('href="https://levo.finance/agent/new?intent=Auto-harvest%20yield%20(every%2024h)%20from%20Earn"');
     expect(markup).toContain('Open guided form');
     expect(markup).not.toContain('[Open guided form]');
   });
@@ -428,13 +428,13 @@ describe('AgentResponseText', () => {
     const markup = renderToStaticMarkup(
       <AgentResponseText
         text={
-          'Open [guided form](levo.krilly.ai/agent/new?intent=Manual%20execution%20(no%20cron%20schedule).) when ready.'
+          'Open [guided form](levo.finance/agent/new?intent=Manual%20execution%20(no%20cron%20schedule).) when ready.'
         }
       />,
     );
 
     expect(markup).toContain('<a');
-    expect(markup).toContain('href="https://levo.krilly.ai/agent/new?intent=Manual%20execution%20(no%20cron%20schedule)."');
+    expect(markup).toContain('href="https://levo.finance/agent/new?intent=Manual%20execution%20(no%20cron%20schedule)."');
     expect(markup).toContain('guided form');
     expect(markup).not.toContain('[guided form]');
   });

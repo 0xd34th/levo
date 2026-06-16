@@ -35,7 +35,7 @@ export function buildXPaymentNotificationIntent({
   username,
   amount,
   coinLabel,
-  appUrl = 'https://levo.krilly.ai',
+  appUrl = 'https://levo.finance',
 }: XPaymentNotificationIntentInput): string {
   const handle = username.trim().replace(/^@+/, '');
   const params = new URLSearchParams({

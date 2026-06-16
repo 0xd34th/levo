@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,5 +59,32 @@ test('root public entrypoints no longer reference legacy Nautilus workflows', ()
     readme.includes('Nautilus'),
     false,
     'README should not describe Nautilus-era architecture anymore',
+  );
+});
+
+test('tracked text files do not reference the retired Levo host', () => {
+  const retiredHost = ['levo', 'krilly', 'ai'].join('.');
+  const trackedFiles = execFileSync('git', ['ls-files', '-z'], {
+    cwd: rootDir,
+  })
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean);
+
+  const matches = [];
+  for (const relativePath of trackedFiles) {
+    const absolutePath = path.join(rootDir, relativePath);
+    const buffer = readFileSync(absolutePath);
+    if (buffer.includes(0)) continue;
+
+    if (buffer.toString('utf8').includes(retiredHost)) {
+      matches.push(relativePath);
+    }
+  }
+
+  assert.deepEqual(
+    matches,
+    [],
+    `tracked text files should not reference the retired Levo host: ${matches.join(', ')}`,
   );
 });

@@ -83,7 +83,7 @@ describe('GET /api/v1/agent/mandate/[id]', () => {
   });
 
   it('allows authenticated same-site browser GET requests without an Origin header', async () => {
-    const req = new NextRequest('https://levo.krilly.ai/api/v1/agent/mandate/mandate-1');
+    const req = new NextRequest('https://levo.finance/api/v1/agent/mandate/mandate-1');
 
     const res = await GET(req, { params: Promise.resolve({ id: 'mandate-1' }) });
 

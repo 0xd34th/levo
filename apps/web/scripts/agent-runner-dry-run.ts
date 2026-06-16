@@ -575,7 +575,7 @@ async function getJson(
 function parseArgs(argv: string[]): CliArgs {
   const startedAt = new Date().toISOString().replace(/[:.]/g, '-');
   const args: CliArgs = {
-    baseUrl: 'https://levo.krilly.ai',
+    baseUrl: 'https://levo.finance',
     runnerTokenFile: '',
     agentAlias: 'agent-alpha',
     outDir: `/tmp/levo-agent-flow-${startedAt}`,
@@ -707,7 +707,7 @@ function printUsageAndExit(code: number): never {
       '  pnpm agent:runner-dry-run -- --runner-token-file /tmp/levo-agent-flow-.../runner-token [options]',
       '',
       'Options:',
-      '  --base-url https://levo.krilly.ai',
+      '  --base-url https://levo.finance',
       '  --agent-alias agent-alpha',
       '  --agent-address 0x...',
       '  --out-dir /tmp/levo-agent-flow-...',

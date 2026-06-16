@@ -6,6 +6,9 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+const canonicalOrigin = 'https://levo.finance';
+const retiredOrigin = `https://${['levo', 'krilly', 'ai'].join('.')}`;
+
 describe('getExpectedOrigin', () => {
   it('returns the request origin in non-production without APP_ORIGIN', () => {
     vi.stubEnv('APP_ORIGIN', '');
@@ -42,10 +45,10 @@ describe('getExpectedOrigin', () => {
   });
 
   it('allows same-origin browser GET requests without an Origin header', () => {
-    vi.stubEnv('APP_ORIGIN', 'https://levo.krilly.ai');
+    vi.stubEnv('APP_ORIGIN', canonicalOrigin);
     vi.stubEnv('NODE_ENV', 'production');
 
-    const req = new NextRequest('https://levo.krilly.ai/api/v1/agent/config', {
+    const req = new NextRequest(`${canonicalOrigin}/api/v1/agent/config`, {
       method: 'GET',
     });
 
@@ -53,18 +56,37 @@ describe('getExpectedOrigin', () => {
   });
 
   it('allows proxied same-origin browser GET requests without an Origin header', () => {
-    vi.stubEnv('APP_ORIGIN', 'https://levo.krilly.ai');
+    vi.stubEnv('APP_ORIGIN', canonicalOrigin);
     vi.stubEnv('NODE_ENV', 'production');
 
     const req = new NextRequest('http://127.0.0.1:10101/api/v1/agent/config', {
       method: 'GET',
       headers: {
-        'x-forwarded-host': 'levo.krilly.ai',
+        'x-forwarded-host': 'levo.finance',
         'x-forwarded-proto': 'https',
       },
     });
 
     expect(verifySameOrigin(req)).toEqual({ ok: true });
+  });
+
+  it('rejects the retired production origin', async () => {
+    vi.stubEnv('APP_ORIGIN', canonicalOrigin);
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const result = verifySameOrigin(
+      new NextRequest(`${canonicalOrigin}/api/v1/agent/config`, {
+        headers: { origin: retiredOrigin },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.response.status).toBe(403);
+      await expect(result.response.json()).resolves.toEqual({
+        error: 'Invalid request origin',
+      });
+    }
   });
 });
 
