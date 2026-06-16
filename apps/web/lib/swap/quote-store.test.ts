@@ -120,4 +120,47 @@ describe('swap quote store', () => {
       90,
     );
   });
+
+  it('preserves native bigint values inside staged 7K quotes stored in Redis', async () => {
+    const { token } = await stageSwapQuote({
+      senderAddress: '0xsender',
+      coinTypeIn: '0xusdc::usdc::USDC',
+      coinTypeOut: '0x2::sui::SUI',
+      amountIn: '10000',
+      amountOut: '9715559',
+      minAmountOut: '9618403',
+      slippageBps: 100,
+      provider: 'cetus',
+      quote: {
+        provider: 'cetus',
+        quote: {
+          estimatedGas: 12345n,
+          routes: [
+            {
+              amountIn: 10000n,
+              amountOut: 9715559n,
+            },
+          ],
+        },
+      },
+    }, 90);
+
+    const loaded = await loadSwapQuote(token);
+    const quote = loaded?.quote as {
+      quote?: {
+        estimatedGas?: unknown;
+        routes?: Array<{ amountIn?: unknown; amountOut?: unknown }>;
+      };
+    } | undefined;
+
+    expect(quote?.quote?.estimatedGas).toBe(12345n);
+    expect(quote?.quote?.routes?.[0]?.amountIn).toBe(10000n);
+    expect(quote?.quote?.routes?.[0]?.amountOut).toBe(9715559n);
+    expect(redisSetMock).toHaveBeenCalledWith(
+      `swap-quote:${token}`,
+      expect.stringContaining('__levoJsonBigInt'),
+      'EX',
+      90,
+    );
+  });
 });

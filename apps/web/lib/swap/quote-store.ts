@@ -24,6 +24,7 @@ const swapQuoteMemory = new Map<string, { expiresAtMs: number; payload: StoredSw
 const swapAuthorizationMemory = new Map<string, { expiresAtMs: number; payload: StoredSwapAuthorization }>();
 const JSON_MAP_MARKER = '__levoJsonMap';
 const JSON_BN_MARKER = '__levoJsonBn';
+const JSON_BIGINT_MARKER = '__levoJsonBigInt';
 
 function swapQuoteKey(token: string) {
   return `swap-quote:${token}`;
@@ -56,6 +57,12 @@ function encodeJsonValue(value: unknown): unknown {
   if (isBnValue(value)) {
     return {
       [JSON_BN_MARKER]: true,
+      value: value.toString(10),
+    };
+  }
+  if (typeof value === 'bigint') {
+    return {
+      [JSON_BIGINT_MARKER]: true,
       value: value.toString(10),
     };
   }
@@ -92,6 +99,14 @@ function deserializeJson<T>(raw: string): T {
       Array.isArray((entry as Record<string, unknown>).entries)
     ) {
       return new Map((entry as { entries: Array<[unknown, unknown]> }).entries);
+    }
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>)[JSON_BIGINT_MARKER] === true &&
+      typeof (entry as Record<string, unknown>).value === 'string'
+    ) {
+      return BigInt((entry as { value: string }).value);
     }
     if (
       typeof entry === 'object' &&

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, Check } from 'lucide-react';
+import { ArrowUpRight, Check, Twitter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   getCoinLabel,
@@ -24,6 +24,28 @@ interface TransactionResultProps {
   onReset: () => void;
 }
 
+interface XPaymentNotificationIntentInput {
+  username: string;
+  amount: string;
+  coinLabel: string;
+  appUrl?: string;
+}
+
+export function buildXPaymentNotificationIntent({
+  username,
+  amount,
+  coinLabel,
+  appUrl = 'https://levo.krilly.ai',
+}: XPaymentNotificationIntentInput): string {
+  const handle = username.trim().replace(/^@+/, '');
+  const params = new URLSearchParams({
+    text: `@${handle} I sent you ${amount} ${coinLabel} on Levo. Sign in with X to view it.`,
+    url: appUrl,
+  });
+
+  return `https://x.com/intent/tweet?${params.toString()}`;
+}
+
 export function TransactionResult({ data, network, onReset }: TransactionResultProps) {
   if (!data) return null;
 
@@ -36,6 +58,14 @@ export function TransactionResult({ data, network, onReset }: TransactionResultP
   const recipientDisplay = isAddressSend
     ? data.username
     : `@${data.username}`;
+  const xNotificationUrl =
+    !isAddressSend && data.username.trim()
+      ? buildXPaymentNotificationIntent({
+          username: data.username,
+          amount: data.amount,
+          coinLabel,
+        })
+      : null;
 
   return (
     <div className="rounded-[18px] bg-surface p-5">
@@ -91,6 +121,17 @@ export function TransactionResult({ data, network, onReset }: TransactionResultP
           >
             View on explorer
             <ArrowUpRight className="size-3.5" />
+          </Link>
+        ) : null}
+        {xNotificationUrl ? (
+          <Link
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-raise px-3.5 text-[13px] font-medium text-foreground transition-colors hover:bg-[color:var(--border-strong)]/20"
+            href={xNotificationUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Notify on X
+            <Twitter className="size-3.5" strokeWidth={2} />
           </Link>
         ) : null}
         <Button
