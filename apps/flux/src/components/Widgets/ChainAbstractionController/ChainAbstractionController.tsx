@@ -418,6 +418,7 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
           <Box sx={{ pl: 0.5 }}>
             <ChainChip
               label="Source chain"
+              prefixLabel="Select Chain:"
               selectedChainId={effectiveFromChainId}
               options={fromChainOptions}
               onChange={setFromChainOverride}
@@ -461,6 +462,7 @@ export const ChainAbstractionController: FC<ChainAbstractionControllerProps> = (
           <Box sx={{ pl: 0.5 }}>
             <ChainChip
               label="Destination chain"
+              prefixLabel="Select Chain:"
               selectedChainId={effectiveToChainId}
               options={toChainOptions}
               onChange={setToChainOverride}

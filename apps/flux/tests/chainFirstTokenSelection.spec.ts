@@ -210,8 +210,10 @@ test.describe('chain-first token selection', () => {
     );
 
     await expect(assetPickerButton(page, 'From')).toContainText('SUI');
+    await expect(chainPrefix(page, 'Source chain')).toBeVisible();
     await expect(sourceChainChip(page)).toContainText('Sui');
     await expect(assetPickerButton(page, 'To')).toContainText('USDC');
+    await expect(chainPrefix(page, 'Destination chain')).toBeVisible();
     await expect(destinationChainChip(page)).toContainText('Solana');
   });
 
@@ -224,12 +226,14 @@ test.describe('chain-first token selection', () => {
     await tokenOption(page, 'SUI').click();
 
     await expect(assetPickerButton(page, 'From')).toContainText('SUI');
+    await expect(chainPrefix(page, 'Source chain')).toBeVisible();
     await expect(sourceChainChip(page)).toContainText('Sui');
 
     await openAssetPicker(page, 'To');
     await tokenOption(page, 'USDC').click();
 
     await expect(page.getByText('Destination chain')).toBeVisible();
+    await expect(chainPrefix(page, 'Destination chain')).toBeVisible();
 
     await destinationChainChip(page).click();
     const solanaOption = page
@@ -298,6 +302,13 @@ function chainChip(page: Page, label: 'Source chain' | 'Destination chain') {
     .locator('..')
     .getByRole('button')
     .first();
+}
+
+function chainPrefix(page: Page, label: 'Source chain' | 'Destination chain') {
+  return page
+    .getByText(label, { exact: true })
+    .locator('..')
+    .getByText('Select Chain:', { exact: true });
 }
 
 async function installLifiMocks(page: Page) {

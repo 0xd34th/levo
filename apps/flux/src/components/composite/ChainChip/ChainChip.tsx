@@ -29,6 +29,8 @@ export interface ChainChipProps {
   disabled?: boolean;
   /** Optional label rendered above the chip (e.g. "Source", "Destination"). */
   label?: string;
+  /** Optional caption rendered inline before the chip button. */
+  prefixLabel?: string;
   /** Compact mode shows only the chain logo without the chain name text. */
   compact?: boolean;
 }
@@ -54,6 +56,7 @@ export const ChainChip: FC<ChainChipProps> = ({
   onChange,
   disabled,
   label,
+  prefixLabel,
   compact,
 }) => {
   const { getChainById } = useChains();
@@ -87,46 +90,69 @@ export const ChainChip: FC<ChainChipProps> = ({
         </Typography>
       ) : null}
 
-      <ButtonBase
-        disabled={!interactive}
-        onClick={(e: MouseEvent<HTMLElement>) =>
-          interactive && setAnchor(e.currentTarget)
-        }
-        sx={(theme) => ({
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 0.75,
-          px: 0.75,
-          py: 0.25,
-          borderRadius: 999,
-          border: `1px solid ${theme.palette.divider}`,
-          backgroundColor: theme.palette.background.paper,
-          cursor: interactive ? 'pointer' : 'default',
-          opacity: disabled ? 0.6 : 1,
-          minHeight: 28,
-          '&:hover': interactive
-            ? { backgroundColor: theme.palette.action.hover }
-            : {},
-        })}
+      <Stack
+        direction="row"
+        spacing={0.75}
+        sx={{ alignItems: 'center', minWidth: 0 }}
       >
-        {selectedChain ? (
-          <EntityAvatar entity={selectedChain} size={AvatarSize['3XS']} />
-        ) : (
-          <Box sx={{ width: 16, height: 16 }} />
-        )}
-        {!compact ? (
+        {prefixLabel ? (
           <Typography
             variant="caption"
-            noWrap
-            sx={{ fontWeight: 600 }}
+            sx={{
+              color: 'text.secondary',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+            }}
           >
-            {selectedChain?.name ?? '—'}
+            {prefixLabel}
           </Typography>
         ) : null}
-        {interactive ? (
-          <KeyboardArrowDownIcon sx={{ fontSize: 14, opacity: 0.7 }} />
-        ) : null}
-      </ButtonBase>
+
+        <ButtonBase
+          disabled={!interactive}
+          onClick={(e: MouseEvent<HTMLElement>) =>
+            interactive && setAnchor(e.currentTarget)
+          }
+          sx={(theme) => ({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 0.75,
+            py: 0.25,
+            borderRadius: 999,
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            cursor: interactive ? 'pointer' : 'default',
+            opacity: disabled ? 0.6 : 1,
+            minHeight: 28,
+            minWidth: 0,
+            maxWidth: '100%',
+            '&:hover': interactive
+              ? { backgroundColor: theme.palette.action.hover }
+              : {},
+          })}
+        >
+          {selectedChain ? (
+            <EntityAvatar entity={selectedChain} size={AvatarSize['3XS']} />
+          ) : (
+            <Box sx={{ width: 16, height: 16, flexShrink: 0 }} />
+          )}
+          {!compact ? (
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{ fontWeight: 600, minWidth: 0 }}
+            >
+              {selectedChain?.name ?? '—'}
+            </Typography>
+          ) : null}
+          {interactive ? (
+            <KeyboardArrowDownIcon
+              sx={{ fontSize: 14, opacity: 0.7, flexShrink: 0 }}
+            />
+          ) : null}
+        </ButtonBase>
+      </Stack>
 
       <Popover
         open={open}
