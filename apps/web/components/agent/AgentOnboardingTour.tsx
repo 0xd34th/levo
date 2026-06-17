@@ -56,47 +56,22 @@ export const AGENT_NEW_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
 
 export const AGENT_DASHBOARD_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
   {
-    anchor: 'chat-start',
-    eyebrow: 'Chat',
-    title: 'Start with chat',
-    body: 'Ask the agent about Sui, transfers, swaps, or bounded Earn mandates from the primary workspace.',
+    anchor: 'explore-presets',
+    eyebrow: 'Explore',
+    title: 'Explore Sui',
+    body: 'Use these quick commands to check markets, your wallet, on-chain objects, or prepare a swap, send, or bridge.',
   },
   {
-    anchor: 'hosted-agent-status',
-    eyebrow: 'Hosted',
-    title: 'Hosted testnet agent',
-    body: 'Levo provisions a hosted testnet agent key for mandate execution.',
+    anchor: 'mandate-create',
+    eyebrow: 'Mandates',
+    title: 'Create an Earn mandate',
+    body: 'Use the Mandates commands to turn an intent into a bounded Earn mandate with caps, cadence, and expiry.',
   },
   {
     anchor: 'agent-mandates',
     eyebrow: 'Mandates',
-    title: 'Review Earn mandates',
-    body: 'Track active Earn mandates and recent hosted runs in the side panel.',
-  },
-];
-
-export const AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
-  {
-    anchor: 'mandate-create',
-    eyebrow: 'Create',
-    title: 'Create your first mandate',
-    body: 'Use the Mandates commands in chat to create your first bounded Earn mandate.',
-  },
-  ...AGENT_DASHBOARD_ONBOARDING_STEPS.slice(1),
-];
-
-export const AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS: AgentOnboardingTourStep[] = [
-  {
-    anchor: 'agent-dashboard',
-    eyebrow: 'Agent',
-    title: 'Sign in to use Agent',
-    body: 'Sign in to load your hosted testnet agent, Earn mandates, and recent runs.',
-  },
-  {
-    anchor: 'chat-start',
-    eyebrow: 'Chat',
-    title: 'Agent chat',
-    body: 'The main Agent workspace starts with chat.',
+    title: 'Review existing mandates',
+    body: 'Track your existing mandates and their recent hosted runs in the side panel.',
   },
 ];
 

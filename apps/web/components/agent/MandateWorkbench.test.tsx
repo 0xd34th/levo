@@ -67,6 +67,10 @@ vi.mock('./AgentChatPanel', () => ({
   ),
 }));
 
+vi.mock('@/lib/use-x-sign-in', () => ({
+  useXSignIn: () => ({ signIn: vi.fn(), loading: false }),
+}));
+
 import { MandateWorkbench } from './MandateWorkbench';
 
 const AGENT_CONFIG: AgentMandateConfig = {
@@ -172,17 +176,19 @@ describe('/agent hosted chat workspace', () => {
     });
   }
 
-  it('renders chat as the primary signed-out surface without runner setup copy', () => {
+  it('renders a sign-in gate instead of the workspace when signed out', () => {
     const markup = renderToStaticMarkup(<MandateWorkbench />);
 
-    expect(markup).toContain('Agent chat');
-    expect(markup).toContain('Explore Sui or manage mandates.');
-    expect(markup).toContain('Sign in to load hosted agent status.');
+    expect(markup).toContain('Sign in to use Agent.');
+    expect(markup).toContain('Sign in with X');
+    expect(markup).not.toContain('Agent chat');
+    expect(markup).not.toContain('Explore Sui or manage mandates.');
+    expect(markup).not.toContain('Existing Mandates');
     expect(markup).not.toContain('Bind external agent');
     expect(markup).not.toContain('runner token');
   });
 
-  it('renders hosted testnet status, Earn mandates, and recent runs for signed-in users', async () => {
+  it('renders hosted testnet status, existing mandates, and recent runs for signed-in users', async () => {
     privyState.authenticated = true;
     privyState.user = {
       id: 'privy-user-a',
@@ -197,7 +203,7 @@ describe('/agent hosted chat workspace', () => {
     expect(host.textContent).toContain('create-wired');
     expect(host.textContent).toContain('Hosted agent');
     expect(host.textContent).toContain('Testnet');
-    expect(host.textContent).toContain('Earn mandates');
+    expect(host.textContent).toContain('Existing Mandates');
     expect(host.textContent).toContain('Earn mandate');
     expect(host.textContent).toContain('Recent runs');
     expect(host.textContent).toContain('CONFIRMED');

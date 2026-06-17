@@ -19,13 +19,13 @@ import {
   type MandateDetailResponse,
   type MandateSummary,
 } from '@/lib/agent/client';
+import { Button } from '@/components/ui/button';
+import { useXSignIn } from '@/lib/use-x-sign-in';
 import { cn } from '@/lib/utils';
 import { AgentChatPanel } from './AgentChatPanel';
 import {
-  AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS,
   AGENT_DASHBOARD_ONBOARDING_STEPS,
   AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
-  AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS,
   AgentOnboardingTour,
   getAgentOnboardingStorageKey,
 } from './AgentOnboardingTour';
@@ -53,6 +53,7 @@ type Proposal = {
 
 export function MandateWorkbench() {
   const { getAccessToken, ready, authenticated, user } = usePrivy();
+  const { signIn: signInWithX } = useXSignIn();
   const { identityToken } = useIdentityToken();
   const [config, setConfig] = useState<AgentMandateConfig | null>(null);
   const [mandates, setMandates] = useState<MandateSummary[]>([]);
@@ -118,21 +119,26 @@ export function MandateWorkbench() {
     baseKey: AGENT_DASHBOARD_ONBOARDING_STORAGE_KEY,
     user,
   });
-  const tourSteps = authenticated
-    ? mandates.length === 0 && !loading
-      ? AGENT_DASHBOARD_EMPTY_ONBOARDING_STEPS
-      : AGENT_DASHBOARD_ONBOARDING_STEPS
-    : AGENT_DASHBOARD_SIGNED_OUT_ONBOARDING_STEPS;
 
   if (!ready) {
     return <ShellMessage>Loading Agent workspace...</ShellMessage>;
   }
 
+  if (!authenticated) {
+    return (
+      <div className="flex flex-col items-center pt-12 text-center">
+        <p className="text-[14px]" style={{ color: 'var(--text-mute)' }}>
+          Sign in to use Agent.
+        </p>
+        <Button className="mt-4 h-11 rounded-full px-5" onClick={signInWithX}>
+          Sign in with X
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div
-      data-agent-tour="agent-dashboard"
-      className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_380px]"
-    >
+    <div className="grid min-h-[calc(100vh-4rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section className="flex min-h-[620px] min-w-0 flex-col rounded-[12px] bg-[color:var(--surface)] p-4">
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] pb-3">
           <div>
@@ -145,7 +151,7 @@ export function MandateWorkbench() {
             </p>
           </div>
           {tourStorageKey ? (
-            <AgentOnboardingTour steps={tourSteps} storageKey={tourStorageKey} />
+            <AgentOnboardingTour steps={AGENT_DASHBOARD_ONBOARDING_STEPS} storageKey={tourStorageKey} />
           ) : null}
         </div>
         <div className="min-h-0 flex-1 pt-4">
@@ -157,47 +163,32 @@ export function MandateWorkbench() {
       </section>
 
       <aside className="space-y-3 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto">
-        <HostedAgentStatus
-          authenticated={authenticated}
-          config={config}
-          loading={loading}
-          error={error}
-        />
+        <HostedAgentStatus config={config} loading={loading} error={error} />
         {proposal ? <MandateDraftPreview proposal={proposal} /> : null}
-        <EarnMandatePanel
-          authenticated={authenticated}
+        <ExistingMandatesPanel
           loading={loading}
           mandates={mandates}
           selectedId={selectedMandate?.id ?? selectedId}
           onSelect={setSelectedId}
         />
-        <RecentRunsPanel
-          authenticated={authenticated}
-          mandate={selectedMandate}
-          runs={recentRuns}
-        />
+        <RecentRunsPanel mandate={selectedMandate} runs={recentRuns} />
       </aside>
     </div>
   );
 }
 
 function HostedAgentStatus({
-  authenticated,
   config,
   loading,
   error,
 }: {
-  authenticated: boolean;
   config: AgentMandateConfig | null;
   loading: boolean;
   error: string | null;
 }) {
-  const hasHostedAgent = authenticated && config?.agentAddress && !config.error;
+  const hasHostedAgent = config?.agentAddress && !config.error;
   return (
-    <section
-      data-agent-tour="hosted-agent-status"
-      className="rounded-[12px] bg-[color:var(--surface)] p-4 ring-1 ring-[color:var(--border)]"
-    >
+    <section className="rounded-[12px] bg-[color:var(--surface)] p-4 ring-1 ring-[color:var(--border)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[15px] font-semibold">Hosted agent</p>
@@ -209,11 +200,7 @@ function HostedAgentStatus({
           Testnet
         </span>
       </div>
-      {!authenticated ? (
-        <p className="mt-4 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-          Sign in to load hosted agent status.
-        </p>
-      ) : loading && !config ? (
+      {loading && !config ? (
         <p className="mt-4 inline-flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-soft)' }}>
           <Loader2 className="size-3.5 animate-spin" />
           Loading hosted agent
@@ -232,14 +219,12 @@ function HostedAgentStatus({
   );
 }
 
-function EarnMandatePanel({
-  authenticated,
+function ExistingMandatesPanel({
   loading,
   mandates,
   selectedId,
   onSelect,
 }: {
-  authenticated: boolean;
   loading: boolean;
   mandates: MandateSummary[];
   selectedId: string | null;
@@ -251,16 +236,12 @@ function EarnMandatePanel({
       className="rounded-[12px] bg-[color:var(--surface)] p-4 ring-1 ring-[color:var(--border)]"
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[15px] font-semibold">Earn mandates</p>
+        <p className="text-[15px] font-semibold">Existing Mandates</p>
         {loading ? <Loader2 className="size-4 animate-spin" /> : null}
       </div>
-      {!authenticated ? (
+      {mandates.length === 0 ? (
         <p className="mt-3 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-          Sign in to load mandates.
-        </p>
-      ) : mandates.length === 0 ? (
-        <p className="mt-3 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-          No Earn mandates yet. Use the Mandates commands in chat to create one.
+          No mandates yet. Use the Mandates commands in chat to create one.
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -300,22 +281,16 @@ function EarnMandatePanel({
 }
 
 function RecentRunsPanel({
-  authenticated,
   mandate,
   runs,
 }: {
-  authenticated: boolean;
   mandate: MandateSummary | null;
   runs: AgentActionRow[];
 }) {
   return (
     <section className="rounded-[12px] bg-[color:var(--surface)] p-4 ring-1 ring-[color:var(--border)]">
       <p className="text-[15px] font-semibold">Recent runs</p>
-      {!authenticated ? (
-        <p className="mt-3 text-[13px]" style={{ color: 'var(--text-soft)' }}>
-          Sign in to load recent hosted runs.
-        </p>
-      ) : !mandate ? (
+      {!mandate ? (
         <p className="mt-3 text-[13px]" style={{ color: 'var(--text-soft)' }}>
           Select or create an Earn mandate to see runs.
         </p>

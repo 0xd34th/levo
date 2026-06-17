@@ -364,6 +364,8 @@ function EmptyState({
   onPick: (command: Command) => void | Promise<void>;
   disabled: boolean;
 }) {
+  const exploreGroups = COMMAND_GROUPS.filter((group) => group.label !== 'Mandates');
+  const mandatesGroup = COMMAND_GROUPS.find((group) => group.label === 'Mandates');
   return (
     <div data-agent-tour="chat-start" className="rounded-[12px] bg-[color:var(--surface)] p-4">
       <p className="text-[13px] font-medium">Explore Sui or manage mandates.</p>
@@ -371,29 +373,54 @@ function EmptyState({
         Start with a Sui query, a prepared transfer/swap, or an Earn mandate handoff.
       </p>
       <div className="mt-4 space-y-3">
-        {COMMAND_GROUPS.map((group) => (
-          <div
-            key={group.label}
-            data-agent-tour={group.label === 'Mandates' ? 'mandate-create' : undefined}
-            className="grid gap-2 sm:grid-cols-[76px_1fr] sm:items-start"
+        <div data-agent-tour="explore-presets" className="space-y-3">
+          {exploreGroups.map((group) => (
+            <CommandGroupBlock key={group.label} group={group} onPick={onPick} disabled={disabled} />
+          ))}
+        </div>
+        {mandatesGroup ? (
+          <CommandGroupBlock
+            group={mandatesGroup}
+            anchor="mandate-create"
+            onPick={onPick}
+            disabled={disabled}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CommandGroupBlock({
+  group,
+  anchor,
+  onPick,
+  disabled,
+}: {
+  group: { label: string; commands: Command[] };
+  anchor?: string;
+  onPick: (command: Command) => void | Promise<void>;
+  disabled: boolean;
+}) {
+  return (
+    <div
+      data-agent-tour={anchor}
+      className="grid gap-2 sm:grid-cols-[76px_1fr] sm:items-start"
+    >
+      <p className="pt-1 text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--text-mute)' }}>
+        {group.label}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {group.commands.map((command) => (
+          <button
+            key={command.label}
+            type="button"
+            disabled={disabled}
+            onClick={() => onPick(command)}
+            className="rounded-full border border-[color:var(--border)] bg-background px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--raise)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <p className="pt-1 text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--text-mute)' }}>
-              {group.label}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {group.commands.map((command) => (
-                <button
-                  key={command.label}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onPick(command)}
-                  className="rounded-full border border-[color:var(--border)] bg-background px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--raise)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {command.label}
-                </button>
-              ))}
-            </div>
-          </div>
+            {command.label}
+          </button>
         ))}
       </div>
     </div>
