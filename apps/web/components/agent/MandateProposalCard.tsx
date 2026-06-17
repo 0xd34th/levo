@@ -17,6 +17,7 @@ import {
 } from '@/lib/agent/client';
 import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 import {
+  describeSchedule,
   proposalSummary,
 } from '@/lib/agent/display';
 import {
@@ -142,7 +143,7 @@ export function MandateProposalCard({
       </dl>
       {proposal.spec.metadata && 'schedule' in proposal.spec.metadata && (
         <p className="mt-2 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-          Schedule: <span className="font-mono">{proposal.spec.metadata.schedule}</span>
+          Schedule: <span>{describeSchedule(proposal.spec.metadata.schedule)}</span>
         </p>
       )}
       {error && (

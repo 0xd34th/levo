@@ -89,7 +89,35 @@ export function nextRunLabel(mandate: Pick<MandateSummary, 'metadata' | 'status'
   if (mandate.status !== 'ACTIVE') return 'Paused';
   if (BigInt(mandate.expiryMs) <= BigInt(Date.now())) return 'Expired';
   const schedule = scheduleLabel(mandate.metadata);
-  return schedule === 'Manual' ? 'Manual trigger' : `Next scheduled by ${schedule}`;
+  return schedule === 'Manual' ? 'Manual trigger' : describeSchedule(schedule);
+}
+
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+// Render the cron strings produced by the create-mandate time picker as plain
+// English (e.g. "Daily at 09:00 UTC"). Any other cron pattern falls back to the
+// raw expression so legacy / hand-authored schedules still display.
+export function describeSchedule(cron: string): string {
+  const trimmed = cron.trim();
+  const daily = trimmed.match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/);
+  if (daily) return `Daily at ${formatHourMinute(Number(daily[2]), Number(daily[1]))} UTC`;
+  const weekly = trimmed.match(/^(\d{1,2}) (\d{1,2}) \* \* ([0-6])$/);
+  if (weekly) {
+    return `Weekly on ${WEEKDAY_NAMES[Number(weekly[3])]} at ${formatHourMinute(Number(weekly[2]), Number(weekly[1]))} UTC`;
+  }
+  return trimmed;
+}
+
+function formatHourMinute(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 export function expiryLabel(expiryMs: string): string {

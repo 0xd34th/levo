@@ -93,18 +93,38 @@ describe('mandate draft builder', () => {
     expect(parseDisplayAmountToBaseUnits('1.0000000001', SUI_COIN_TYPE)).toBeNull();
   });
 
-  it('rejects invalid caps and invalid custom cron expressions', () => {
+  it('builds cron from the time picker for daily and weekly cadences', () => {
+    const base = createInitialAgentMandateDraftState(null, CONFIG.templates[0]);
+
+    const daily = buildCreateMandatePayload(
+      { ...base, cadence: 'daily', timeOfDay: '14:30' },
+      CONFIG,
+      NOW,
+    );
+    expect(daily.errors).toEqual([]);
+    expect(daily.payload?.spec.metadata).toMatchObject({ schedule: '30 14 * * *' });
+
+    const weekly = buildCreateMandatePayload(
+      updateDraftCadence({ ...base, timeOfDay: '09:00', weekday: '2' }, 'weekly'),
+      CONFIG,
+      NOW,
+    );
+    expect(weekly.errors).toEqual([]);
+    expect(weekly.payload?.spec.metadata).toMatchObject({ schedule: '0 9 * * 2' });
+  });
+
+  it('rejects invalid caps and invalid schedule times', () => {
     const state = {
       ...createInitialAgentMandateDraftState(null, CONFIG.templates[0]),
-      cadence: 'custom' as const,
-      customCron: 'not-a-cron',
+      cadence: 'daily' as const,
+      timeOfDay: 'not-a-time',
       perTxCap: '10',
       periodCap: '1',
     };
     const result = buildCreateMandatePayload(state, CONFIG, NOW);
 
     expect(result.payload).toBeNull();
-    expect(result.errors).toContain('Schedule must be a valid cron expression.');
+    expect(result.errors).toContain('Pick a valid time.');
     expect(result.errors).toContain('Per-run cap must be less than or equal to the period cap.');
   });
 

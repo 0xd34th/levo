@@ -58,7 +58,16 @@ const CADENCES: Array<{ value: AgentMandateCadence; label: string }> = [
   { value: 'manual', label: 'Manual' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
-  { value: 'custom', label: 'Custom' },
+];
+
+const WEEKDAYS: Array<{ value: string; label: string }> = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
 ];
 
 const EXPIRIES: Array<AgentMandateDraftState['expiryDays']> = ['30', '90', '365'];
@@ -304,14 +313,31 @@ export function MandateCreateForm({
           disabled={disabled}
         />
 
-        {state.cadence === 'custom' && (
-          <TextField
-            label="Custom cron"
-            value={state.customCron}
-            onChange={(value) => setField('customCron', value)}
+        {state.cadence === 'daily' && (
+          <TimeField
+            label="Time (UTC)"
+            value={state.timeOfDay}
+            onChange={(value) => setField('timeOfDay', value)}
             disabled={disabled}
-            placeholder="0 9 * * *"
           />
+        )}
+
+        {state.cadence === 'weekly' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SelectField
+              label="Day of week"
+              value={state.weekday}
+              options={WEEKDAYS}
+              onChange={(value) => setField('weekday', value)}
+              disabled={disabled}
+            />
+            <TimeField
+              label="Time (UTC)"
+              value={state.timeOfDay}
+              onChange={(value) => setField('timeOfDay', value)}
+              disabled={disabled}
+            />
+          </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -558,6 +584,30 @@ function TextField({
         disabled={disabled}
         placeholder={placeholder}
         inputMode={inputMode}
+      />
+    </div>
+  );
+}
+
+function TimeField({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[12px]" style={{ color: 'var(--text-soft)' }}>{label}</Label>
+      <Input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
       />
     </div>
   );

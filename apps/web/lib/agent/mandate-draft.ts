@@ -4,7 +4,7 @@ import type { AgentMandateConfig, AgentMandateTemplate } from './config';
 import type { CreateMandatePayload } from './client';
 
 export type AgentMandateAction = 'deposit' | 'withdraw' | 'harvest';
-export type AgentMandateCadence = 'manual' | 'daily' | 'weekly' | 'custom';
+export type AgentMandateCadence = 'manual' | 'daily' | 'weekly';
 
 export interface AgentMandateDraftState {
   action: AgentMandateAction;
@@ -15,7 +15,10 @@ export interface AgentMandateDraftState {
   expiryDays: '30' | '90' | '365';
   coinType: string;
   templateId: AgentMandateTemplate['id'];
-  customCron: string;
+  // Time of day (HH:MM, UTC) the schedule fires; weekday (cron day-of-week,
+  // 0=Sunday) applies only to the weekly cadence.
+  timeOfDay: string;
+  weekday: string;
   periodMs: string;
   rawAmount: string;
   rawPerTxCap: string;
@@ -40,20 +43,14 @@ const ACTION_NAMES: Record<AgentMandateAction, string> = {
   harvest: 'Earn harvest',
 };
 
-const DAILY_CRON = '0 9 * * *';
 export const MAX_PLANNED_RUNS = 64;
-
-const CADENCE_SCHEDULES: Record<Exclude<AgentMandateCadence, 'custom'>, string | null> = {
-  manual: null,
-  daily: DAILY_CRON,
-  weekly: '0 9 * * 1',
-};
+const DEFAULT_TIME_OF_DAY = '09:00';
+const DEFAULT_WEEKDAY = '1';
 
 const CADENCE_PERIOD_MS: Record<AgentMandateCadence, string> = {
   manual: '86400000',
   daily: '86400000',
   weekly: '604800000',
-  custom: '86400000',
 };
 
 export function inferMandateActionFromIntent(intent?: string | null): AgentMandateAction {
@@ -88,7 +85,8 @@ export function createInitialAgentMandateDraftState(
     // are denominated in USDC.
     coinType: MAINNET_USDC_TYPE,
     templateId: template?.id ?? 'stablelayer-earn',
-    customCron: DAILY_CRON,
+    timeOfDay: DEFAULT_TIME_OF_DAY,
+    weekday: DEFAULT_WEEKDAY,
     periodMs: CADENCE_PERIOD_MS[cadence],
     rawAmount: '',
     rawPerTxCap: '',
@@ -104,7 +102,6 @@ export function updateDraftCadence(
     ...state,
     cadence,
     periodMs: CADENCE_PERIOD_MS[cadence],
-    customCron: cadence === 'custom' ? state.customCron || DAILY_CRON : state.customCron,
   };
 }
 
@@ -267,12 +264,28 @@ function parsePositiveInteger(value: string, label: string, errors: string[]): b
   return parsed;
 }
 
+function parseTimeOfDay(value: string): { hour: number; minute: number } | null {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return { hour, minute };
+}
+
 function scheduleForState(state: AgentMandateDraftState, errors: string[]): string | null {
+  if (state.cadence === 'manual') return null;
+  const time = parseTimeOfDay(state.timeOfDay);
+  if (!time) {
+    errors.push('Pick a valid time.');
+    return null;
+  }
   const schedule =
-    state.cadence === 'custom'
-      ? state.customCron.trim()
-      : CADENCE_SCHEDULES[state.cadence];
-  if (!schedule) return null;
+    state.cadence === 'weekly'
+      ? `${time.minute} ${time.hour} * * ${state.weekday}`
+      : `${time.minute} ${time.hour} * * *`;
+  // The schedule is machine-generated and always valid; keep the croner
+  // round-trip as a defensive safety net against future cadence changes.
   if (!nextCronRun(schedule, new Date())) {
     errors.push('Schedule must be a valid cron expression.');
     return null;
@@ -287,24 +300,14 @@ function plannedRunsForState(
   schedule: string | null,
 ): number {
   if (!schedule) return 1;
-  if (state.cadence === 'daily') return clampPlannedRuns(Math.ceil((expiryMs - nowMs) / 86_400_000));
-  if (state.cadence === 'weekly') return clampPlannedRuns(Math.ceil((expiryMs - nowMs) / (7 * 86_400_000)));
-
-  let count = 0;
-  let cursor: Date | null = new Date(nowMs);
-  while (count <= MAX_PLANNED_RUNS) {
-    const next = nextCronRun(schedule, cursor);
-    if (!next || next.getTime() >= expiryMs) break;
-    count += 1;
-    cursor = next;
-  }
-  return clampPlannedRuns(Math.max(count, 1));
+  const intervalMs = state.cadence === 'weekly' ? 7 * 86_400_000 : 86_400_000;
+  return clampPlannedRuns(Math.ceil((expiryMs - nowMs) / intervalMs));
 }
 
 // DB-scheduled mandates run on their cron until expiry — the worker reruns the
 // single action each tick and does not consume a fixed plan. `plannedRunCount`
-// is only a display estimate now, so cap it instead of blocking creation (this
-// lets high-frequency crons like `* * * * *` be created).
+// is only a display estimate now, so cap it instead of letting long expiries
+// inflate the number.
 function clampPlannedRuns(count: number): number {
   return Math.min(count, MAX_PLANNED_RUNS);
 }
