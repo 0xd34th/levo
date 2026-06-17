@@ -88,6 +88,58 @@ describe('buildAgentTools', () => {
     });
   });
 
+  it('reports mandate amounts as human-readable USDC, not raw base units', async () => {
+    // Reproduces the "0.01 → 10,000 USDC" report: DB stores 6-dp base units
+    // (10000 = 0.01 USDC, caps 20000 = 0.02). list_my_mandates must hand the
+    // model human-readable strings so it never quotes the raw integers.
+    vi.spyOn(prisma.agentMandate, 'findMany').mockResolvedValue([
+      {
+        id: 'mandate-row',
+        xUserId: 'test-user',
+        userAgentId: null,
+        agentAddress: '',
+        mandateObjectId: null,
+        name: 'Earn deposit',
+        actions: 2,
+        coinLimits: [
+          {
+            coinType: MAINNET_USDC_COIN,
+            perTxCap: '20000',
+            periodCap: '20000',
+            periodSpent: '0',
+            periodStartMs: '0',
+          },
+        ],
+        periodMs: 86_400_000n,
+        allowedTargets: [],
+        expiryMs: BigInt(Date.now() + 86_400_000),
+        metadata: { amount: '10000', schedule: '20 7 * * *', plannedRuns: '64' },
+        status: 'ACTIVE',
+        nonce: 0n,
+        witnessCommit: null,
+        createdTxDigest: null,
+        initTxDigest: null,
+        createdAt: new Date('2026-06-17T07:19:10.000Z'),
+        updatedAt: new Date('2026-06-17T07:19:10.000Z'),
+        revokedTxDigest: null,
+        revokedAt: null,
+        destroyedTxDigest: null,
+        destroyedAt: null,
+      },
+    ] as never);
+
+    const tool = buildAgentTools({ xUserId: 'test-user' }).list_my_mandates as unknown as {
+      execute: () => Promise<{ mandates: Array<{ displayAmounts: Record<string, string | null> }> }>;
+    };
+    const output = await tool.execute();
+
+    expect(output.mandates[0].displayAmounts).toEqual({
+      amount: '0.01 USDC',
+      perTxCap: '0.02 USDC',
+      periodCap: '0.02 USDC',
+    });
+  });
+
   it('prepares Earn mandate intent without creating a mandate', async () => {
     const tool = buildAgentTools({ xUserId: 'test-user' }).prepare_earn_mandate_intent as unknown as {
       execute: (input: { intent: string }) => Promise<unknown>;

@@ -98,4 +98,50 @@ describe('runScheduledTick query shape', () => {
     });
     expect(stats).toMatchObject({ scanned: 2, fired: 2, queued: 2 });
   });
+
+  it('fires a never-run mandate once its first cron slot has passed (createdAt anchor)', async () => {
+    // Reproduces prod mandate cmqhqpt6m0000qqo3ib1buy25: created 07:19:10Z with a
+    // daily 07:20 schedule and zero prior SCHEDULED actions. Before the fix the
+    // null anchor made nextRun() compute relative to "now", always in the future,
+    // so the first run never fired (scanned>0, fired=0).
+    prismaMock.agentMandate.findMany.mockResolvedValue([
+      {
+        id: 'mandate-new',
+        metadata: { schedule: '20 7 * * *' },
+        createdAt: new Date('2026-06-17T07:19:10.000Z'),
+      },
+    ]);
+    prismaMock.agentAction.findMany.mockResolvedValue([]);
+
+    const { runScheduledTick } = await import('./scheduler-runtime');
+    const stats = await runScheduledTick({
+      now: new Date('2026-06-17T07:58:00.000Z'),
+    });
+
+    expect(executeMandateNowMock).toHaveBeenCalledWith({
+      mandateId: 'mandate-new',
+      trigger: ActionTrigger.SCHEDULED,
+    });
+    expect(stats).toMatchObject({ scanned: 1, fired: 1, queued: 1 });
+  });
+
+  it('does not fire a never-run mandate before its first cron slot', async () => {
+    prismaMock.agentMandate.findMany.mockResolvedValue([
+      {
+        id: 'mandate-early',
+        metadata: { schedule: '20 7 * * *' },
+        createdAt: new Date('2026-06-17T07:19:10.000Z'),
+      },
+    ]);
+    prismaMock.agentAction.findMany.mockResolvedValue([]);
+
+    const { runScheduledTick } = await import('./scheduler-runtime');
+    const stats = await runScheduledTick({
+      // 07:19:40Z — after creation but before the 07:20 cron slot.
+      now: new Date('2026-06-17T07:19:40.000Z'),
+    });
+
+    expect(executeMandateNowMock).not.toHaveBeenCalled();
+    expect(stats).toMatchObject({ scanned: 1, fired: 0 });
+  });
 });

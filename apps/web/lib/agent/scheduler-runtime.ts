@@ -46,7 +46,7 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
       status: MandateStatus.ACTIVE,
       expiryMs: { gt: BigInt(now.getTime()) },
     },
-    select: { id: true, metadata: true },
+    select: { id: true, metadata: true, createdAt: true },
   });
 
   const lastScheduledByMandate = new Map<string, Date>();
@@ -73,7 +73,14 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
       continue;
     }
 
-    const dueAt = nextCronRun(schedule, lastScheduledByMandate.get(mandate.id) ?? null);
+    // First-run anchor: a mandate that has never produced a SCHEDULED action has
+    // no prior fire to anchor its cron to. Anchoring to `null` makes croner
+    // compute the next run relative to *now*, which is always in the future, so
+    // the very first scheduled run would never become due. Fall back to the
+    // mandate's createdAt so the first cron slot after creation fires once the
+    // worker reaches it; subsequent runs anchor off the recorded SCHEDULED action.
+    const anchor = lastScheduledByMandate.get(mandate.id) ?? mandate.createdAt;
+    const dueAt = nextCronRun(schedule, anchor);
     if (!dueAt || dueAt > now) {
       continue;
     }

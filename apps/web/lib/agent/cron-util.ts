@@ -8,7 +8,10 @@ export function nextCronRun(
   lastFiredAt: Date | null,
 ): Date | null {
   try {
-    const cron = new Cron(expression);
+    // Schedules are authored and displayed as UTC (see mandate-draft /
+    // display.describeSchedule). Pin croner to UTC so the fire time does not
+    // drift with the worker host's local timezone.
+    const cron = new Cron(expression, { timezone: 'UTC' });
     return cron.nextRun(lastFiredAt ?? undefined);
   } catch {
     return null;
