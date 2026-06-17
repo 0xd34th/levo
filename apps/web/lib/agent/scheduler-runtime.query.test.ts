@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
 
 const {
-  executeNextStepMock,
+  executeMandateNowMock,
   lockReleaseMock,
   prismaMock,
   redisPipelineMock,
@@ -14,7 +14,7 @@ const {
   };
 
   return {
-    executeNextStepMock: vi.fn(),
+    executeMandateNowMock: vi.fn(),
     lockReleaseMock: vi.fn(),
     prismaMock: {
       agentMandate: {
@@ -41,27 +41,25 @@ vi.mock('@/lib/redis-lock', () => ({
   ),
 }));
 vi.mock('./executor', () => ({
-  executeNextStep: executeNextStepMock,
+  executeMandateNow: executeMandateNowMock,
 }));
 
 describe('runScheduledTick query shape', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     redisPipelineMock.exec.mockResolvedValue([]);
-    executeNextStepMock.mockResolvedValue({
+    executeMandateNowMock.mockResolvedValue({
       status: 'confirmed',
       txDigest: '9rL2txDigest',
       actionId: 'action-1',
-      witnessId: 'witness-1',
-      nonceAfter: 1n,
     });
     lockReleaseMock.mockResolvedValue(undefined);
   });
 
   it('loads latest scheduled actions for scanned mandates in one batch', async () => {
     prismaMock.agentMandate.findMany.mockResolvedValue([
-      { id: 'mandate-1', metadata: { schedule: '* * * * *' }, mandateObjectId: '0x1' },
-      { id: 'mandate-2', metadata: { schedule: '* * * * *' }, mandateObjectId: '0x2' },
+      { id: 'mandate-1', metadata: { schedule: '* * * * *' } },
+      { id: 'mandate-2', metadata: { schedule: '* * * * *' } },
     ]);
     prismaMock.agentAction.findMany.mockResolvedValue([
       {
@@ -90,11 +88,11 @@ describe('runScheduledTick query shape', () => {
       }),
     );
     expect(prismaMock.agentAction.findFirst).not.toHaveBeenCalled();
-    expect(executeNextStepMock).toHaveBeenCalledWith({
+    expect(executeMandateNowMock).toHaveBeenCalledWith({
       mandateId: 'mandate-1',
       trigger: ActionTrigger.SCHEDULED,
     });
-    expect(executeNextStepMock).toHaveBeenCalledWith({
+    expect(executeMandateNowMock).toHaveBeenCalledWith({
       mandateId: 'mandate-2',
       trigger: ActionTrigger.SCHEDULED,
     });

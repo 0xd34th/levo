@@ -21,6 +21,10 @@ model XUser {
   suiAddress    String? @unique @map("sui_address")
   suiPublicKey  String? @map("sui_public_key")
 
+  // One-time Privy delegation consent: app authorization key may sign agent
+  // mandate actions on this user's embedded wallet autonomously (revocable).
+  agentDelegatedAt DateTime? @map("agent_delegated_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -187,18 +191,18 @@ model AgentMandate {
   xUserId           String        @map("x_user_id")
   userAgentId       String?       @map("user_agent_id")
   agentAddress      String        @default("") @map("agent_address")
-  mandateObjectId   String        @unique @map("mandate_object_id")
+  mandateObjectId   String?       @unique @map("mandate_object_id") // legacy on-chain only; null for DB mandates
   name              String
   actions           Int // u32 bitfield mirror
   coinLimits        Json          @map("coin_limits") // [{coinType, perTxCap, periodCap, periodSpent, periodStartMs}]
   periodMs          BigInt        @map("period_ms")
   allowedTargets    Json          @map("allowed_targets") // string[]
   expiryMs          BigInt        @map("expiry_ms")
-  metadata          Json          @default("{}") // VecMap<String, String> mirror
+  metadata          Json          @default("{}") // { schedule (cron), action, amount } for DB-scheduled mandates
   status            MandateStatus @default(ACTIVE)
   nonce             BigInt        @default(0) // last observed mandate.nonce
-  witnessCommit     String?       @map("witness_commit") // hex; null until owner inits
-  createdTxDigest   String        @map("created_tx_digest")
+  witnessCommit     String?       @map("witness_commit") // legacy on-chain only; null for DB mandates
+  createdTxDigest   String?       @map("created_tx_digest") // legacy on-chain only; null for DB mandates
   initTxDigest      String?       @map("init_tx_digest") // owner's set_initial_witness tx
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")

@@ -5,7 +5,6 @@ export function getMandateExecutionBlockReason(
     AgentMandate,
     | 'status'
     | 'expiryMs'
-    | 'witnessCommit'
     | 'revokedAt'
     | 'revokedTxDigest'
     | 'destroyedAt'
@@ -24,9 +23,6 @@ export function getMandateExecutionBlockReason(
   }
   if (mandate.expiryMs <= BigInt(nowMs)) {
     return 'mandate has expired';
-  }
-  if (!mandate.witnessCommit) {
-    return 'mandate is not initialized';
   }
   return null;
 }

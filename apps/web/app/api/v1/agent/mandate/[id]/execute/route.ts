@@ -5,7 +5,7 @@ import {
   noStoreJson,
   verifySameOrigin,
 } from '@/lib/api';
-import { executeNextStep, type ExecuteOutcome } from '@/lib/agent/executor';
+import { executeMandateNow } from '@/lib/agent/executor';
 import { ActionTrigger } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
@@ -66,17 +66,13 @@ export async function POST(
   }
 
   try {
-    const outcome = await executeNextStep({
+    const outcome = await executeMandateNow({
       mandateId: id,
       trigger: ActionTrigger.CHAT,
     });
     const httpStatus =
-      outcome.status === 'confirmed' ||
-      outcome.status === 'blocked_by_seal' ||
-      outcome.status === 'no_steps_pending'
-        ? 200
-        : 409;
-    return noStoreJson(serializeExecuteOutcome(outcome), { status: httpStatus });
+      outcome.status === 'confirmed' || outcome.status === 'skipped' ? 200 : 409;
+    return noStoreJson(outcome, { status: httpStatus });
   } catch (error) {
     return noStoreJson(
       { error: error instanceof Error ? error.message : 'Execute failed' },
@@ -85,12 +81,4 @@ export async function POST(
   } finally {
     await lock.release();
   }
-}
-
-function serializeExecuteOutcome(outcome: ExecuteOutcome) {
-  if (outcome.status !== 'confirmed') return outcome;
-  return {
-    ...outcome,
-    nonceAfter: outcome.nonceAfter.toString(),
-  };
 }

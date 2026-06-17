@@ -33,6 +33,10 @@ interface PrivyRawSignParams {
 interface PrivySigningAuthorization {
   signatures?: string | string[];
   userJwts?: string | string[];
+  // Base64-encoded PKCS8 P-256 private key(s) the app holds (Privy authorization
+  // key / key quorum). Lets the backend sign a delegated wallet autonomously,
+  // with no client round-trip — used by the agent mandate worker.
+  authorizationPrivateKeys?: string | string[];
 }
 
 export interface PrivySuiWallet {
@@ -381,18 +385,26 @@ export async function signSuiTransaction(
   const rawSignParams = buildRawSignParams(txBytes);
   const authorizationJwts = normalizeAuthorizationValues(authorization?.userJwts);
   const authorizationSignatures = normalizeAuthorizationValues(authorization?.signatures);
+  const authorizationPrivateKeys = normalizeAuthorizationValues(authorization?.authorizationPrivateKeys);
 
   let signResult: Awaited<ReturnType<ReturnType<PrivyClient['wallets']>['rawSign']>> | null = null;
   let lastError: unknown = null;
 
   const buildAuthorizationContext = (userJwt?: string) => {
-    if (!userJwt && authorizationSignatures.length === 0) {
+    if (
+      !userJwt &&
+      authorizationSignatures.length === 0 &&
+      authorizationPrivateKeys.length === 0
+    ) {
       return undefined;
     }
 
     return {
       ...(userJwt ? { user_jwts: [userJwt] } : {}),
       ...(authorizationSignatures.length > 0 ? { signatures: authorizationSignatures } : {}),
+      ...(authorizationPrivateKeys.length > 0
+        ? { authorization_private_keys: authorizationPrivateKeys }
+        : {}),
     };
   };
 

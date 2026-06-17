@@ -2,17 +2,20 @@
 
 import { useState } from 'react';
 import {
-  useAuthorizationSignature,
   useIdentityToken,
   usePrivy,
+  useSigners,
 } from '@privy-io/react-auth';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  confirmDelegation,
   createMandate,
-  initializeMandateWithPrebuilt,
+  fetchDelegationStatus,
+  isDelegationRequiredError,
   type CreateMandatePayload,
 } from '@/lib/agent/client';
+import { useEmbeddedWallet } from '@/lib/use-embedded-wallet';
 import {
   proposalSummary,
 } from '@/lib/agent/display';
@@ -41,8 +44,9 @@ export function MandateProposalCard({
 }) {
   const { getAccessToken } = usePrivy();
   const { identityToken } = useIdentityToken();
-  const { generateAuthorizationSignature } = useAuthorizationSignature();
-  const [stage, setStage] = useState<'idle' | 'creating' | 'initializing' | 'done'>('idle');
+  const { addSigners } = useSigners();
+  const { suiAddress } = useEmbeddedWallet();
+  const [stage, setStage] = useState<'idle' | 'delegating' | 'creating' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -65,26 +69,27 @@ export function MandateProposalCard({
 
   const handleApprove = async () => {
     setError(null);
+    const ctx = { getAccessToken, identityToken };
+    const payload = {
+      spec: proposal.spec!,
+      plan: proposal.plan!,
+      metadataName: proposal.metadataName,
+    };
     try {
       setStage('creating');
-      const created = await createMandate(
-        { getAccessToken, identityToken, generateAuthorizationSignature },
-        {
-          spec: proposal.spec!,
-          plan: proposal.plan!,
-          metadataName: proposal.metadataName,
-        },
-      );
-      setStage('initializing');
-      await initializeMandateWithPrebuilt(
-        { getAccessToken, identityToken, generateAuthorizationSignature },
-        {
-          mandateRowId: created.mandateRowId,
-          initAuthorizationRequest: created.initAuthorizationRequest,
-          initTxBytesBase64: created.initTxBytesBase64,
-          initTxIntent: created.initTxIntent,
-        },
-      );
+      try {
+        await createMandate(ctx, payload);
+      } catch (err) {
+        if (!isDelegationRequiredError(err)) throw err;
+        // One-time: delegate the embedded wallet to the platform signer, then retry.
+        setStage('delegating');
+        if (!suiAddress) throw new Error('Wallet is not ready yet. Try again in a moment.');
+        const { signerId } = await fetchDelegationStatus(ctx);
+        await addSigners({ address: suiAddress, signers: [{ signerId, policyIds: [] }] });
+        await confirmDelegation(ctx);
+        setStage('creating');
+        await createMandate(ctx, payload);
+      }
       setStage('done');
       setReviewOpen(false);
       await onCreated();
@@ -94,7 +99,7 @@ export function MandateProposalCard({
     }
   };
 
-  const busy = stage === 'creating' || stage === 'initializing';
+  const busy = stage === 'creating' || stage === 'delegating';
 
   return (
     <div className="rounded-[12px] bg-[color:var(--surface)] p-3 ring-1 ring-[color:var(--border)]">
@@ -164,7 +169,7 @@ export function MandateProposalCard({
           <DialogHeader>
             <DialogTitle>Approve agent mandate</DialogTitle>
             <DialogDescription>
-              Review what your Levo-hosted testnet agent can do before the wallet signs create and initialize transactions.
+              Review what Levo can do on a schedule, then authorize it once. Your funds stay in your wallet.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 text-[13px]">
@@ -181,17 +186,16 @@ export function MandateProposalCard({
               <p className="font-medium">Cannot</p>
               <ul className="mt-2 space-y-1" style={{ color: 'var(--text-soft)' }}>
                 <li>Send funds to a target outside {summary.target}.</li>
+                <li>Spend more than the caps above.</li>
                 <li>Continue after {summary.expiry}.</li>
-                <li>Execute without the on-chain mandate and Seal witness checks.</li>
               </ul>
             </div>
             <div className="rounded-[12px] bg-background p-3 ring-1 ring-[color:var(--border)]">
-              <p className="font-medium">Chain steps</p>
+              <p className="font-medium">How it runs</p>
               <ol className="mt-2 space-y-1" style={{ color: 'var(--text-soft)' }}>
-                <li>1. Create and share the mandate object.</li>
-                <li>2. Initialize the witness chain.</li>
-                <li>3. Future runs consume one witness and authorize one Earn action.</li>
-                <li>4. Levo signs and submits each hosted testnet execution with the mandate agent key.</li>
+                <li>1. You authorize Levo to act for this wallet — once, revocable in Privy.</li>
+                <li>2. The mandate is saved with its schedule and caps.</li>
+                <li>3. On schedule, Levo runs the Earn action within the caps and records each run.</li>
               </ol>
               <details className="mt-3">
                 <summary className="cursor-pointer text-[12px] font-medium">Developer details</summary>
@@ -222,10 +226,10 @@ export function MandateProposalCard({
             </Button>
             <Button onClick={handleApprove} disabled={busy}>
               {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              {stage === 'creating'
-                ? 'Approving create...'
-                : stage === 'initializing'
-                  ? 'Approving init...'
+              {stage === 'delegating'
+                ? 'Authorizing wallet...'
+                : stage === 'creating'
+                  ? 'Saving mandate...'
                   : 'Approve mandate'}
             </Button>
           </DialogFooter>

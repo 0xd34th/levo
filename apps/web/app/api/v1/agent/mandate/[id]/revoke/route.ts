@@ -56,13 +56,7 @@ export async function POST(
 
   try {
     const owner = await loadOwnerWallet(auth.identity.xUserId);
-    const result = await revokeMandate({
-      owner,
-      mandateRowId: id,
-      authorizationSignature: parsed.data.authorizationSignature,
-      txBytesBase64: parsed.data.txBytesBase64,
-      txIntent: parsed.data.txIntent,
-    });
+    const result = await revokeMandate({ owner, mandateRowId: id });
     return noStoreJson(result);
   } catch (error) {
     return noStoreJson(

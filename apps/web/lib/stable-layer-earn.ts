@@ -1214,7 +1214,11 @@ async function buildManagerSignedBundle(tx: Transaction) {
 
 async function buildUserSignedBundle(params: {
   authorization: StagedAuthorization;
-  authorizationSignature: string;
+  // Exactly one of these authorizes the wallet rawSign: a client-supplied Privy
+  // authorization signature (interactive /earn) OR the platform authorization
+  // private key(s) for non-custodial autonomous signing (agent mandate worker).
+  authorizationSignature?: string;
+  authorizationPrivateKeys?: string[];
 }) {
   const txBytes = Uint8Array.from(Buffer.from(params.authorization.txBytesBase64, 'base64'));
   const signatures: string[] = [];
@@ -1224,7 +1228,9 @@ async function buildUserSignedBundle(params: {
     params.authorization.walletId,
     params.authorization.storedPublicKey,
     txBytes,
-    { signatures: [params.authorizationSignature] },
+    params.authorizationPrivateKeys?.length
+      ? { authorizationPrivateKeys: params.authorizationPrivateKeys }
+      : { signatures: [params.authorizationSignature ?? ''] },
   );
   signatures.push(userSignature);
 
@@ -2094,8 +2100,9 @@ async function executeStakeFlow(params: {
   stableCoinType: string;
   preview: StagedPreview;
   authorizationSignature?: string;
+  authorizationPrivateKeys?: string[];
 }) {
-  if (!params.authorizationSignature) {
+  if (!params.authorizationSignature && !params.authorizationPrivateKeys?.length) {
     const buildResult = await buildUserEarnTransactionBytes({
       action: 'stake',
       senderAddress: params.walletBinding.suiAddress,
@@ -2131,6 +2138,7 @@ async function executeStakeFlow(params: {
   const bundle = await buildUserSignedBundle({
     authorization,
     authorizationSignature: params.authorizationSignature,
+    authorizationPrivateKeys: params.authorizationPrivateKeys,
   });
 
   await stagePendingEarn(bundle.txDigest, {
@@ -2291,8 +2299,9 @@ async function executeWithdrawFlow(params: {
   stableCoinType: string;
   preview: StagedPreview;
   authorizationSignature?: string;
+  authorizationPrivateKeys?: string[];
 }) {
-  if (!params.authorizationSignature) {
+  if (!params.authorizationSignature && !params.authorizationPrivateKeys?.length) {
     const buildResult = await buildUserEarnTransactionBytes({
       action: 'withdraw',
       senderAddress: params.walletBinding.suiAddress,
@@ -2328,6 +2337,7 @@ async function executeWithdrawFlow(params: {
   const principalBundle = await buildUserSignedBundle({
     authorization,
     authorizationSignature: params.authorizationSignature,
+    authorizationPrivateKeys: params.authorizationPrivateKeys,
   });
 
   const harvestLock = await acquireRedisLock(`earn-harvest:${params.stableCoinType}`, HARVEST_LOCK_TTL_SEC);
@@ -2526,6 +2536,9 @@ export async function executeEarnAction(params: {
   privyUserId: string;
   previewToken: string;
   authorizationSignature?: string;
+  // When set (agent mandate worker), deposit/withdraw are signed non-custodially
+  // with the platform authorization key instead of an interactive client signature.
+  authorizationPrivateKeys?: string[];
 }): Promise<EarnExecuteResult> {
   const preview = await loadPreview(params.previewToken);
   if (!preview || preview.xUserId !== params.xUserId) {
@@ -2548,6 +2561,7 @@ export async function executeEarnAction(params: {
       stableCoinType,
       preview,
       authorizationSignature: params.authorizationSignature,
+      authorizationPrivateKeys: params.authorizationPrivateKeys,
     });
   }
 
@@ -2568,6 +2582,7 @@ export async function executeEarnAction(params: {
     stableCoinType,
     preview,
     authorizationSignature: params.authorizationSignature,
+    authorizationPrivateKeys: params.authorizationPrivateKeys,
   });
 }
 

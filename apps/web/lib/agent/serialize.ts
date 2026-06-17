@@ -8,7 +8,7 @@ export interface SerializedAgentMandate {
   xUserId: string;
   userAgentId: string | null;
   agentAddress: string;
-  mandateObjectId: string;
+  mandateObjectId: string | null;
   name: string;
   actions: number;
   coinLimits: unknown;
@@ -19,7 +19,7 @@ export interface SerializedAgentMandate {
   status: AgentMandate['status'];
   nonce: string;
   witnessCommit: string | null;
-  createdTxDigest: string;
+  createdTxDigest: string | null;
   initTxDigest: string | null;
   revokedTxDigest: string | null;
   revokedAt: string | null;

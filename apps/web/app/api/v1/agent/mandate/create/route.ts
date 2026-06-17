@@ -7,22 +7,16 @@ import {
   noStoreJson,
   verifySameOrigin,
 } from '@/lib/api';
-import {
-  createMandate,
-  loadOwnerWallet,
-} from '@/lib/agent/mandate-flow';
-import {
-  resolveEarnMandateTarget,
-} from '@/lib/agent/config';
+import { createMandate, loadOwnerWallet } from '@/lib/agent/mandate-flow';
+import { resolveEarnMandateTarget } from '@/lib/agent/config';
 import { MandateSpecSchema } from '@/lib/agent/mandate-spec';
 import type { MandateSpec } from '@/lib/agent/types';
 import { MANDATE_LIMITS } from '@/lib/agent/package';
-import { getOrCreateHostedUserAgent } from '@/lib/agent/user-agent';
+import { isDelegatedSigningConfigured } from '@/lib/agent/delegated-signing';
+import { prisma } from '@/lib/prisma';
 import { verifyPrivyXAuth } from '@/lib/privy-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
-// Planned actions for the witness chain — separate from mandate spec because
-// the spec bounds what's allowed; the plan is what the agent will actually do.
 const PlannedActionSchema = z.object({
   actionType: z.number().int().positive(),
   coinType: z.string().min(1),
@@ -34,21 +28,14 @@ const RequestSchema = z.object({
   spec: MandateSpecSchema,
   plan: z.array(PlannedActionSchema).min(1).max(64),
   metadataName: z.string().min(1).max(120).optional(),
-  authorizationSignature: z.string().min(1).optional(),
-  txBytesBase64: z.string().min(1).optional(),
-  txIntent: z.string().min(1).optional(),
 });
 
 // POST /api/v1/agent/mandate/create
 //
-// 2-step Privy flow:
-//   1) Client POSTs `{ spec, plan }` (no authorizationSignature).
-//      → Server returns `{ status: 'authorization_required', authorizationRequest, txBytesBase64 }`.
-//   2) Client signs via Privy with the returned authorizationRequest, then POSTs
-//      `{ spec, plan, authorizationSignature, txBytesBase64 }`.
-//      → Server submits create+share, persists the mandate, generates the witness chain,
-//        and returns mandate id + the init-step auth request (so the next call to
-//        /mandate/[id]/initialize only needs another single Privy signature).
+// DB-scheduled mandate: validates the spec/plan and the user's one-time Privy
+// delegation, then persists an AgentMandate row. No on-chain transaction and no
+// wallet signature are required at create time — the delegation grants the
+// background worker autonomous signing for scheduled runs.
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const rl = await rateLimit(`agent-mandate-create:${ip}`, 60, 10);
@@ -66,6 +53,10 @@ export async function POST(req: NextRequest) {
     return auth.response;
   }
 
+  if (!isDelegatedSigningConfigured()) {
+    return noStoreJson({ error: 'Agent signing is not configured.' }, { status: 503 });
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -80,6 +71,15 @@ export async function POST(req: NextRequest) {
       { error: error instanceof Error ? error.message : 'Wallet is not set up for this session.' },
       { status: 400 },
     );
+  }
+
+  // Require the one-time delegation that lets the worker sign this wallet.
+  const xUser = await prisma.xUser.findUnique({
+    where: { xUserId: auth.identity.xUserId },
+    select: { agentDelegatedAt: true },
+  });
+  if (!xUser?.agentDelegatedAt) {
+    return noStoreJson({ error: 'delegation_required' }, { status: 409 });
   }
 
   const resolvedTarget = await resolveEarnMandateTarget({
@@ -102,27 +102,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let userAgent;
-  try {
-    userAgent = await getOrCreateHostedUserAgent(auth.identity.xUserId);
-  } catch (error) {
-    return noStoreJson(
-      { error: error instanceof Error ? error.message : 'Hosted agent provisioning failed.' },
-      { status: 400 },
-    );
-  }
-
-  if (normalizeSuiAddress(parsed.data.spec.agent) !== normalizeSuiAddress(userAgent.agentAddress)) {
-    return noStoreJson(
-      { error: 'Mandate agent does not match your hosted agent' },
-      { status: 400 },
-    );
-  }
-
-  const planValidationError = validatePlanAgainstSpec(
-    parsed.data.spec,
-    parsed.data.plan,
-  );
+  const planValidationError = validatePlanAgainstSpec(parsed.data.spec, parsed.data.plan);
   if (planValidationError) {
     return noStoreJson({ error: planValidationError }, { status: 400 });
   }
@@ -130,13 +110,9 @@ export async function POST(req: NextRequest) {
   try {
     const result = await createMandate({
       owner,
-      userAgent,
       spec: parsed.data.spec,
       plan: parsed.data.plan,
       metadataName: parsed.data.metadataName,
-      authorizationSignature: parsed.data.authorizationSignature,
-      txBytesBase64: parsed.data.txBytesBase64,
-      txIntent: parsed.data.txIntent,
     });
     return noStoreJson(result);
   } catch (error) {
@@ -178,7 +154,6 @@ function validatePlanAgainstSpec(
     if (step.amount > coinLimit.perTxCap) {
       return 'Planned amount exceeds the mandate per-transaction cap';
     }
-
     if (step.amount > coinLimit.periodCap) {
       return 'Planned amount exceeds the mandate period cap';
     }

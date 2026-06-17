@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getRedis } from '@/lib/rate-limit';
 import { acquireRedisLock } from '@/lib/redis-lock';
 import { extractSchedule, nextCronRun } from './cron-util';
-import { executeNextStep } from './executor';
+import { executeMandateNow } from './executor';
 
 export { extractSchedule, nextCronRun };
 
@@ -44,11 +44,9 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
   const mandates = await prisma.agentMandate.findMany({
     where: {
       status: MandateStatus.ACTIVE,
-      userAgentId: { not: null },
-      witnessCommit: { not: null },
       expiryMs: { gt: BigInt(now.getTime()) },
     },
-    select: { id: true, metadata: true, mandateObjectId: true },
+    select: { id: true, metadata: true },
   });
 
   const lastScheduledByMandate = new Map<string, Date>();
@@ -83,7 +81,7 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
     stats.fired += 1;
     const outcome = await fireForMandate(mandate.id);
     if (outcome.status === 'confirmed') stats.queued += 1;
-    else if (outcome.status === 'no_steps_pending') stats.exhausted += 1;
+    else if (outcome.status === 'skipped') stats.skipped += 1;
     else stats.failed += 1;
   }
 
@@ -92,9 +90,9 @@ export async function runScheduledTick(args: { now?: Date } = {}): Promise<TickS
 }
 
 async function fireForMandate(mandateId: string): Promise<
-  Awaited<ReturnType<typeof executeNextStep>>
+  Awaited<ReturnType<typeof executeMandateNow>>
 > {
-  const lock = await acquireRedisLock(`agent-execute:${mandateId}`, 60);
+  const lock = await acquireRedisLock(`agent-execute:${mandateId}`, 120);
   if (lock.status !== 'acquired') {
     return {
       status: 'failed',
@@ -103,7 +101,7 @@ async function fireForMandate(mandateId: string): Promise<
     };
   }
   try {
-    return await executeNextStep({
+    return await executeMandateNow({
       mandateId,
       trigger: ActionTrigger.SCHEDULED,
     });

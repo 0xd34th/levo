@@ -4,23 +4,21 @@ import { ActionTrigger } from '@/lib/generated/prisma/client';
 
 const {
   acquireRedisLockMock,
-  executeNextStepMock,
+  executeMandateNowMock,
   lockReleaseMock,
   prismaMock,
-  queueNextExecutionJobMock,
   rateLimitMock,
   verifyPrivyXAuthMock,
   verifySameOriginMock,
 } = vi.hoisted(() => ({
   acquireRedisLockMock: vi.fn(),
-  executeNextStepMock: vi.fn(),
+  executeMandateNowMock: vi.fn(),
   lockReleaseMock: vi.fn(),
   prismaMock: {
     agentMandate: {
       findFirst: vi.fn(),
     },
   },
-  queueNextExecutionJobMock: vi.fn(),
   rateLimitMock: vi.fn(),
   verifyPrivyXAuthMock: vi.fn(),
   verifySameOriginMock: vi.fn(),
@@ -36,11 +34,7 @@ vi.mock('@/lib/api', async () => {
 });
 
 vi.mock('@/lib/agent/executor', () => ({
-  executeNextStep: executeNextStepMock,
-}));
-
-vi.mock('@/lib/agent/user-agent', () => ({
-  queueNextExecutionJob: queueNextExecutionJobMock,
+  executeMandateNow: executeMandateNowMock,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -92,20 +86,14 @@ describe('POST /api/v1/agent/mandate/[id]/execute', () => {
       release: lockReleaseMock,
     });
     lockReleaseMock.mockResolvedValue(undefined);
-    executeNextStepMock.mockResolvedValue({
+    executeMandateNowMock.mockResolvedValue({
       status: 'confirmed',
       txDigest: '9rL2txDigest',
       actionId: 'action-1',
-      witnessId: 'witness-1',
-      nonceAfter: 2n,
-    });
-    queueNextExecutionJobMock.mockResolvedValue({
-      status: 'queued',
-      job: { id: 'job-1' },
     });
   });
 
-  it('runs the hosted agent execution internally instead of queueing an external runner job', async () => {
+  it('runs the mandate execution internally and returns the outcome', async () => {
     const res = await postExecute();
 
     expect(res.status).toBe(200);
@@ -113,14 +101,11 @@ describe('POST /api/v1/agent/mandate/[id]/execute', () => {
       status: 'confirmed',
       txDigest: '9rL2txDigest',
       actionId: 'action-1',
-      witnessId: 'witness-1',
-      nonceAfter: '2',
     });
-    expect(executeNextStepMock).toHaveBeenCalledWith({
+    expect(executeMandateNowMock).toHaveBeenCalledWith({
       mandateId: 'mandate-1',
       trigger: ActionTrigger.CHAT,
     });
-    expect(queueNextExecutionJobMock).not.toHaveBeenCalled();
     expect(lockReleaseMock).toHaveBeenCalled();
   });
 });

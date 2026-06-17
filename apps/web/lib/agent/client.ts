@@ -77,22 +77,15 @@ export interface MandateDetailResponse {
 
 export type CreateConfirmedResponse = {
   status: 'confirmed';
-  txDigest: string;
   mandateRowId: string;
-  mandateObjectId: string;
-  witnessChainLength: number;
-  initAuthorizationRequest: PrivyAuthorizationRequest;
-  initTxBytesBase64: string;
-  initTxIntent: string;
 };
 
 export type SimpleConfirmedResponse = { status: 'confirmed'; txDigest: string };
 
-export type InitializeConfirmedResponse = {
-  status: 'confirmed';
-  txDigest: string;
-  witnessCommit: string;
-};
+export interface DelegationStatus {
+  signerId: string;
+  delegated: boolean;
+}
 
 export type ExecuteResponse =
   | {
@@ -264,54 +257,42 @@ export interface CreateMandatePayload {
   metadataName?: string;
 }
 
+// Create a DB-scheduled mandate. No wallet signature at create time — execution
+// is authorized by the one-time wallet delegation (see fetchDelegationStatus /
+// confirmDelegation). Throws a `delegation_required` Error if the wallet has not
+// been delegated yet.
 export async function createMandate(
-  ctx: AuthContext,
+  ctx: Pick<AuthContext, 'getAccessToken' | 'identityToken'>,
   payload: CreateMandatePayload,
 ): Promise<CreateConfirmedResponse> {
-  return twoStepPrivy<CreateConfirmedResponse>({
-    ctx,
-    url: '/api/v1/agent/mandate/create',
-    prepareBody: payload,
-  });
+  return postJson<CreateConfirmedResponse>(ctx, '/api/v1/agent/mandate/create', payload);
 }
 
-// initialize is special: server pre-built the init tx during create and returned it
-// + the auth request in the create response. The client can fast-path by passing both
-// straight to /initialize without an extra "prepare" round-trip.
-export async function initializeMandateWithPrebuilt(
-  ctx: AuthContext,
-  args: {
-    mandateRowId: string;
-    initAuthorizationRequest: PrivyAuthorizationRequest;
-    initTxBytesBase64: string;
-    initTxIntent: string;
-  },
-): Promise<InitializeConfirmedResponse> {
-  const { signature } = await ctx.generateAuthorizationSignature(
-    args.initAuthorizationRequest,
-  );
-  return postJson<InitializeConfirmedResponse>(
-    ctx,
-    `/api/v1/agent/mandate/${args.mandateRowId}/initialize`,
-    {
-      authorizationSignature: signature,
-      txBytesBase64: args.initTxBytesBase64,
-      txIntent: args.initTxIntent,
-    },
-  );
+export function isDelegationRequiredError(err: unknown): boolean {
+  return err instanceof Error && err.message === 'delegation_required';
 }
 
-// Fallback: server rebuilds the init tx (e.g., after a page reload that lost the
-// in-memory init tx). Uses the standard 2-step pattern.
-export async function initializeMandate(
-  ctx: AuthContext,
-  mandateRowId: string,
-): Promise<InitializeConfirmedResponse> {
-  return twoStepPrivy<InitializeConfirmedResponse>({
-    ctx,
-    url: `/api/v1/agent/mandate/${mandateRowId}/initialize`,
-    prepareBody: {},
-  });
+// The platform signer (key quorum) id to add to the embedded wallet, and whether
+// this user has already delegated.
+export async function fetchDelegationStatus(
+  ctx: Pick<AuthContext, 'getAccessToken' | 'identityToken'>,
+): Promise<DelegationStatus> {
+  const res = await privyAuthenticatedFetch(
+    ctx.getAccessToken,
+    '/api/v1/agent/delegate',
+    { method: 'GET', cache: 'no-store' },
+    { identityToken: ctx.identityToken },
+  );
+  if (!res.ok) throw new Error(`delegation status failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+// Record the user's delegation consent after the client added the platform signer
+// to the embedded wallet via Privy.
+export async function confirmDelegation(
+  ctx: Pick<AuthContext, 'getAccessToken' | 'identityToken'>,
+): Promise<{ ok: boolean }> {
+  return postJson<{ ok: boolean }>(ctx, '/api/v1/agent/delegate', {});
 }
 
 export async function executeMandate(

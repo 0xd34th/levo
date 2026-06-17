@@ -596,7 +596,7 @@ const jobPayloadInclude = {
 type JobWithPayload = AgentExecutionJob & {
   mandate: {
     id: string;
-    mandateObjectId: string;
+    mandateObjectId: string | null;
     agentAddress: string;
   };
   witness: AgentWitness | null;
@@ -626,7 +626,7 @@ export function serializeRunnerJobPayload(job: JobWithPayload): RunnerJobPayload
   return {
     id: job.id,
     mandateId: job.mandate.id,
-    mandateObjectId: job.mandate.mandateObjectId,
+    mandateObjectId: job.mandate.mandateObjectId ?? '',
     agentAddress: job.mandate.agentAddress,
     trigger: job.trigger,
     packageId: getLevoAgentPackageId(),
@@ -692,7 +692,7 @@ export async function submitRunnerResult(args: {
     await markJobFailed(job.id, response.effects?.status.error ?? 'transaction failed on-chain', args.txDigest);
     return { status: 'failed', reason: response.effects?.status.error ?? 'transaction failed on-chain' };
   }
-  const consumed = extractWitnessConsumed(response, job.mandate.mandateObjectId);
+  const consumed = extractWitnessConsumed(response, job.mandate.mandateObjectId ?? '');
   if (!consumed) {
     await markJobFailed(job.id, 'WitnessConsumed event not found for mandate', args.txDigest);
     return { status: 'failed', reason: 'WitnessConsumed event not found for mandate' };
