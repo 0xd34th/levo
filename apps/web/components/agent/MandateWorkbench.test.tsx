@@ -211,4 +211,27 @@ describe('/agent hosted chat workspace', () => {
     expect(host.textContent).not.toContain('Copy setup prompt');
     expect(host.textContent).not.toContain('runner token');
   });
+
+  it('refetches mandates and runs on window focus so background runs surface without a reload', async () => {
+    privyState.authenticated = true;
+    privyState.user = {
+      id: 'privy-user-a',
+      twitter: { subject: 'twitter-user-a' },
+    };
+    fetchMandatesMock.mockResolvedValue([ACTIVE_MANDATE]);
+    fetchMandateMock.mockResolvedValue(DETAIL);
+
+    await renderWorkbench();
+
+    const mandatesAfterMount = fetchMandatesMock.mock.calls.length;
+    const detailAfterMount = fetchMandateMock.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(fetchMandatesMock.mock.calls.length).toBeGreaterThan(mandatesAfterMount);
+    expect(fetchMandateMock.mock.calls.length).toBeGreaterThan(detailAfterMount);
+  });
 });

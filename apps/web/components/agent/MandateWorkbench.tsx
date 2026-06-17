@@ -63,7 +63,9 @@ export function MandateWorkbench() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  // `silent` skips the loading spinner and error banner so background refreshes
+  // (the visibility poll below) update the panels without UI flicker.
+  const reload = useCallback(async (options?: { silent?: boolean }) => {
     if (!ready || !authenticated) {
       setConfig(null);
       setMandates([]);
@@ -71,8 +73,11 @@ export function MandateWorkbench() {
       setDetail(null);
       return;
     }
-    setLoading(true);
-    setError(null);
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [nextConfig, rows] = await Promise.all([
         fetchAgentConfig(getAccessToken, identityToken),
@@ -82,13 +87,13 @@ export function MandateWorkbench() {
       setMandates(rows);
       setSelectedId((current) => current ?? rows[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load hosted agent workspace');
+      if (!silent) setError(err instanceof Error ? err.message : 'Failed to load hosted agent workspace');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [authenticated, getAccessToken, identityToken, ready]);
 
-  const reloadDetail = useCallback(async () => {
+  const reloadDetail = useCallback(async (options?: { silent?: boolean }) => {
     if (!ready || !authenticated || !selectedId) {
       setDetail(null);
       return;
@@ -96,8 +101,12 @@ export function MandateWorkbench() {
     try {
       setDetail(await fetchMandate(getAccessToken, identityToken ?? null, selectedId));
     } catch (err) {
-      setDetail(null);
-      setError(err instanceof Error ? err.message : 'Failed to load mandate runs');
+      // On a background poll, keep the last good detail rather than blanking the
+      // Recent runs panel on a transient failure.
+      if (!(options?.silent ?? false)) {
+        setDetail(null);
+        setError(err instanceof Error ? err.message : 'Failed to load mandate runs');
+      }
     }
   }, [authenticated, getAccessToken, identityToken, ready, selectedId]);
 
@@ -108,6 +117,30 @@ export function MandateWorkbench() {
   useEffect(() => {
     void reloadDetail();
   }, [reloadDetail]);
+
+  // The hosted worker fires mandates in the background with no client push, so
+  // poll while the tab is visible and refetch on focus / tab re-show. This keeps
+  // "Recent runs" and the next-run label current after an autonomous run without
+  // a manual page reload. Skipped while hidden to avoid background-tab churn.
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void reload({ silent: true });
+      void reloadDetail({ silent: true });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const intervalId = window.setInterval(refresh, 30_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [ready, authenticated, reload, reloadDetail]);
 
   const selectedMandate = useMemo(
     () => detail?.mandate ?? mandates.find((mandate) => mandate.id === selectedId) ?? null,
