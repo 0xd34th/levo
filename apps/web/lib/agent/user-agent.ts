@@ -1,25 +1,13 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
 import {
-  MandateStatus,
   UserAgentCustodyMode,
   UserAgentStatus,
   type UserAgent,
 } from '@/lib/generated/prisma/client';
-import { hasValidHmacSecret } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { createScopedHmac, hasMatchingHmac } from '@/lib/scoped-hmac';
 
-const OWNER_BINDING_SCOPE = 'agent-owner-binding-v1';
-const OWNER_BINDING_TTL_MS = 10 * 60 * 1000;
-const RUNNER_TOKEN_PREFIX = 'lvo_runner_';
 const HOSTED_AGENT_LABEL = 'Levo hosted agent';
 const HOSTED_AGENT_KEY_VERSION = 'v1';
 const HOSTED_AGENT_ENCRYPTION_ENV = 'LEVO_HOSTED_AGENT_ENCRYPTION_KEY';
@@ -34,61 +22,6 @@ interface HostedSeedEnvelope {
   iv: string;
   ciphertext: string;
   tag: string;
-}
-
-export interface SerializedUserAgent {
-  id: string;
-  agentAddress: string;
-  label: string;
-  status: UserAgent['status'];
-  isDefault: boolean;
-  custodyMode: UserAgent['custodyMode'];
-  hostedProvisionedAt: string | null;
-  hasRunnerToken: boolean;
-  lastHeartbeatAt: string | null;
-  runnerTokenRotatedAt: string | null;
-  createdAt: string;
-}
-
-export function serializeUserAgent(agent: UserAgent): SerializedUserAgent {
-  return {
-    id: agent.id,
-    agentAddress: agent.agentAddress,
-    label: agent.label,
-    status: agent.status,
-    isDefault: agent.isDefault,
-    custodyMode: agent.custodyMode,
-    hostedProvisionedAt: agent.hostedProvisionedAt?.toISOString() ?? null,
-    hasRunnerToken: Boolean(agent.runnerTokenHash),
-    lastHeartbeatAt: agent.lastHeartbeatAt?.toISOString() ?? null,
-    runnerTokenRotatedAt: agent.runnerTokenRotatedAt?.toISOString() ?? null,
-    createdAt: agent.createdAt.toISOString(),
-  };
-}
-
-interface OwnerAgentBindingPayload {
-  v: 1;
-  ownerXUserId: string;
-  ownerAddress: string;
-  agentAddress: string;
-  label: string;
-  nonce: string;
-  issuedAt: number;
-  expiresAt: number;
-}
-
-export type OwnerAgentBindingIntentVerification =
-  | { ok: true }
-  | {
-      ok: false;
-      reason:
-        | 'agent binding intent invalid'
-        | 'agent binding intent expired'
-        | 'agent binding intent mismatch';
-    };
-
-export function normalizeUserAgentLabel(label?: string): string {
-  return label?.trim() || 'External agent';
 }
 
 export function encryptHostedAgentSeed(
@@ -151,6 +84,9 @@ export function decryptHostedAgentSeed(encryptedSeed: Uint8Array): Uint8Array {
   return Uint8Array.from(seed);
 }
 
+// Provision (or load) the per-user hosted agent identity. Its address is shown in
+// the agent config; with non-custodial delegated execution the hosted key no
+// longer signs anything, but the record is kept for display/config continuity.
 export async function getOrCreateHostedUserAgent(xUserId: string): Promise<UserAgent> {
   const existing = await prisma.userAgent.findFirst({
     where: {
@@ -202,262 +138,6 @@ export async function getOrCreateHostedUserAgent(xUserId: string): Promise<UserA
   });
 }
 
-export function getHostedAgentKeypair(
-  userAgent: Pick<UserAgent, 'agentAddress' | 'custodyMode' | 'hostedEncryptedSeed'>,
-): Ed25519Keypair {
-  if (userAgent.custodyMode !== UserAgentCustodyMode.HOSTED || !userAgent.hostedEncryptedSeed) {
-    throw new Error('Mandate agent is not a hosted Levo agent.');
-  }
-  const keypair = Ed25519Keypair.fromSecretKey(
-    decryptHostedAgentSeed(userAgent.hostedEncryptedSeed),
-  );
-  const derivedAddress = normalizeSuiAddress(keypair.getPublicKey().toSuiAddress());
-  const storedAddress = normalizeSuiAddress(userAgent.agentAddress);
-  if (derivedAddress !== storedAddress) {
-    throw new Error('Hosted agent key does not match the stored agent address.');
-  }
-  return keypair;
-}
-
-export function issueOwnerAgentBindingIntent(args: {
-  ownerXUserId: string;
-  ownerAddress: string;
-  agentAddress: string;
-  label?: string;
-  nowMs?: number;
-}): { bindingIntent: string; payloadBase64: string; expiresAt: string } {
-  const secret = getAgentHmacSecret();
-  const now = args.nowMs ?? Date.now();
-  const payload: OwnerAgentBindingPayload = {
-    v: 1,
-    ownerXUserId: args.ownerXUserId,
-    ownerAddress: normalizeSuiAddress(args.ownerAddress),
-    agentAddress: normalizeSuiAddress(args.agentAddress),
-    label: normalizeUserAgentLabel(args.label),
-    nonce: randomBytes(16).toString('base64url'),
-    issuedAt: now,
-    expiresAt: now + OWNER_BINDING_TTL_MS,
-  };
-  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const mac = createScopedHmac(payloadB64, secret, OWNER_BINDING_SCOPE);
-  return {
-    bindingIntent: `${payloadB64}.${mac}`,
-    payloadBase64: Buffer.from(buildOwnerAgentBindingMessage(payload)).toString('base64'),
-    expiresAt: new Date(payload.expiresAt).toISOString(),
-  };
-}
-
-export function verifyOwnerAgentBindingIntent(
-  token: string | undefined,
-  binding: {
-    ownerXUserId: string;
-    ownerAddress: string;
-    agentAddress: string;
-    label?: string;
-    payloadBase64: string;
-  },
-  nowMs = Date.now(),
-): OwnerAgentBindingIntentVerification {
-  const payload = verifyOwnerAgentBindingPayload(token);
-  if (!payload) return { ok: false, reason: 'agent binding intent invalid' };
-  if (payload.expiresAt <= nowMs) {
-    return { ok: false, reason: 'agent binding intent expired' };
-  }
-
-  const expected = {
-    ownerXUserId: binding.ownerXUserId,
-    ownerAddress: normalizeSuiAddress(binding.ownerAddress),
-    agentAddress: normalizeSuiAddress(binding.agentAddress),
-    label: normalizeUserAgentLabel(binding.label),
-    payloadBase64: Buffer.from(buildOwnerAgentBindingMessage(payload)).toString('base64'),
-  };
-  const actual = {
-    ownerXUserId: payload.ownerXUserId,
-    ownerAddress: payload.ownerAddress,
-    agentAddress: payload.agentAddress,
-    label: payload.label,
-    payloadBase64: binding.payloadBase64,
-  };
-  if (
-    actual.ownerXUserId !== expected.ownerXUserId ||
-    actual.ownerAddress !== expected.ownerAddress ||
-    actual.agentAddress !== expected.agentAddress ||
-    actual.label !== expected.label ||
-    actual.payloadBase64 !== expected.payloadBase64
-  ) {
-    return { ok: false, reason: 'agent binding intent mismatch' };
-  }
-  return { ok: true };
-}
-
-function verifyOwnerAgentBindingPayload(token: string | undefined): OwnerAgentBindingPayload | null {
-  if (!token) return null;
-  const dot = token.indexOf('.');
-  if (dot === -1) return null;
-  const payloadB64 = token.slice(0, dot);
-  const received = token.slice(dot + 1);
-  const expected = createScopedHmac(payloadB64, getAgentHmacSecret(), OWNER_BINDING_SCOPE);
-  if (!hasMatchingHmac(received, [expected])) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString()) as Partial<OwnerAgentBindingPayload>;
-    if (!isOwnerAgentBindingPayload(payload)) return null;
-    return {
-      v: 1,
-      ownerXUserId: payload.ownerXUserId,
-      ownerAddress: normalizeSuiAddress(payload.ownerAddress),
-      agentAddress: normalizeSuiAddress(payload.agentAddress),
-      label: normalizeUserAgentLabel(payload.label),
-      nonce: payload.nonce,
-      issuedAt: payload.issuedAt,
-      expiresAt: payload.expiresAt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function isOwnerAgentBindingPayload(value: unknown): value is OwnerAgentBindingPayload {
-  if (!value || typeof value !== 'object') return false;
-  const payload = value as Partial<OwnerAgentBindingPayload>;
-  return (
-    payload.v === 1 &&
-    typeof payload.ownerXUserId === 'string' &&
-    typeof payload.ownerAddress === 'string' &&
-    typeof payload.agentAddress === 'string' &&
-    typeof payload.label === 'string' &&
-    typeof payload.nonce === 'string' &&
-    Number.isFinite(payload.issuedAt) &&
-    Number.isFinite(payload.expiresAt)
-  );
-}
-
-function buildOwnerAgentBindingMessage(payload: OwnerAgentBindingPayload): string {
-  return [
-    'Levo BYO Agent Binding',
-    `Owner X User: ${payload.ownerXUserId}`,
-    `Owner Wallet: ${payload.ownerAddress}`,
-    `Agent: ${payload.agentAddress}`,
-    `Label: ${payload.label}`,
-    `Nonce: ${payload.nonce}`,
-    `Expires: ${new Date(payload.expiresAt).toISOString()}`,
-  ].join('\n');
-}
-
-export async function registerUserAgent(args: {
-  xUserId: string;
-  agentAddress: string;
-  label?: string;
-}): Promise<{ agent: UserAgent; runnerToken: string }> {
-  const runnerToken = generateRunnerToken();
-  const runnerTokenHash = hashRunnerToken(runnerToken);
-  const label = normalizeUserAgentLabel(args.label);
-  const agentAddress = normalizeSuiAddress(args.agentAddress);
-
-  return prisma.$transaction(async (tx) => {
-    await tx.userAgent.updateMany({
-      where: { xUserId: args.xUserId, isDefault: true },
-      data: { isDefault: false },
-    });
-    const agent = await tx.userAgent.upsert({
-      where: {
-        xUserId_agentAddress: {
-          xUserId: args.xUserId,
-          agentAddress,
-        },
-      },
-      create: {
-        xUserId: args.xUserId,
-        agentAddress,
-        label,
-        status: UserAgentStatus.ACTIVE,
-        isDefault: true,
-        runnerTokenHash,
-        runnerTokenRotatedAt: new Date(),
-      },
-      update: {
-        label,
-        status: UserAgentStatus.ACTIVE,
-        isDefault: true,
-        runnerTokenHash,
-        runnerTokenRotatedAt: new Date(),
-        revokedAt: null,
-      },
-    });
-    return { agent, runnerToken };
-  });
-}
-
-export async function getDefaultUserAgent(xUserId: string): Promise<UserAgent | null> {
-  return prisma.userAgent.findFirst({
-    where: { xUserId, status: UserAgentStatus.ACTIVE, isDefault: true },
-    orderBy: { updatedAt: 'desc' },
-  });
-}
-
-export async function rotateRunnerToken(args: {
-  xUserId: string;
-  userAgentId: string;
-}): Promise<{ agent: UserAgent; runnerToken: string } | null> {
-  const runnerToken = generateRunnerToken();
-  const existing = await prisma.userAgent.findFirst({
-    where: { id: args.userAgentId, xUserId: args.xUserId },
-  });
-  if (!existing) return null;
-  const agent = await prisma.userAgent.update({
-    where: { id: existing.id },
-    data: {
-      runnerTokenHash: hashRunnerToken(runnerToken),
-      runnerTokenRotatedAt: new Date(),
-      status: UserAgentStatus.ACTIVE,
-      revokedAt: null,
-    },
-  });
-  return { agent, runnerToken };
-}
-
-export async function revokeUserAgent(args: {
-  xUserId: string;
-  userAgentId: string;
-}): Promise<UserAgent | null> {
-  const existing = await prisma.userAgent.findFirst({
-    where: { id: args.userAgentId, xUserId: args.xUserId },
-  });
-  if (!existing) return null;
-  const agent = await prisma.userAgent.update({
-    where: { id: existing.id },
-    data: {
-      status: UserAgentStatus.REVOKED,
-      isDefault: false,
-      runnerTokenHash: null,
-      revokedAt: new Date(),
-    },
-  });
-  await prisma.agentMandate.updateMany({
-    where: {
-      xUserId: args.xUserId,
-      userAgentId: args.userAgentId,
-      status: MandateStatus.ACTIVE,
-    },
-    data: { status: MandateStatus.PAUSED_BY_USER },
-  });
-  return agent;
-}
-
-export function generateRunnerToken(): string {
-  return `${RUNNER_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
-}
-
-export function hashRunnerToken(token: string): string {
-  return createHash('sha256').update(token).digest('base64url');
-}
-
-export function hasMatchingRunnerToken(token: string, expectedHash: string): boolean {
-  const actual = Buffer.from(hashRunnerToken(token), 'base64url');
-  const expected = Buffer.from(expectedHash, 'base64url');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
-
-
 function loadHostedAgentEncryptionKey(): Buffer {
   const raw = process.env[HOSTED_AGENT_ENCRYPTION_ENV]?.trim();
   if (!raw || raw === 'replace-me') {
@@ -474,12 +154,4 @@ function loadHostedAgentEncryptionKey(): Buffer {
     throw new Error(`${HOSTED_AGENT_ENCRYPTION_ENV} must decode to ${AES_256_GCM_KEY_BYTES} bytes; got ${key.length}.`);
   }
   return key;
-}
-
-function getAgentHmacSecret(): string {
-  const secret = process.env.HMAC_SECRET;
-  if (!hasValidHmacSecret(secret)) {
-    throw new Error('HMAC_SECRET must be configured before binding user agents.');
-  }
-  return secret;
 }
