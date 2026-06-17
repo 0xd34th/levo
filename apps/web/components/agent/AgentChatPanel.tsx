@@ -123,7 +123,6 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
       { label: 'SUI price', prompt: 'How is SUI performing today?' },
       { label: 'Trending coins', prompt: 'What coins are trending on Sui in the last 24 hours?' },
       { label: 'Top DEX pools', prompt: 'Show me the top DEX pools on Sui by volume.' },
-      { label: 'New listings', prompt: 'What new tokens were listed on Sui this week?' },
     ],
   },
   {
@@ -172,6 +171,16 @@ const COMMAND_GROUPS: Array<{ label: string; commands: Command[] }> = [
     ],
   },
 ];
+
+// Single-tap prompts kept above the composer after a conversation starts (the
+// full EmptyState only shows while the thread is empty). Pure prompt commands
+// only — input presets, trade surfaces, and mandate handoffs need the surfaces
+// that EmptyState renders.
+const QUICK_PROMPTS: PromptCommand[] = COMMAND_GROUPS.flatMap((group) =>
+  group.commands.filter(
+    (command): command is PromptCommand => 'prompt' in command && !('intent' in command),
+  ),
+);
 
 // Chat panel powered by DeepSeek + AI SDK v5 useChat. It combines Sui explorer
 // tools with mandate inspection/handoff while keeping signing outside chat.
@@ -319,6 +328,22 @@ export function AgentChatPanel({
           </p>
         )}
       </div>
+
+      {messages.length > 0 && (
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {QUICK_PROMPTS.map((command) => (
+            <button
+              key={command.label}
+              type="button"
+              disabled={busy}
+              onClick={() => pickCommand(command)}
+              className="shrink-0 rounded-full border border-[color:var(--border)] bg-background px-3 py-1.5 text-[12px] font-medium transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--raise)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {command.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form
         onSubmit={async (e) => {

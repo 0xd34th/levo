@@ -206,11 +206,14 @@ function DeFiCard({ data }: { data: AnyRecord }) {
       </div>
       {positions.length ? (
         <ResultList
-          items={positions.slice(0, 6).map((position) => ({
-            title: firstString(position, ['protocol', 'platform', 'name', 'poolName', 'type'], 'Position'),
-            subtitle: firstString(position, ['asset', 'symbol', 'coinType', 'pool'], 'Sui DeFi'),
-            value: usdValue(firstDefined(position, ['usdValue', 'valueUsd', 'value', 'totalValue'])),
-          }))}
+          items={positions.slice(0, 8).map((position) => {
+            const rawValue = firstDefined(position, ['usdValue', 'valueUsd', 'value', 'totalValue']);
+            return {
+              title: capitalize(firstString(position, ['protocol', 'platform', 'name', 'poolName', 'type'], 'Position')),
+              subtitle: firstString(position, ['categories', 'asset', 'symbol', 'coinType', 'pool'], 'Sui DeFi'),
+              value: numberValue(rawValue) ? usdValue(rawValue) : undefined,
+            };
+          })}
         />
       ) : (
         <EmptyResult text="No DeFi positions returned." />

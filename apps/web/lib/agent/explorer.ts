@@ -11,6 +11,15 @@ const SUI_CHAIN_INDEX = '784';
 const USDC_COIN =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
+// BlockVision's /account/defiPortfolio is per-protocol (no aggregate value), so
+// we fan out across the protocols it currently supports and keep the ones with
+// holdings. Verified against the live API; extend as BlockVision adds more.
+const DEFI_PROTOCOLS = [
+  'scallop', 'navi', 'suilend', 'cetus', 'turbos', 'bluefin', 'kriya',
+  'aftermath', 'bucket', 'haedal', 'volo', 'alphafi', 'typus', 'momentum',
+  'flowx', 'steamm', 'kai',
+] as const;
+
 export interface ExplorerToolContext {
   xUserId: string;
   senderAddress?: string;
@@ -168,6 +177,24 @@ async function resolveAddressOrName(addressOrName: string | undefined, fallback?
     if (resolved) return normalizeSuiAddress(resolved);
   }
   throw new Error(`Could not resolve Sui address: ${value}`);
+}
+
+// A protocol holds positions when any nested array has entries (BlockVision
+// returns protocol-specific shapes like { lendings: [...] } or { lps: [...] }).
+function defiHasPositions(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') {
+    return Object.values(value as JsonRecord).some(defiHasPositions);
+  }
+  return false;
+}
+
+// The top-level keys that actually contain holdings (e.g. "lendings", "lps").
+function defiCategories(payload: JsonRecord): string {
+  return Object.entries(payload)
+    .filter(([, value]) => defiHasPositions(value))
+    .map(([key]) => key)
+    .join(', ');
 }
 
 interface CoinMetadata {
@@ -562,7 +589,7 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
         try {
           const data = await bvGet<{ data?: JsonRecord[]; items?: JsonRecord[] }>(
             '/account/activities',
-            { account: address, pageSize: input.limit },
+            { address, pageSize: input.limit },
             30,
           );
           items.push(...(data.data ?? data.items ?? []).slice(0, input.limit));
@@ -584,22 +611,36 @@ export function buildExplorerTools(ctx: ExplorerToolContext) {
     }),
 
     get_defi_positions: tool({
-      description: "Fetch DeFi positions for a Sui wallet, using BlockVision when available.",
+      description:
+        "Fetch DeFi positions for a Sui wallet across major Sui protocols (BlockVision). If addressOrName is omitted, use the server-resolved caller wallet.",
       inputSchema: z.object({ addressOrName: AddressInput }),
       async execute(input) {
         const address = await resolveAddressOrName(input.addressOrName, ctx.senderAddress);
-        try {
-          const data = await bvGet<JsonRecord>('/account/defi/positions', { account: address }, 60);
-          return { kind: 'defi-card', address, source: 'blockvision', positions: data };
-        } catch (error) {
-          return {
-            kind: 'defi-card',
-            address,
-            source: 'unavailable',
-            positions: [],
-            warning: error instanceof Error ? error.message : 'DeFi positions unavailable',
-          };
+        const settled = await Promise.allSettled(
+          DEFI_PROTOCOLS.map(async (protocol) => {
+            const data = await bvGet<JsonRecord>('/account/defiPortfolio', { address, protocol }, 60);
+            const payload = (data?.[protocol] as JsonRecord | undefined) ?? data;
+            return { protocol, payload };
+          }),
+        );
+        const positions: JsonRecord[] = [];
+        let failures = 0;
+        for (const result of settled) {
+          if (result.status !== 'fulfilled') {
+            failures += 1;
+            continue;
+          }
+          const { protocol, payload } = result.value;
+          if (!payload || !defiHasPositions(payload)) continue;
+          positions.push({ protocol, categories: defiCategories(payload) });
         }
+        return {
+          kind: 'defi-card',
+          address,
+          source: failures === DEFI_PROTOCOLS.length ? 'unavailable' : 'blockvision',
+          positions,
+          ...(failures > 0 ? { warning: `${failures} DeFi providers were unavailable.` } : {}),
+        };
       },
     }),
 
