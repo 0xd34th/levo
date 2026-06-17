@@ -10,7 +10,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
-import { SUI_COIN_TYPE } from '@/lib/coins';
+import { MAINNET_USDC_TYPE } from '@/lib/coins';
 import type { AgentMandateConfig } from '@/lib/agent/config';
 import {
   buildCreateMandatePayload,
@@ -272,7 +272,7 @@ export function MandateCreateForm({
               Based on: {activeIntent}
             </p>
             <p className="mt-1 text-[12px]" style={{ color: 'var(--text-soft)' }}>
-              Agent: {effectiveConfig.agentAddress ? shortAddress(effectiveConfig.agentAddress) : 'provisioning'} · Hosted testnet
+              Runs on schedule from your delegated wallet · mainnet
             </p>
           </div>
           <Button
@@ -371,7 +371,7 @@ export function MandateCreateForm({
               <SelectField
                 label="Coin type"
                 value={state.coinType}
-                options={[{ value: SUI_COIN_TYPE, label: 'SUI' }]}
+                options={[{ value: MAINNET_USDC_TYPE, label: 'USDC' }]}
                 onChange={(value) => setField('coinType', value)}
                 disabled={disabled}
               />
@@ -460,15 +460,11 @@ export function MandateCreateForm({
         </div>
         <div className="flex items-center gap-1.5">
           <Coins className="size-3.5" />
-          Caps are enforced on-chain
+          Caps enforced per run and per period
         </div>
       </div>
     </div>
   );
-}
-
-function shortAddress(addr: string): string {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function AgentConfigNotice({

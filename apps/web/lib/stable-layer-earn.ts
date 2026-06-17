@@ -811,38 +811,40 @@ async function inspectGlobalClaimableRewardUsdb(params: {
     }
   }
 
-  // Fallback: read farm's internal state directly (may undercount unreleased yield).
-  const stableLayerClient = await getStableLayerClient(params.senderAddress);
-  const constants = stableLayerClient.getConstants();
-  const tx = new Transaction();
-  tx.setSender(params.senderAddress);
-  tx.moveCall({
-    target: `${constants.STABLE_VAULT_FARM_PACKAGE_ID}::stable_vault_farm::claimable_amount`,
-    typeArguments: [
-      constants.STABLE_LP_TYPE,
-      constants.USDC_TYPE,
-      params.stableCoinType,
-      constants.YUSDB_TYPE,
-      constants.SAVING_TYPE,
-    ],
-    arguments: [getTransactionObjectArgument(tx, constants.STABLE_VAULT_FARM)],
-  });
+  // Fallback (no manager signer): best-effort read of the farm's internal state.
+  // This is unreliable (it sees only settled state, 0 until a claim/pay executes)
+  // and the direct `stable_vault_farm::claimable_amount` call can be rejected
+  // on-chain ("Incorrect number of arguments") since its mainnet signature also
+  // takes saving-pool / yield-vault / clock objects. Treat any failure as
+  // "unknown" (0) instead of throwing, so the caller marks the value unreliable.
+  try {
+    const stableLayerClient = await getStableLayerClient(params.senderAddress);
+    const constants = stableLayerClient.getConstants();
+    const tx = new Transaction();
+    tx.setSender(params.senderAddress);
+    tx.moveCall({
+      target: `${constants.STABLE_VAULT_FARM_PACKAGE_ID}::stable_vault_farm::claimable_amount`,
+      typeArguments: [
+        constants.STABLE_LP_TYPE,
+        constants.USDC_TYPE,
+        params.stableCoinType,
+        constants.YUSDB_TYPE,
+        constants.SAVING_TYPE,
+      ],
+      arguments: [getTransactionObjectArgument(tx, constants.STABLE_VAULT_FARM)],
+    });
 
-  const result = await getSuiClient().devInspectTransactionBlock({
-    sender: params.senderAddress,
-    transactionBlock: tx,
-  });
-  const failureMessage = getDevInspectFailureMessage(result);
-  if (failureMessage) {
-    throw new Error(failureMessage);
+    const result = await getSuiClient().devInspectTransactionBlock({
+      sender: params.senderAddress,
+      transactionBlock: tx,
+    });
+    if (getDevInspectFailureMessage(result)) {
+      return 0n;
+    }
+    return parseLastDevInspectU64(result) ?? 0n;
+  } catch {
+    return 0n;
   }
-
-  const amount = parseLastDevInspectU64(result);
-  if (amount === null) {
-    throw new Error('StableLayer claimable amount inspect returned no u64');
-  }
-
-  return amount;
 }
 
 async function buildUserEarnTransaction(params: {

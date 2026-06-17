@@ -65,9 +65,9 @@ describe('mandate draft builder', () => {
       target: TARGET,
     });
     expect(result.payload?.spec.coinLimits[0]).toMatchObject({
-      coinType: SUI_COIN_TYPE,
-      perTxCap: '1000000000',
-      periodCap: '10000000000',
+      coinType: MAINNET_USDC_TYPE,
+      perTxCap: '1000000',
+      periodCap: '10000000',
     });
   });
 
@@ -129,15 +129,17 @@ describe('mandate draft builder', () => {
     expect(result.errors[0]).toBe('Wallet binding has an invalid Sui address.');
   });
 
-  it('blocks scheduled plans over the v1 64-run cap', () => {
+  it('caps the planned-run estimate instead of blocking high-frequency schedules', () => {
+    // DB-scheduled mandates rerun on their cron until expiry; the planned-run
+    // count is only a display estimate, so a high-frequency schedule is allowed.
     const state = {
       ...createInitialAgentMandateDraftState('daily harvest', CONFIG.templates[0]),
       expiryDays: '90' as const,
     };
     const result = buildCreateMandatePayload(state, CONFIG, NOW);
 
-    expect(result.payload).toBeNull();
-    expect(result.plannedRunCount).toBe(90);
-    expect(result.errors).toContain('V1 supports at most 64 planned runs. Shorten expiry or lower frequency.');
+    expect(result.errors).toEqual([]);
+    expect(result.payload).not.toBeNull();
+    expect(result.plannedRunCount).toBe(64);
   });
 });

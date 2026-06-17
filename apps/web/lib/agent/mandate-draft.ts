@@ -1,4 +1,4 @@
-import { getCoinDecimals, SUI_COIN_TYPE } from '@/lib/coins';
+import { getCoinDecimals, MAINNET_USDC_TYPE } from '@/lib/coins';
 import { nextCronRun } from './cron-util';
 import type { AgentMandateConfig, AgentMandateTemplate } from './config';
 import type { CreateMandatePayload } from './client';
@@ -84,10 +84,9 @@ export function createInitialAgentMandateDraftState(
     perTxCap: amount,
     periodCap: multiplyDecimalString(amount, 10),
     expiryDays: '30',
-    // Agent flows run on Sui testnet (see lib/agent/sui-client.ts), where the
-    // mainnet USDC package does not exist. SUI resolves on every network, so the
-    // create-mandate transaction can be checked/built on testnet.
-    coinType: SUI_COIN_TYPE,
+    // Earn mandates deposit/withdraw USDC on mainnet; caps and the per-run amount
+    // are denominated in USDC.
+    coinType: MAINNET_USDC_TYPE,
     templateId: template?.id ?? 'stablelayer-earn',
     customCron: DAILY_CRON,
     periodMs: CADENCE_PERIOD_MS[cadence],
@@ -160,7 +159,7 @@ export function buildCreateMandatePayload(
   const expiryDays = Number.parseInt(state.expiryDays, 10);
   const schedule = scheduleForState(state, errors);
   const expiryMsBigint = BigInt(nowMs + expiryDays * 86_400_000);
-  const plannedRunCount = plannedRunsForState(state, nowMs, Number(expiryMsBigint), schedule, errors);
+  const plannedRunCount = plannedRunsForState(state, nowMs, Number(expiryMsBigint), schedule);
 
   if (perTxCap !== null && periodCap !== null && perTxCap > periodCap) {
     errors.push('Per-run cap must be less than or equal to the period cap.');
@@ -286,11 +285,10 @@ function plannedRunsForState(
   nowMs: number,
   expiryMs: number,
   schedule: string | null,
-  errors: string[],
 ): number {
   if (!schedule) return 1;
-  if (state.cadence === 'daily') return assertMaxRuns(Math.ceil((expiryMs - nowMs) / 86_400_000), errors);
-  if (state.cadence === 'weekly') return assertMaxRuns(Math.ceil((expiryMs - nowMs) / (7 * 86_400_000)), errors);
+  if (state.cadence === 'daily') return clampPlannedRuns(Math.ceil((expiryMs - nowMs) / 86_400_000));
+  if (state.cadence === 'weekly') return clampPlannedRuns(Math.ceil((expiryMs - nowMs) / (7 * 86_400_000)));
 
   let count = 0;
   let cursor: Date | null = new Date(nowMs);
@@ -300,12 +298,13 @@ function plannedRunsForState(
     count += 1;
     cursor = next;
   }
-  return assertMaxRuns(Math.max(count, 1), errors);
+  return clampPlannedRuns(Math.max(count, 1));
 }
 
-function assertMaxRuns(count: number, errors: string[]): number {
-  if (count > MAX_PLANNED_RUNS) {
-    errors.push(`V1 supports at most ${MAX_PLANNED_RUNS} planned runs. Shorten expiry or lower frequency.`);
-  }
-  return count;
+// DB-scheduled mandates run on their cron until expiry — the worker reruns the
+// single action each tick and does not consume a fixed plan. `plannedRunCount`
+// is only a display estimate now, so cap it instead of blocking creation (this
+// lets high-frequency crons like `* * * * *` be created).
+function clampPlannedRuns(count: number): number {
+  return Math.min(count, MAX_PLANNED_RUNS);
 }
