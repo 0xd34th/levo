@@ -1,4 +1,3 @@
-import type { SuiTransactionBlockResponse } from '@mysten/sui/jsonRpc';
 import {
   ActionStatus,
   ActionTrigger,
@@ -6,7 +5,6 @@ import {
   MandateStatus,
 } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getEventType } from './package';
 
 export interface NewActionInput {
   mandateId: string;
@@ -49,40 +47,12 @@ interface WitnessConsumedJson {
   witness_commit_after: number[] | string;
 }
 
-function isWitnessConsumed(value: unknown): value is WitnessConsumedJson {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.mandate_id === 'string' &&
-    typeof v.action_type === 'number' &&
-    typeof v.amount === 'string' &&
-    typeof v.nonce === 'string'
-  );
-}
-
 function commitToHex(commit: number[] | string): string {
   if (typeof commit === 'string') {
     return commit.startsWith('0x') ? commit : `0x${commit}`;
   }
   const hex = commit.map((b) => b.toString(16).padStart(2, '0')).join('');
   return `0x${hex}`;
-}
-
-/** Extract the WitnessConsumed event for a specific mandate from a tx response. */
-export function extractWitnessConsumed(
-  txResponse: SuiTransactionBlockResponse,
-  mandateObjectId: string,
-  packageId?: string,
-): WitnessConsumedJson | null {
-  const eventType = getEventType('witnessConsumed', packageId);
-  for (const event of txResponse.events ?? []) {
-    if (event.type !== eventType) continue;
-    const json = event.parsedJson;
-    if (!isWitnessConsumed(json)) continue;
-    if (json.mandate_id !== mandateObjectId) continue;
-    return json;
-  }
-  return null;
 }
 
 export async function markActionConfirmed(args: {

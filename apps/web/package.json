@@ -15,11 +15,7 @@
     "pregenerate-wallets": "tsx scripts/pregenerate-wallets.ts",
     "gas-station:status": "tsx scripts/gas-station-maintenance.ts status",
     "gas-station:merge": "tsx scripts/gas-station-maintenance.ts merge",
-    "worker:agent": "tsx workers/agent-scheduler.ts",
-    "agent:e2e": "tsx scripts/agent-e2e.ts",
-    "agent:flow-e2e": "tsx scripts/agent-flow-e2e.ts",
-    "agent:live-dry-run": "tsx scripts/agent-live-dry-run.ts",
-    "agent:runner-dry-run": "tsx scripts/agent-runner-dry-run.ts"
+    "worker:agent": "tsx workers/agent-scheduler.ts"
   },
   "dependencies": {
     "@7kprotocol/sdk-ts": "4.0.0",
