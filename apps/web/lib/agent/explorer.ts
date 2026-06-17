@@ -11,14 +11,9 @@ const SUI_CHAIN_INDEX = '784';
 const USDC_COIN =
   '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
-// BlockVision's /account/defiPortfolio is per-protocol (no aggregate value), so
-// we fan out across the protocols it currently supports and keep the ones with
-// holdings. Verified against the live API; extend as BlockVision adds more.
-const DEFI_PROTOCOLS = [
-  'scallop', 'navi', 'suilend', 'cetus', 'turbos', 'bluefin', 'kriya',
-  'aftermath', 'bucket', 'haedal', 'volo', 'alphafi', 'typus', 'momentum',
-  'flowx', 'steamm', 'kai',
-] as const;
+// BlockVision's /account/defiPortfolio is per-protocol, so keep this fan-out
+// narrow to the selected top Sui DeFi protocols and avoid bursty provider calls.
+const DEFI_PROTOCOLS = ['scallop', 'navi', 'suilend', 'cetus', 'bluefin'] as const;
 
 export interface ExplorerToolContext {
   xUserId: string;

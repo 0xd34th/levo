@@ -258,6 +258,52 @@ describe('buildAgentTools', () => {
     });
   });
 
+  it('fetches DeFi positions only from the selected top Sui protocols', async () => {
+    vi.stubEnv('SUIVISION_API_KEY', 'test-key');
+    const requestedProtocols: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL) => {
+        const requestUrl = new URL(String(url));
+        if (requestUrl.pathname.endsWith('/account/defiPortfolio')) {
+          const protocol = requestUrl.searchParams.get('protocol') ?? '';
+          requestedProtocols.push(protocol);
+          const payloadByProtocol: Record<string, unknown> = {
+            scallop: { lendings: [{ market: 'SUI', suppliedValueUsd: '12.34' }] },
+            cetus: { lps: [{ poolId: '0xpool', valueUsd: '45.67' }] },
+          };
+          return Promise.resolve(
+            Response.json({
+              code: 200,
+              result: {
+                [protocol]: payloadByProtocol[protocol] ?? {},
+              },
+            }),
+          );
+        }
+        return Promise.reject(new Error(`unexpected URL ${requestUrl.pathname}`));
+      }),
+    );
+
+    const tool = buildAgentTools({ xUserId: 'test-user' }).get_defi_positions as unknown as {
+      execute: (input: { addressOrName: string }) => Promise<Record<string, unknown>>;
+    };
+    const output = await tool.execute({
+      addressOrName: '0x0000000000000000000000000000000000000000000000000000000000000123',
+    });
+
+    expect(requestedProtocols).toEqual(['scallop', 'navi', 'suilend', 'cetus', 'bluefin']);
+    expect(requestedProtocols).not.toEqual(expect.arrayContaining(['turbos', 'kriya', 'aftermath']));
+    expect(output).toMatchObject({
+      kind: 'defi-card',
+      source: 'blockvision',
+      positions: [
+        { protocol: 'scallop', categories: 'lendings' },
+        { protocol: 'cetus', categories: 'lps' },
+      ],
+    });
+  });
+
   it('returns a readable trending fallback when the market provider times out', async () => {
     vi.stubEnv('SUIVISION_API_KEY', 'test-key');
     vi.stubEnv('AGENT_TOOL_FETCH_TIMEOUT_MS', '5');
