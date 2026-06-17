@@ -89,7 +89,7 @@ export function RecipientConfirmationModal({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={onConfirm}>Continue to wallet</Button>
+          <Button onClick={onConfirm}>Confirm</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
