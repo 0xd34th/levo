@@ -1,4 +1,4 @@
-import type { PublicKey } from "@mysten/sui/cryptography";
+import type { PublicKey, SignatureScheme } from "@mysten/sui/cryptography";
 import { SIGNATURE_FLAG_TO_SCHEME } from "@mysten/sui/cryptography";
 import { fromBase58, fromBase64, fromHex } from "@mysten/sui/utils";
 import {
@@ -39,17 +39,50 @@ function decodeSuiPublicKeyBytes(
   bytes: Uint8Array<ArrayBufferLike>,
   options?: DecodeSuiPublicKeyOptions,
 ): PublicKey {
+  const errors: string[] = [];
+
   if (isSuiSignatureSchemeFlag(bytes[0])) {
-    return publicKeyFromSuiBytes(bytes, options);
+    try {
+      return publicKeyFromSuiBytes(bytes, options);
+    } catch (error) {
+      errors.push(`Sui bytes: ${errorMessage(error)}`);
+    }
   }
 
-  if (bytes.length === 32) {
-    return publicKeyFromRawBytes("ED25519", bytes, options);
+  for (const scheme of rawPublicKeySchemes(bytes, options)) {
+    try {
+      return publicKeyFromRawBytes(scheme, bytes, options);
+    } catch (error) {
+      errors.push(`raw ${scheme}: ${errorMessage(error)}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(errors.join("; "));
   }
 
   throw new Error(
-    `expected raw Ed25519 bytes or Sui public key bytes, received ${bytes.length} bytes`,
+    `expected Sui public key bytes or address-validated raw public key bytes, received ${bytes.length} bytes`,
   );
+}
+
+function rawPublicKeySchemes(
+  bytes: Uint8Array<ArrayBufferLike>,
+  options?: DecodeSuiPublicKeyOptions,
+): SignatureScheme[] {
+  if (bytes.length === 32) {
+    return ["ED25519"];
+  }
+
+  if (!options?.address) {
+    return [];
+  }
+
+  if (bytes.length === 33) {
+    return ["Secp256k1", "Secp256r1", "Passkey"];
+  }
+
+  return ["ZkLogin", "MultiSig"];
 }
 
 function publicKeyByteCandidates(
@@ -113,6 +146,10 @@ function isSuiSignatureSchemeFlag(
   flag: number | undefined,
 ): flag is keyof typeof SIGNATURE_FLAG_TO_SCHEME {
   return flag !== undefined && flag in SIGNATURE_FLAG_TO_SCHEME;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function asciiString(bytes: Uint8Array<ArrayBufferLike>): string | null {

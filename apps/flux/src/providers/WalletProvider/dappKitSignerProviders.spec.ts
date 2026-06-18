@@ -1,4 +1,5 @@
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { publicKeyFromRawBytes } from "@mysten/sui/verify";
 import { toBase64 } from "@mysten/sui/utils";
 import { describe, expect, it, vi } from "vitest";
 
@@ -88,6 +89,27 @@ describe("buildDappKitSuiSdkProvider", () => {
     expect(signer.toSuiAddress()).toBe(keypair.getPublicKey().toSuiAddress());
   });
 
+  it("decodes raw zkLogin external wallet public keys provided as bytes", async () => {
+    const rawPublicKey = createRawZkLoginPublicIdentifier();
+    const zkLoginPublicKey = publicKeyFromRawBytes("ZkLogin", rawPublicKey);
+    const provider = buildDappKitSuiSdkProvider({
+      dAppKit: createFakeDAppKit({
+        account: {
+          address: zkLoginPublicKey.toSuiAddress(),
+          publicKey: rawPublicKey,
+        },
+      }) as never,
+      getClient: vi.fn() as never,
+    }) as unknown as {
+      getSigner: () => Promise<{ toSuiAddress: () => string }>;
+    };
+
+    const signer = await provider.getSigner();
+
+    expect(rawPublicKey).toHaveLength(62);
+    expect(signer.toSuiAddress()).toBe(zkLoginPublicKey.toSuiAddress());
+  });
+
   it("delegates signTransaction to dapp-kit and returns the wallet result", async () => {
     const signedTransaction = {
       bytes: "signed-transaction-bytes",
@@ -141,4 +163,17 @@ function createFakeDAppKit({
       },
     },
   };
+}
+
+function createRawZkLoginPublicIdentifier(): Uint8Array {
+  const issuer = "https://issuer.example.com/aa";
+  const issuerBytes = new TextEncoder().encode(issuer);
+  const addressSeed = new Uint8Array(32).fill(7);
+  const publicKey = new Uint8Array(1 + issuerBytes.length + addressSeed.length);
+
+  publicKey[0] = issuerBytes.length;
+  publicKey.set(issuerBytes, 1);
+  publicKey.set(addressSeed, 1 + issuerBytes.length);
+
+  return publicKey;
 }
